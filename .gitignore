@@ -1,4 +1,5 @@
 .env
+.chatwoot-bootstrap/
 .venv/
 __pycache__/
 *.py[cod]

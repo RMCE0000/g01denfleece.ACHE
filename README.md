@@ -38,7 +38,9 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Chatwoot is the only page a homesteader opens, on port 3000. Sign up with Chatwoot's own form. Jane answers in that thread: scores, labor hours, aesthetic, local ranking, sponsorship, and identity verification. Stripe Checkout and Stripe Identity stay on Stripe; Jane may paste those links. The sidecar on port 8000 accepts the Chatwoot webhook, the Stripe webhook, and the admin promo route. It does not serve a dashboard or a signup form.
+The homesteader page is Chatwoot's own widget. After bootstrap finishes, `.chatwoot-bootstrap/operator.txt` has the widget URL (`http://localhost:3000/widget?website_token=...`) and Jane's agent login. The pre-chat form asks for a name and email. Jane attaches the property when the person sends a ZIP. Scores, labor hours, aesthetic, local ranking, sponsorship, and identity verification are replies in that thread. Stripe Checkout and Stripe Identity stay on Stripe; Jane may paste those links.
+
+The sidecar on port 8000 accepts the Chatwoot webhook, the Stripe webhook, and the admin promo route. It does not serve a dashboard or a signup form. Auto-resolve is left unset so the thread stays open. Agent account signup is off; the bootstrap user is the operator.
 
 For a memory-backed webhook demo without Docker:
 

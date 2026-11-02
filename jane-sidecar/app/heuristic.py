@@ -14,6 +14,8 @@ from app.epistemic import (
     extract_aesthetic,
     extract_energetic_pct,
     extract_hours,
+    extract_pin,
+    extract_street,
     extract_vote,
     extract_zip,
 )
@@ -81,6 +83,9 @@ def _blank() -> dict:
         "report_scores": False,
         "request_kyc": False,
         "zip_code": None,
+        "property_lat": None,
+        "property_lng": None,
+        "street_address": None,
     }
 
 
@@ -152,10 +157,11 @@ def heuristic_decision(state: dict) -> dict:
 
     if prop is None:
         decision["zip_code"] = extract_zip(text)
-        decision["reply"] = (
-            "I don't have this homestead on the record yet. Send the ZIP code and I'll attach this open thread to a locality. "
-            "I only know what you tell me."
-        )
+        if not decision["zip_code"]:
+            decision["reply"] = (
+                "I don't have this homestead on the record yet. Send the ZIP code and I'll attach this open thread to a locality. "
+                "I only know what you tell me."
+            )
         return decision
 
     hours = extract_hours(text)
@@ -185,6 +191,7 @@ def heuristic_decision(state: dict) -> dict:
         decision["ledger_patch"] = {"active_goals": goals}
     acreage = re.search(r"(\d+(?:\.\d+)?)\s*acres?", text, re.I)
     if acreage:
+        decision.setdefault("ledger_patch", {})
         decision["ledger_patch"]["acreage"] = acreage.group(1)
 
     if invites and hours is None and aesthetic is None and re.search(r"\d", text):
@@ -231,6 +238,14 @@ def heuristic_decision(state: dict) -> dict:
             "I'll ask other homesteads in this locality and bring the answers back after 24 hours. "
             "I won't invent a demand number, and I won't send your street address with the question."
         )
+
+    if not decision["sponsor_active"]:
+        pin = extract_pin(text)
+        if pin is not None:
+            decision["property_lat"], decision["property_lng"] = pin
+        street = extract_street(text)
+        if street:
+            decision["street_address"] = street
 
     tag = detect_service_tag(text)
     if tag and not decision["start_poll"]:

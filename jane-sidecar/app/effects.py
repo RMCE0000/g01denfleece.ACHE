@@ -5,7 +5,6 @@ from datetime import datetime, timedelta, timezone
 from app.config import get_settings
 from app.delivery import deliver
 from app.errors import G01Error
-from app.heuristic import status_reply
 from app.epistemic import (
     affirmed_contained,
     affirmed_energy_profit,
@@ -14,10 +13,12 @@ from app.epistemic import (
     extract_aesthetic,
     extract_energetic_pct,
     extract_hours,
+    extract_zip,
     gate_ledger_patch,
 )
+from app.heuristic import heuristic_decision, status_reply
 from app.sanitize import sanitize_reply
-from app.sourcing import format_ladder
+from app.sourcing import format_ladder, haversine_miles
 from app.sponsor_chat import file_sponsor_application, missing_fields, next_prompt
 from app.stripe_service import create_identity_session
 
@@ -93,7 +94,7 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
     notes: list[str] = []
 
     if prop is None:
-        zip_code = decision.get("zip_code")
+        zip_code = decision.get("zip_code") or extract_zip(user_text)
         contact_id = message.get("contact_id")
         found = await store.locality_for_zip(zip_code) if zip_code else None
         if found and contact_id and message.get("conversation_id"):
@@ -114,8 +115,23 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
                 f"This thread is now the open homestead conversation for {found['name']} "
                 f"(ZIP {zip_code}). The map pin is the locality center until you give me a precise latitude and longitude."
             )
+            decision = _enforce_user_words(
+                heuristic_decision(
+                    {
+                        "message": message,
+                        "property": prop,
+                        "locality": locality,
+                        "invites": [],
+                        "matches": [],
+                    }
+                ),
+                user_text,
+            )
         else:
-            reply = decision.get("reply") or "Tell me your ZIP code so I can attach this thread to a locality."
+            if zip_code and contact_id:
+                reply = f"ZIP {zip_code} is outside every locality on the record. I did not attach this thread."
+            else:
+                reply = decision.get("reply") or "Tell me your ZIP code so I can attach this thread to a locality."
             final = sanitize_reply(reply, allow_walmart_name=False)
             await deliver(store, message.get("conversation_id"), final)
             return final
@@ -135,6 +151,23 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
     for source, column in mapping.items():
         if decision.get(source) is not None:
             profile[column] = decision[source]
+    if decision.get("street_address"):
+        profile["street_address"] = decision["street_address"]
+        notes.append("I stored the street address on the property. I will not repeat it to neighbors.")
+    if decision.get("property_lat") is not None and decision.get("property_lng") is not None and locality:
+        miles = haversine_miles(
+            float(locality["center_lat"]),
+            float(locality["center_lng"]),
+            float(decision["property_lat"]),
+            float(decision["property_lng"]),
+        )
+        radius = float(locality.get("max_radius_miles") or 25)
+        if miles <= radius:
+            profile["lat"] = float(decision["property_lat"])
+            profile["lng"] = float(decision["property_lng"])
+            notes.append(f"The map pin is now {profile['lat']:.5f}, {profile['lng']:.5f}.")
+        else:
+            notes.append("That pin sits outside this locality, so I left the map pin where it was.")
     if profile:
         prop = await store.apply_profile_patch(prop["id"], profile)
     ledger = gate_ledger_patch(prop.get("known_facts_ledger") or {}, decision.get("ledger_patch") or {}, user_text)

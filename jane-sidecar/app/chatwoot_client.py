@@ -10,6 +10,20 @@ from app.errors import G01Error
 log = logging.getLogger(__name__)
 
 
+def _webhook_urls(payload) -> set[str]:
+    found: set[str] = set()
+    if isinstance(payload, dict):
+        url = payload.get("url")
+        if isinstance(url, str):
+            found.add(url)
+        for value in payload.values():
+            found.update(_webhook_urls(value))
+    elif isinstance(payload, list):
+        for item in payload:
+            found.update(_webhook_urls(item))
+    return found
+
+
 class ChatwootClient:
     def __init__(self, settings=None):
         self.settings = settings or get_settings()
@@ -112,11 +126,10 @@ class ChatwootClient:
         if self.settings.chatwoot_webhook_secret:
             target += "?token=" + self.settings.chatwoot_webhook_secret
         existing = await self._request("GET", f"/api/v1/accounts/{self._account()}/webhooks")
-        rows = existing.get("payload", existing) if isinstance(existing, dict) else existing
-        if isinstance(rows, list) and any(target in str(row.get("url", "")) for row in rows if isinstance(row, dict)):
+        if target in _webhook_urls(existing):
             return
         await self._request(
             "POST",
             f"/api/v1/accounts/{self._account()}/webhooks",
-            {"url": target, "subscriptions": ["message_created"]},
+            {"webhook": {"url": target, "name": "g01 Jane", "subscriptions": ["message_created"]}},
         )

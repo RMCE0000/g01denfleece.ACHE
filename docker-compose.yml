@@ -5,17 +5,26 @@ x-chatwoot-env: &chatwoot-env
   RAILS_ENV: production
   NODE_ENV: production
   INSTALLATION_ENV: docker
-  SECRET_KEY_BASE: ${SECRET_KEY_BASE:-dev-only-change-me}
+  # Alphanumeric. Chatwoot rejects a short or symbolic key.
+  SECRET_KEY_BASE: ${SECRET_KEY_BASE:-G01devSecretKeyBase0123456789abcdefghijklmnopqrstuvwxyzABCDEF}
   FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
   DEFAULT_LOCALE: en
+  FORCE_SSL: "false"
   POSTGRES_HOST: postgres
   POSTGRES_PORT: "5432"
   POSTGRES_DATABASE: ${POSTGRES_DB:-chatwoot}
   POSTGRES_USERNAME: ${POSTGRES_USER:-g01}
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-g01}
   REDIS_URL: redis://redis:6379
+  REDIS_PASSWORD: ""
   RAILS_LOG_TO_STDOUT: "true"
-  ENABLE_ACCOUNT_SIGNUP: "true"
+  ENABLE_ACCOUNT_SIGNUP: "false"
+  MAILER_SENDER_EMAIL: "${MAILER_SENDER_EMAIL:-Jane <jane@localhost>}"
+  SMTP_ADDRESS: ${SMTP_ADDRESS:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  ACTIVE_STORAGE_SERVICE: local
+  # Jane is a private Docker hostname. Chatwoot otherwise refuses the webhook.
+  SAFE_FETCH_ALLOW_PRIVATE_NETWORK: "true"
 
 x-jane-env: &jane-env
   G01_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-g01}:${POSTGRES_PASSWORD:-g01}@postgres:5432/${POSTGRES_DB:-chatwoot}
@@ -24,7 +33,8 @@ x-jane-env: &jane-env
   G01_BOOT_ON_STARTUP: "1"
   G01_SEED_DEMO: "0"
   G01_SCHEMA_PATH: /sql/001_init_g01_schema.sql
-  G01_PUBLIC_BASE_URL: ${G01_PUBLIC_BASE_URL:-http://localhost:8000}
+  # Reachable from Chatwoot Sidekiq, not from a browser.
+  G01_PUBLIC_BASE_URL: ${G01_PUBLIC_BASE_URL:-http://jane:8000}
   G01_ADMIN_TOKEN: ${G01_ADMIN_TOKEN:-}
   G01_GEMINI_API_KEY: ${G01_GEMINI_API_KEY:-}
   G01_GEMINI_CHAT_MODEL: gemini-2.5-flash
@@ -80,16 +90,20 @@ services:
     environment:
       <<: *chatwoot-env
     entrypoint: docker/entrypoints/rails.sh
-    command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
+    command: ["sh", "-lc", "bundle exec rails db:chatwoot_prepare && exec bundle exec rails s -p 3000 -b 0.0.0.0"]
     volumes:
       - chatwoot_storage:/app/storage
+    healthcheck:
+      test: ["CMD-SHELL", "ruby -e \"require 'net/http'; code = Net::HTTP.get_response(URI('http://127.0.0.1:3000/api')).code.to_i; exit(code < 500 ? 0 : 1)\""]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 180s
 
   sidekiq:
     image: chatwoot/chatwoot:latest
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
+      rails:
         condition: service_healthy
     environment:
       <<: *chatwoot-env
@@ -98,6 +112,21 @@ services:
     volumes:
       - chatwoot_storage:/app/storage
 
+  bootstrap:
+    image: chatwoot/chatwoot:latest
+    depends_on:
+      rails:
+        condition: service_healthy
+    environment:
+      <<: *chatwoot-env
+      JANE_WEBHOOK_URL: http://jane:8000/webhooks/chatwoot
+    entrypoint: docker/entrypoints/rails.sh
+    command: ["bundle", "exec", "rails", "runner", "/bootstrap/bootstrap_chatwoot.rb"]
+    volumes:
+      - ./ops/bootstrap_chatwoot.rb:/bootstrap/bootstrap_chatwoot.rb:ro
+      - ./.chatwoot-bootstrap:/bootstrap/out
+    restart: "no"
+
   jane:
     build: ./jane-sidecar
     depends_on:
@@ -105,12 +134,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
     ports:
       - "8000:8000"
     environment:
       <<: *jane-env
     volumes:
       - ./sql/001_init_g01_schema.sql:/sql/001_init_g01_schema.sql:ro
+      - ./.chatwoot-bootstrap:/bootstrap:ro
 
   jane-worker:
     build: ./jane-sidecar
@@ -120,14 +152,17 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
     environment:
       <<: *jane-env
     volumes:
       - ./sql/001_init_g01_schema.sql:/sql/001_init_g01_schema.sql:ro
+      - ./.chatwoot-bootstrap:/bootstrap:ro
 
   jane-beat:
     build: ./jane-sidecar
-    command: ["celery", "-A", "app.worker:celery_app", "beat", "--loglevel=info"]
+    command: ["celery", "-A", "app.worker:celery_app", "beat", "--loglevel=info", "--schedule", "/tmp/celerybeat-schedule"]
     depends_on:
       redis:
         condition: service_healthy

@@ -279,6 +279,57 @@ def test_sponsor_registry_is_a_conversation(client, store):
     assert "ui/hud" not in rogers.json()["reply"]
 
 
+def test_zip_attaches_the_thread_and_hides_the_street(client, store):
+    opened = client.post(
+        "/webhooks/chatwoot",
+        json=_message(
+            "ZIP 70601. We spend 10 hours a week. My address is 12 Prien Lake Road.",
+            80,
+            sender_id=880,
+            conversation_id=880,
+            contact_id=880,
+        ),
+    )
+    assert opened.status_code == 200
+    reply = opened.json()["reply"]
+    assert "Lake Charles" in reply
+    assert "Automated 75.00" in reply
+    assert "Prien" not in reply
+    prop = next(row for row in store.properties if row["chatwoot_contact_id"] == 880)
+    assert prop["zip_code"] == "70601"
+    assert prop["street_address"] == "12 Prien Lake Road"
+    assert prop["northstar_automated_pct"] == 75
+
+    outside = client.post(
+        "/webhooks/chatwoot",
+        json=_message("ZIP 10001", 81, sender_id=881, conversation_id=881, contact_id=881),
+    )
+    assert "outside" in outside.json()["reply"]
+    assert all(row["chatwoot_contact_id"] != 881 for row in store.properties)
+
+    pinned = client.post(
+        "/webhooks/chatwoot",
+        json=_message("The latitude is 30.2400 and the longitude is -93.2200. I have 4 acres.", 82),
+    )
+    assert "30.24000" in pinned.json()["reply"]
+    assert store.properties[0]["lat"] == 30.24
+    assert store.properties[0]["known_facts_ledger"]["acreage"] == "4"
+    far = client.post(
+        "/webhooks/chatwoot",
+        json=_message("The latitude is 0 and the longitude is 0.", 83),
+    )
+    assert "outside this locality" in far.json()["reply"]
+    assert store.properties[0]["lat"] == 30.24
+
+    market = client.post(
+        "/webhooks/chatwoot",
+        json=_message("Is there a market for eggs around here? My address is 12 Prien Lake Road.", 84),
+    )
+    assert market.status_code == 200
+    assert "Prien" not in market.json()["reply"]
+    assert all("Prien" not in row["content"] for row in store.outbox)
+
+
 def test_promo_admin_and_signup_gate(store, monkeypatch):
     from fastapi.testclient import TestClient
 

@@ -36,6 +36,10 @@ _ENERGETIC_PCT = re.compile(
     re.I,
 )
 _ZIP = re.compile(r"\b(\d{5})(?:-\d{4})?\b")
+_PIN_LAT = re.compile(r"lat(?:itude)?\s*(?:is|:)?\s*(-?\d+(?:\.\d+)?)", re.I)
+_PIN_LNG = re.compile(r"(?:lng|lon(?:gitude)?)\s*(?:is|:)?\s*(-?\d+(?:\.\d+)?)", re.I)
+_STREET = re.compile(r"(?:street address|my address|address)\s*(?:is|:|-)?\s*([^\n]{4,180})", re.I)
+_SPONSOR_FORM = re.compile(r"company\s*:", re.I)
 _VOTE_UNITS = re.compile(r"(\d+(?:\.\d+)?)")
 _PRICE = re.compile(r"\$\s*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:dollars|usd)", re.I)
 
@@ -114,6 +118,33 @@ def extract_energetic_pct(user_text: str) -> float | None:
 def extract_zip(user_text: str) -> str | None:
     match = _ZIP.search(user_text or "")
     return match.group(1) if match else None
+
+
+def extract_pin(user_text: str) -> tuple[float, float] | None:
+    """Homestead coordinates. A labeled sponsor application keeps its own lat and lng."""
+    text = user_text or ""
+    if _SPONSOR_FORM.search(text):
+        return None
+    lat_match = _PIN_LAT.search(text)
+    lng_match = _PIN_LNG.search(text)
+    if not lat_match or not lng_match:
+        return None
+    lat = float(lat_match.group(1))
+    lng = float(lng_match.group(1))
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        return None
+    return lat, lng
+
+
+def extract_street(user_text: str) -> str | None:
+    text = user_text or ""
+    if _SPONSOR_FORM.search(text):
+        return None
+    match = _STREET.search(text)
+    if not match:
+        return None
+    street = match.group(1).strip().rstrip(".")
+    return street or None
 
 
 def extract_vote(user_text: str) -> tuple[float, float]:

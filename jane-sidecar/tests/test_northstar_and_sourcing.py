@@ -183,6 +183,8 @@ def test_constitution_and_sql_keep_the_rules():
         "0.45 + 0.25 * dist_score + 0.20 * rotation_score + 0.10 * rating_score",
         "3958.7613",
         "Walmart may only appear in Rogers, Arkansas",
+        "Calcasieu Glass & Lamp",
+        "Chenier Logistics",
         "vector(768)",
     ):
         assert phrase in SQL
