@@ -1,0 +1,136 @@
+# Upstream Chatwoot owns chat, auth, and ActionCable.
+# Jane is a separate Python service. They share Postgres.
+
+x-chatwoot-env: &chatwoot-env
+  RAILS_ENV: production
+  NODE_ENV: production
+  INSTALLATION_ENV: docker
+  SECRET_KEY_BASE: ${SECRET_KEY_BASE:-dev-only-change-me}
+  FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+  DEFAULT_LOCALE: en
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DATABASE: ${POSTGRES_DB:-chatwoot}
+  POSTGRES_USERNAME: ${POSTGRES_USER:-g01}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-g01}
+  REDIS_URL: redis://redis:6379
+  RAILS_LOG_TO_STDOUT: "true"
+  ENABLE_ACCOUNT_SIGNUP: "true"
+
+x-jane-env: &jane-env
+  G01_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-g01}:${POSTGRES_PASSWORD:-g01}@postgres:5432/${POSTGRES_DB:-chatwoot}
+  G01_REDIS_URL: redis://redis:6379/1
+  G01_ALLOW_MEMORY_STORE: "0"
+  G01_BOOT_ON_STARTUP: "1"
+  G01_SEED_DEMO: "0"
+  G01_SCHEMA_PATH: /sql/001_init_g01_schema.sql
+  G01_PUBLIC_BASE_URL: ${G01_PUBLIC_BASE_URL:-http://localhost:8000}
+  G01_ADMIN_TOKEN: ${G01_ADMIN_TOKEN:-}
+  G01_GEMINI_API_KEY: ${G01_GEMINI_API_KEY:-}
+  G01_GEMINI_CHAT_MODEL: gemini-2.5-flash
+  G01_GEMINI_DELIBERATION_MODEL: gemini-2.5-pro
+  G01_GEMINI_EMBEDDING_MODEL: text-embedding-004
+  G01_CHATWOOT_BASE_URL: http://rails:3000
+  G01_CHATWOOT_ACCOUNT_ID: ${CHATWOOT_ACCOUNT_ID:-1}
+  G01_CHATWOOT_API_TOKEN: ${G01_CHATWOOT_API_TOKEN:-}
+  G01_CHATWOOT_PLATFORM_TOKEN: ${G01_CHATWOOT_PLATFORM_TOKEN:-}
+  G01_CHATWOOT_INBOX_ID: ${CHATWOOT_INBOX_ID:-1}
+  G01_CHATWOOT_WEBHOOK_SECRET: ${G01_CHATWOOT_WEBHOOK_SECRET:-}
+  G01_JANE_USER_ID: ${G01_JANE_USER_ID:-1}
+  G01_STRIPE_SECRET_KEY: ${G01_STRIPE_SECRET_KEY:-}
+  G01_STRIPE_WEBHOOK_SECRET: ${G01_STRIPE_WEBHOOK_SECRET:-}
+  G01_STRIPE_SPONSOR_PRICE_ID: ${G01_STRIPE_SPONSOR_PRICE_ID:-}
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-g01}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-g01}
+      POSTGRES_DB: ${POSTGRES_DB:-chatwoot}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql/001_init_g01_schema.sql:/docker-entrypoint-initdb.d/001_init_g01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-g01} -d ${POSTGRES_DB:-chatwoot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rails:
+    image: chatwoot/chatwoot:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      <<: *chatwoot-env
+    entrypoint: docker/entrypoints/rails.sh
+    command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
+    volumes:
+      - chatwoot_storage:/app/storage
+
+  sidekiq:
+    image: chatwoot/chatwoot:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *chatwoot-env
+    entrypoint: docker/entrypoints/rails.sh
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+    volumes:
+      - chatwoot_storage:/app/storage
+
+  jane:
+    build: ./jane-sidecar
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      <<: *jane-env
+    volumes:
+      - ./sql/001_init_g01_schema.sql:/sql/001_init_g01_schema.sql:ro
+
+  jane-worker:
+    build: ./jane-sidecar
+    command: ["celery", "-A", "app.worker:celery_app", "worker", "--loglevel=info"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *jane-env
+    volumes:
+      - ./sql/001_init_g01_schema.sql:/sql/001_init_g01_schema.sql:ro
+
+  jane-beat:
+    build: ./jane-sidecar
+    command: ["celery", "-A", "app.worker:celery_app", "beat", "--loglevel=info"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *jane-env
+
+volumes:
+  pgdata:
+  chatwoot_storage:

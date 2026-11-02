@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Open a g01 thread</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,640&family=Newsreader:opsz,wght@6..72,400&display=swap">
+  <style>
+    body { margin: 0; background: #efe4cf; color: #241c14; font-family: Newsreader, Georgia, serif; }
+    main { max-width: 36rem; margin: 0 auto; padding: 1.5rem 1.1rem 3rem; }
+    h1 { font-family: Fraunces, Georgia, serif; font-weight: 640; }
+    label { display: block; margin-top: 0.7rem; }
+    input { width: 100%; margin-top: 0.25rem; padding: 0.45rem; border: 1px solid #d9c7a6; border-radius: 8px; font: inherit; }
+    button { margin-top: 1rem; background: #234237; color: #f6f1e6; border: 0; border-radius: 999px; padding: 0.5rem 0.95rem; font: inherit; }
+    #status { color: #8a5e22; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Open the thread with Jane</h1>
+    <p>This creates a Chatwoot user, a contact, and one conversation that stays open. Jane is a peer in it. Lake Charles and Rogers are the localities on a fresh database.</p>
+    <form id="signup">
+      <label>Name <input name="name" required></label>
+      <label>Email <input name="email" type="email" required></label>
+      <label>Password <input name="password" type="password" minlength="8" required></label>
+      <label>ZIP <input name="zip_code" required placeholder="70601"></label>
+      <label>Street, if you want it on the record <input name="street_address"></label>
+      <button type="submit">Create the thread</button>
+    </form>
+    <p id="status" role="status"></p>
+  </main>
+  <script>
+    document.getElementById("signup").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+      const response = await fetch("/api/signup", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(data)
+      });
+      const body = await response.json();
+      const status = document.getElementById("status");
+      if (!response.ok) {
+        status.textContent = body.detail || "Signup did not finish.";
+        return;
+      }
+      status.textContent = `Thread ${body.conversation_id} is open. Automated is ${Number(body.northstar.automated).toFixed(2)}.`;
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>g01 North Star</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,680&family=Newsreader:opsz,wght@6..72,400;6..72,600&display=swap">
+  <style>
+    :root {
+      --paper: #efe4cf;
+      --card: #f7f0e2;
+      --ink: #241c14;
+      --muted: #5e5144;
+      --brass: #8a5e22;
+      --pine: #234237;
+      --clay: #8d3b2c;
+      --line: #d9c7a6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 12% 8%, rgba(138, 94, 34, 0.14), transparent 28%),
+        var(--paper);
+      color: var(--ink);
+      font-family: "Newsreader", Georgia, serif;
+      font-size: 17px;
+      line-height: 1.45;
+    }
+    main { max-width: 42rem; margin: 0 auto; padding: 1.4rem 1.1rem 3rem; }
+    header { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; }
+    .mark { font-family: Fraunces, Georgia, serif; font-weight: 680; letter-spacing: 0.01em; font-size: 1.7rem; }
+    .mark span { color: var(--brass); }
+    .place { color: var(--muted); font-size: 0.95rem; }
+    h2 { font-family: Fraunces, Georgia, serif; font-size: 1.15rem; margin: 0; }
+    .type { margin: 0.15rem 0 0.4rem; color: var(--muted); font-size: 0.86rem; }
+    ol { list-style: none; padding: 0; margin: 1rem 0; display: grid; gap: 0.75rem; }
+    li, form, .ladder {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 0.85rem 0.95rem;
+    }
+    output { font-family: Fraunces, Georgia, serif; font-size: 1.55rem; display: block; }
+    .bar { height: 8px; background: #e4d5ba; border-radius: 99px; margin-top: 0.45rem; overflow: hidden; }
+    .bar > i { display: block; height: 100%; background: var(--pine); }
+    .false { color: var(--clay); }
+    .true { color: var(--pine); }
+    label { display: block; margin-top: 0.55rem; color: var(--muted); }
+    input, select, textarea, button {
+      font: inherit;
+      color: var(--ink);
+      width: 100%;
+      margin-top: 0.25rem;
+    }
+    input[type="range"] { accent-color: var(--brass); }
+    input[type="number"], input[type="text"], select, textarea {
+      background: #fffaf1;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.45rem 0.55rem;
+    }
+    button {
+      width: auto;
+      background: var(--pine);
+      color: #f6f1e6;
+      border: 0;
+      border-radius: 999px;
+      padding: 0.45rem 0.9rem;
+      cursor: pointer;
+    }
+    button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--brass); }
+    .row { display: flex; gap: 0.6rem; align-items: end; }
+    .status { min-height: 1.4rem; color: var(--brass); }
+    .ladder ol { margin: 0.4rem 0 0; }
+    .ladder li { padding: 0.45rem 0; background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
+    a { color: var(--brass); }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="mark">g01<span>denfleece</span></div>
+      <div class="place" id="place">North Star</div>
+    </header>
+    <p>Five scores, kept as five. Aesthetic is yours. Automated is computed from hours. The other three change only when you say the fact out loud to Jane.</p>
+    <p class="status" id="status" role="status"></p>
+    <ol id="stars"></ol>
+
+    <form id="hours-form">
+      <h2>Labor hours</h2>
+      <p class="type">You plus outside aid, each week. Automated is the reduction from a 40-hour full-manual week.</p>
+      <div class="row">
+        <label>Hours
+          <input id="hours" name="hours" type="number" min="0" max="168" step="0.25" required>
+        </label>
+        <button type="submit">Save hours</button>
+      </div>
+    </form>
+
+    <form id="ladder-form">
+      <h2>Local registry preview</h2>
+      <p class="type">Tier 1 is always making it yourself. This list does not count as a recommendation, so it does not burn the 14-day rotation.</p>
+      <div class="row">
+        <label>Service
+          <select id="service-tag">
+            <option value="grow_lights">grow lights</option>
+            <option value="lumber">lumber</option>
+            <option value="general_goods">general goods</option>
+            <option value="logistics">logistics</option>
+            <option value="rain_catch">rain catchment</option>
+            <option value="pressure_washing">pressure washing</option>
+          </select>
+        </label>
+        <button class="secondary" type="submit">Rank</button>
+      </div>
+      <div class="ladder" id="ladder" hidden></div>
+    </form>
+
+    <form id="sponsor-form">
+      <h2>Sponsorship questionnaire</h2>
+      <p class="type">Tier 1 is the homestead, not a listing. Payment goes through Stripe. The listing stays inactive until Stripe says it is paid.</p>
+      <label>Company <input name="company_name" required></label>
+      <label>Founding city <input name="founding_city" required></label>
+      <label>Founding state <input name="founding_state" maxlength="10" required></label>
+      <label>Tier
+        <select name="sourcing_tier">
+          <option value="local_manufacturer">Tier 2 local manufacturer (0.85)</option>
+          <option value="local_service_or_stock">Tier 3 local stock or service (0.70)</option>
+          <option value="local_logistics_proxy">Tier 4 local logistics (0.50)</option>
+        </select>
+      </label>
+      <label>Service tags <input name="service_tags" placeholder="grow_lights" required></label>
+      <label>What you actually do <textarea name="capabilities_summary" required minlength="8"></textarea></label>
+      <label>Latitude <input name="lat" type="number" step="any" required></label>
+      <label>Longitude <input name="lng" type="number" step="any" required></label>
+      <label>Promo code <input name="promo_code"></label>
+      <label><input name="is_franchise_or_chain" type="checkbox" style="width:auto"> This is a franchise or chain</label>
+      <button type="submit">Continue to Stripe</button>
+    </form>
+
+    <p><button id="kyc" class="secondary" type="button">Start identity verification</button></p>
+    <p><a href="/ui/signup">Open a homestead thread</a></p>
+  </main>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const demo = params.get("demo") === "1";
+    const contactId = params.get("contact_id") || (demo ? "101" : "");
+    const conversationId = params.get("conversation_id") || (demo ? "501" : "");
+    const statusEl = document.getElementById("status");
+    let propertyId = null;
+    let star = null;
+
+    function say(text) { statusEl.textContent = text; }
+
+    function render() {
+      const rows = [
+        ["Automated", "FLOAT 0.0–100.0 · objective", star.automated, true],
+        ["Aesthetic", "FLOAT 0.0–100.0 · your rating", star.aesthetic, true],
+        ["Material", "BOOLEAN", star.material ? "true" : "false", false],
+        ["Energetic", "FLOAT + BOOLEAN energetic_profitable", `${Number(star.energetic).toFixed(2)} · profitable ${star.energetic_profitable}`, false],
+        ["Contained", "BOOLEAN", star.contained ? "true" : "false", false]
+      ];
+      document.getElementById("stars").innerHTML = rows.map(([name, type, value, bar]) => {
+        const width = bar ? Math.max(0, Math.min(100, Number(value))) : 0;
+        const shown = bar ? Number(value).toFixed(2) : value;
+        const flag = String(value).includes("false") ? "false" : "true";
+        return `<li>
+          <h2>${name}</h2>
+          <p class="type">${type}</p>
+          <output class="${bar ? "" : flag}">${shown}</output>
+          ${bar ? `<div class="bar"><i style="width:${width}%"></i></div>` : ""}
+          ${name === "Aesthetic" ? `<label>Your rating
+            <input id="aesthetic" type="range" min="0" max="100" step="0.5" value="${star.aesthetic}">
+          </label>` : ""}
+        </li>`;
+      }).join("");
+      const slider = document.getElementById("aesthetic");
+      slider.addEventListener("change", saveAesthetic);
+    }
+
+    async function load() {
+      if (!contactId || !conversationId) {
+        say("Open this page from the Chatwoot dashboard app so it knows the conversation.");
+        return;
+      }
+      const response = await fetch(`/api/hud/context?contact_id=${contactId}&conversation_id=${conversationId}`);
+      if (!response.ok) {
+        say("No homestead is attached to this conversation yet.");
+        return;
+      }
+      const body = await response.json();
+      propertyId = body.property_id;
+      star = body.northstar;
+      document.getElementById("place").textContent = body.locality ? body.locality.name : "North Star";
+      document.getElementById("hours").value = body.supporting.outside_aid_hours_per_week;
+      document.querySelector("[name=lat]").value = body.locality.center_lat;
+      document.querySelector("[name=lng]").value = body.locality.center_lng;
+      document.querySelector("[name=founding_city]").value = body.locality.primary_city;
+      document.querySelector("[name=founding_state]").value = body.locality.state_code;
+      render();
+      say(body.kyc_verified ? "Identity verification is on the record." : "Identity verification is not done.");
+    }
+
+    async function saveAesthetic() {
+      const aesthetic = Number(document.getElementById("aesthetic").value);
+      const response = await fetch(`/api/properties/${propertyId}/aesthetic`, {
+        method: "PATCH",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({aesthetic, contact_id: Number(contactId), conversation_id: Number(conversationId)})
+      });
+      const body = await response.json();
+      if (!response.ok) { say(body.detail || "Could not save the rating."); return; }
+      star = body.northstar;
+      render();
+      say(`Aesthetic saved at ${Number(star.aesthetic).toFixed(2)}.`);
+    }
+
+    document.getElementById("hours-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const hours = Number(document.getElementById("hours").value);
+      const response = await fetch(`/api/properties/${propertyId}/labor-hours`, {
+        method: "PATCH",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({outside_aid_hours_per_week: hours, contact_id: Number(contactId), conversation_id: Number(conversationId)})
+      });
+      const body = await response.json();
+      if (!response.ok) { say(body.detail || "Could not save hours."); return; }
+      star = body.northstar;
+      render();
+      say(`Automated is now ${Number(star.automated).toFixed(2)} from ${hours} hours.`);
+    });
+
+    document.getElementById("ladder-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const tag = document.getElementById("service-tag").value;
+      const response = await fetch(`/api/properties/${propertyId}/sponsors?service_tag=${tag}&contact_id=${contactId}&conversation_id=${conversationId}`);
+      const body = await response.json();
+      if (!response.ok) { say(body.detail || "No ranking."); return; }
+      const items = [`<li>Tier 1 · homestead fabrication · weight 1.00</li>`].concat(
+        body.sponsors.map((row) => `<li>${row.company_name} · ${row.sourcing_tier} · weight ${Number(row.tier_weight).toFixed(2)} · score ${Number(row.score).toFixed(4)}</li>`)
+      );
+      const box = document.getElementById("ladder");
+      box.hidden = false;
+      box.innerHTML = `<ol>${items.join("")}</ol>`;
+    });
+
+    document.getElementById("sponsor-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const data = Object.fromEntries(new FormData(form).entries());
+      data.property_id = propertyId;
+      data.contact_id = Number(contactId);
+      data.conversation_id = Number(conversationId);
+      data.is_franchise_or_chain = form.is_franchise_or_chain.checked;
+      data.service_tags = String(data.service_tags).split(",").map((item) => item.trim()).filter(Boolean);
+      data.lat = Number(data.lat);
+      data.lng = Number(data.lng);
+      if (!data.promo_code) delete data.promo_code;
+      const response = await fetch("/api/sponsors", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(data)
+      });
+      const body = await response.json();
+      if (!response.ok) { say(body.detail || "Sponsor registration did not start."); return; }
+      say("Stripe checkout is ready.");
+      if (body.checkout_url) location.href = body.checkout_url;
+    });
+
+    document.getElementById("kyc").addEventListener("click", async () => {
+      const response = await fetch(`/api/properties/${propertyId}/kyc/session?contact_id=${contactId}&conversation_id=${conversationId}`, {method: "POST"});
+      const body = await response.json();
+      if (!response.ok) { say(body.detail || "Identity verification is not configured."); return; }
+      if (body.url) location.href = body.url;
+    });
+
+    window.addEventListener("message", (event) => {
+      let data = event.data;
+      if (typeof data === "string") {
+        try { data = JSON.parse(data); } catch { return; }
+      }
+      if (!data || data.event !== "appContext") return;
+      const ctx = data.data || {};
+      const contact = ctx.contact || {};
+      const conversation = ctx.conversation || {};
+      if (contact.id && conversation.id) {
+        const next = new URL(location.href);
+        next.searchParams.set("contact_id", contact.id);
+        next.searchParams.set("conversation_id", conversation.id);
+        location.href = next.toString();
+      }
+    });
+    if (window.parent !== window) {
+      window.parent.postMessage("chatwoot-dashboard-app:fetch-info", "*");
+    }
+    load();
+  </script>
+</body>
+</html>
