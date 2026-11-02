@@ -5,6 +5,10 @@ import re
 from app.constitution import BANNED_URL_HOSTS
 
 _URL = re.compile(r"https?://[^\s)>\]]+", re.I)
+_REFUSAL = re.compile(
+    r"\b(does not list|did not file|may only appear|are excluded|is excluded|will not (list|recommend|name|link))\b",
+    re.I,
+)
 
 
 def _host_banned(url: str) -> bool:
@@ -13,13 +17,18 @@ def _host_banned(url: str) -> bool:
 
 
 def _line_is_banned(line: str, allow_walmart_name: bool) -> bool:
-    if any(_host_banned(match.group(0)) for match in _URL.finditer(line)):
+    urls = list(_URL.finditer(line))
+    if any(_host_banned(match.group(0)) for match in urls):
         return True
-    if re.search(r"\b(amazon|home\s*depot|lowe'?s)\b", line, re.I):
-        return True
-    if re.search(r"\bwal-?mart\b", line, re.I) and not allow_walmart_name:
-        return True
-    return False
+    names_retailer = bool(re.search(r"\b(amazon|home\s*depot|lowe'?s)\b", line, re.I))
+    names_walmart = bool(re.search(r"\bwal-?mart\b", line, re.I)) and not allow_walmart_name
+    if not names_retailer and not names_walmart:
+        return False
+    # A refusal may name the banned store so the homesteader hears why it was not filed.
+    # A checkout link on that same line is still dropped above.
+    if _REFUSAL.search(line):
+        return False
+    return True
 
 
 def sanitize_reply(text: str, *, allow_walmart_name: bool = False) -> str:

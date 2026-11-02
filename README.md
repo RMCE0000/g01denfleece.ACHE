@@ -26,7 +26,7 @@ Ties break toward fewer referrals in the last 14 days, then sponsor id.
 ## Layout
 
 - `chatwoot-fork/` — notes and optional proxy controllers. Compose runs upstream Chatwoot, not a rewritten Rails app.
-- `jane-sidecar/` — FastAPI, LangGraph, Stripe, and the HUD.
+- `jane-sidecar/` — FastAPI, LangGraph, and Stripe. It has no homesteader page.
 - `sql/001_init_g01_schema.sql` — g01 tables, pgvector, and the ranking functions. Apply after Chatwoot prepares the database. The sidecar also applies this file on boot.
 
 Live chat turns use `gemini-2.5-flash`. Poll synthesis and matchmaking use `gemini-2.5-pro`. Embeddings use `text-embedding-004` (768 dimensions) with `AsyncPostgresSaver` when `G01_DATABASE_URL` is set. Without a Gemini key, Jane still posts from the ledger and the registry; she does not invent scores.
@@ -38,7 +38,9 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Chatwoot is on port 3000. The HUD is on port 8000 at `/ui/hud`. For a memory-backed demo without Docker:
+Chatwoot is the only page a homesteader opens, on port 3000. Sign up with Chatwoot's own form. Jane answers in that thread: scores, labor hours, aesthetic, local ranking, sponsorship, and identity verification. Stripe Checkout and Stripe Identity stay on Stripe; Jane may paste those links. The sidecar on port 8000 accepts the Chatwoot webhook, the Stripe webhook, and the admin promo route. It does not serve a dashboard or a signup form.
+
+For a memory-backed webhook demo without Docker:
 
 ```bash
 python -m venv .venv
@@ -46,9 +48,9 @@ python -m venv .venv
 cd jane-sidecar && ../.venv/bin/uvicorn app.main:app --port 8000
 ```
 
-Open `http://localhost:8000/ui/hud?demo=1`. That record is Lake Charles, contact 101, conversation 501.
+The seeded Lake Charles thread is conversation 501, contact 101. Rogers is conversation 502. Ask in the webhook payload the way a Chatwoot `message_created` event would: "What are my scores?", "Where can I get a grow light?", or the sponsor answers.
 
-Turn off the Chatwoot inbox auto-resolve timer. Jane's user id defaults to 1. Point a Dashboard App at `http://localhost:8000/ui/hud` and a `message_created` webhook at `http://jane:8000/webhooks/chatwoot`.
+Turn off the Chatwoot inbox auto-resolve timer. Jane's user id defaults to 1. Point a `message_created` webhook at `http://jane:8000/webhooks/chatwoot`. Do not add a Dashboard App.
 
 Tests:
 

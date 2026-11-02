@@ -18,13 +18,23 @@ from app.epistemic import (
     extract_zip,
 )
 from app.northstar import view_from_property
+from app.sponsor_chat import absorb_next_answer, missing_fields, parse_labeled_sponsor_fields
 
 _UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 _YES = re.compile(r"\b(yes|accept|i accept)\b", re.I)
 _NO = re.compile(r"\b(no|decline)\b", re.I)
 _DEMAND = re.compile(r"\b(demand|would (people|neighbors) buy|local market|is there a market)\b", re.I)
-_BUSINESS = re.compile(r"started a business|starting a business|my new business", re.I)
+_BUSINESS = re.compile(
+    r"started a business|starting a business|my new business|register as a (local )?sponsor|become a sponsor|sponsorship",
+    re.I,
+)
+_CANCEL_SPONSOR = re.compile(r"\bcancel (the |my )?sponsor", re.I)
 _NEED = re.compile(r"\b(need|buy|source|find|looking for|where can i)\b", re.I)
+_ASK_RECORD = re.compile(
+    r"\b(what are my scores|how am i doing|north star|where do i stand|my automated|my aesthetic|my material|my energetic|my contained)\b",
+    re.I,
+)
+_KYC = re.compile(r"\b(verify my identity|identity verification|start kyc|stripe identity)\b", re.I)
 
 _TAGS = (
     ("grow_lights", ("grow light", "grow lights", "aquaponics light")),
@@ -65,7 +75,11 @@ def _blank() -> dict:
         "price_per_unit": None,
         "match_id": None,
         "match_decision": None,
-        "sponsor_invite": False,
+        "sponsor_active": False,
+        "cancel_sponsor": False,
+        "sponsor_fields": {},
+        "report_scores": False,
+        "request_kyc": False,
         "zip_code": None,
     }
 
@@ -181,6 +195,30 @@ def heuristic_decision(state: dict) -> dict:
         decision["reply"] = "I logged that as your answer to the neighborhood question. I won't fold it into a demand figure until the 24 hours are up."
         return decision
 
+    if _ASK_RECORD.search(text):
+        decision["report_scores"] = True
+
+    if _KYC.search(text):
+        decision["request_kyc"] = True
+        decision["reply"] = "Identity verification happens from a Stripe link I post in this thread. A shared neighbor thread still waits until both of you are verified."
+
+    if _CANCEL_SPONSOR.search(text):
+        decision["cancel_sponsor"] = True
+        decision["sponsor_active"] = True
+        decision["reply"] = "I cleared the sponsorship application."
+    else:
+        draft = dict((prop or {}).get("sponsor_draft") or {})
+        labeled = parse_labeled_sponsor_fields(text)
+        absorb = {}
+        sourcing_turn = bool(detect_service_tag(text))
+        if draft and missing_fields(draft) and not labeled and not decision["report_scores"] and not sourcing_turn and not decision["request_kyc"]:
+            absorb = absorb_next_answer(text, draft)
+        if _BUSINESS.search(text) or labeled or absorb:
+            decision["sponsor_active"] = True
+            decision["sponsor_fields"] = {**labeled, **absorb}
+            if not decision["reply"]:
+                decision["reply"] = "We can file that sponsor from this thread. I only list a local company, and it stays inactive until Stripe says the payment is complete."
+
     if _DEMAND.search(text):
         tag = detect_service_tag(text) or "local_demand"
         decision["start_poll"] = True
@@ -194,17 +232,24 @@ def heuristic_decision(state: dict) -> dict:
             "I won't invent a demand number, and I won't send your street address with the question."
         )
 
-    if _BUSINESS.search(text):
-        decision["sponsor_invite"] = True
-        if not decision["reply"]:
-            decision["reply"] = "A business that starts here can register as a local sponsor."
-
     tag = detect_service_tag(text)
     if tag and not decision["start_poll"]:
         decision["service_tag"] = tag
         if not decision["reply"]:
             decision["reply"] = "I'll stay inside your locality and start with what you can make on the homestead."
 
-    if not decision["reply"]:
+    wrote_score = any(
+        decision[key] is not None
+        for key in (
+            "outside_aid_hours_per_week",
+            "aesthetic_pct",
+            "material_independent",
+            "material_surplus_profitable",
+            "energetic_pct",
+            "energetic_profitable",
+            "contained_zero_waste",
+        )
+    )
+    if not decision["reply"] and not decision["report_scores"] and not wrote_score:
         decision["reply"] = status_reply(prop, locality)
     return decision

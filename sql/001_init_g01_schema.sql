@@ -66,8 +66,12 @@ CREATE TABLE IF NOT EXISTS g01_properties (
 
     kyc_verified BOOLEAN DEFAULT FALSE,
     stripe_identity_session_id VARCHAR(255),
+    -- In-progress sponsorship answers collected inside the Chatwoot thread.
+    sponsor_draft JSONB,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS sponsor_draft JSONB;
 
 ALTER TABLE g01_properties DROP CONSTRAINT IF EXISTS g01_properties_hours_nonnegative;
 ALTER TABLE g01_properties

@@ -82,6 +82,7 @@ class MemoryStore:
             "northstar_energetic_profitable": bool(fields.get("northstar_energetic_profitable", False)),
             "northstar_contained_zero_waste": bool(fields.get("northstar_contained_zero_waste", False)),
             "known_facts_ledger": deepcopy(fields.get("known_facts_ledger") or DEFAULT_LEDGER),
+            "sponsor_draft": deepcopy(fields.get("sponsor_draft")),
             "kyc_verified": bool(fields.get("kyc_verified", False)),
             "stripe_identity_session_id": fields.get("stripe_identity_session_id"),
             "updated_at": self._clock(),
@@ -148,6 +149,11 @@ class MemoryStore:
             prop["lat"] = float(fields["lat"])
         if "lng" in fields and fields["lng"] is not None:
             prop["lng"] = float(fields["lng"])
+        return deepcopy(prop)
+
+    async def save_sponsor_draft(self, property_id: str, draft: dict | None) -> dict:
+        prop = self._mutate(property_id)
+        prop["sponsor_draft"] = deepcopy(draft) if draft else None
         return deepcopy(prop)
 
     async def merge_ledger(self, property_id: str, ledger: dict) -> dict:

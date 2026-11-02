@@ -51,7 +51,7 @@ async def create_identity_session(property_id: str) -> dict:
         lambda: stripe.identity.VerificationSession.create(
             type="document",
             metadata={"property_id": property_id, "g01_kind": "kyc"},
-            return_url=settings.public_base_url.rstrip("/") + "/ui/hud?kyc=return",
+            return_url=settings.chatwoot_public_url.rstrip("/") + "/",
         )
     )
     return {"id": session["id"], "url": session["url"]}

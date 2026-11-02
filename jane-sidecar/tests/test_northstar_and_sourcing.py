@@ -144,6 +144,9 @@ def test_retailer_sentences_are_removed_whole():
     assert "Tier 1 stays." in cleaned
     assert "Walmart" in sanitize_reply("1. Walmart — local_service_or_stock", allow_walmart_name=True)
     assert "Walmart" not in sanitize_reply("1. Walmart — local_service_or_stock")
+    refusal = sanitize_reply("Walmart may only appear in Rogers, Arkansas. I did not file the listing.")
+    assert "Rogers" in refusal
+    assert "did not file" in refusal
 
 
 def test_constitution_and_sql_keep_the_rules():
@@ -158,6 +161,7 @@ def test_constitution_and_sql_keep_the_rules():
         "tier_weight = 0.85",
         "tier_weight = 0.70",
         "tier_weight = 0.50",
+        "collect the sponsorship answers in this Chatwoot thread",
         "Rogers, Arkansas",
         "0.45",
         "0.25",

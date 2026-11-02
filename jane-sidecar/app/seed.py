@@ -1,4 +1,4 @@
-"""Fixed local fixtures for the memory store and the HUD demo."""
+"""Fixed local fixtures for the memory store and the demo Chatwoot threads."""
 
 from datetime import datetime, timezone
 

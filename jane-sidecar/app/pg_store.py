@@ -18,7 +18,7 @@ locality_id, street_address, zip_code, lat, lng,
 northstar_automated_pct, outside_aid_hours_per_week, northstar_aesthetic_pct,
 northstar_material_independent, material_surplus_profitable,
 northstar_energetic_pct, northstar_energetic_profitable, northstar_contained_zero_waste,
-known_facts_ledger, kyc_verified, stripe_identity_session_id, updated_at
+known_facts_ledger, sponsor_draft, kyc_verified, stripe_identity_session_id, updated_at
 """
 
 _SPONSOR = """
@@ -213,6 +213,20 @@ class PostgresStore:
         rows = await self._write(
             f"UPDATE g01_properties SET {', '.join(sets)} WHERE id = CAST(:id AS uuid) RETURNING {_PROPERTY}",
             params,
+        )
+        if not rows:
+            raise G01Error("property not found", 404)
+        return rows[0]
+
+    async def save_sponsor_draft(self, property_id: str, draft: dict | None) -> dict:
+        rows = await self._write(
+            f"""
+            UPDATE g01_properties
+            SET sponsor_draft = CAST(:draft AS jsonb)
+            WHERE id = CAST(:id AS uuid)
+            RETURNING {_PROPERTY}
+            """,
+            {"id": property_id, "draft": json.dumps(draft) if draft else None},
         )
         if not rows:
             raise G01Error("property not found", 404)

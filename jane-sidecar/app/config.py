@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     gemini_embedding_model: str = "text-embedding-004"
 
     chatwoot_base_url: str = "http://localhost:3000"
+    chatwoot_public_url: str = "http://localhost:3000"
     chatwoot_account_id: int = 1
     chatwoot_api_token: str = ""
     chatwoot_platform_token: str = ""
@@ -37,8 +38,8 @@ class Settings(BaseSettings):
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
     stripe_sponsor_price_id: str = ""
-    stripe_success_url: str = "http://localhost:8000/ui/hud?checkout=success"
-    stripe_cancel_url: str = "http://localhost:8000/ui/hud?checkout=cancel"
+    stripe_success_url: str = "http://localhost:3000"
+    stripe_cancel_url: str = "http://localhost:3000"
 
     poll_mature_hours: int = 24
     match_similarity_threshold: float = 0.72

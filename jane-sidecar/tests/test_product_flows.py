@@ -28,61 +28,42 @@ def _message(content, message_id, sender_id=DEMO_USER_ID, sender_type="user", co
     }
 
 
-def test_hud_context_keeps_five_dimensions(client):
-    response = client.get(f"/api/hud/context?contact_id={CONTACT}&conversation_id={CONVERSATION}")
+def test_scores_are_answered_in_the_thread(client):
+    hidden = client.get("/ui/hud")
+    assert hidden.status_code == 404
+    response = client.post("/webhooks/chatwoot", json=_message("What are my scores?", 1))
     assert response.status_code == 200
-    body = response.json()
-    star = body["northstar"]
-    assert set(star) == {"automated", "aesthetic", "material", "energetic", "energetic_profitable", "contained"}
-    assert star["automated"] == 25
-    assert star["material"] is False
-    assert star["contained"] is False
-    assert star["energetic_profitable"] is False
-    assert isinstance(star["energetic"], (int, float))
-    page = client.get("/ui/hud?demo=1")
-    assert page.status_code == 200
-    for label in ("Automated", "Aesthetic", "Material", "Energetic", "Contained"):
-        assert label in page.text
+    reply = response.json()["reply"]
+    for label in ("Automated 25.00", "Aesthetic 50.00", "Material is false", "Energetic is 10.00", "Contained is false"):
+        assert label in reply
 
 
-def test_aesthetic_slider_and_labor_hours(client):
-    aesthetic = client.patch(
-        f"/api/properties/{DEMO_PROPERTY_ID}/aesthetic",
-        json={"aesthetic": 82.5, "contact_id": CONTACT, "conversation_id": CONVERSATION},
-    )
-    assert aesthetic.status_code == 200
-    assert aesthetic.json()["northstar"]["aesthetic"] == 82.5
-    assert aesthetic.json()["northstar"]["automated"] == 25
-    assert aesthetic.json()["northstar"]["material"] is False
+def test_aesthetic_and_labor_are_told_to_jane(client, store):
+    told = client.post("/webhooks/chatwoot", json=_message("I rate the beauty 82.5. We spend 10 hours a week.", 2))
+    assert "Automated 75.00" in told.json()["reply"]
+    assert "Aesthetic 82.50" in told.json()["reply"]
+    response = client.post("/webhooks/chatwoot", json=_message("What are my scores?", 3))
+    reply = response.json()["reply"]
+    assert "Automated 75.00" in reply
+    assert "Aesthetic 82.50" in reply
+    assert "Material is false" in reply
+    assert store.properties[0]["northstar_automated_pct"] == 75
+    assert store.properties[0]["northstar_aesthetic_pct"] == 82.5
 
-    labor = client.patch(
-        f"/api/properties/{DEMO_PROPERTY_ID}/labor-hours",
-        json={"outside_aid_hours_per_week": 10, "contact_id": CONTACT, "conversation_id": CONVERSATION},
-    )
-    assert labor.status_code == 200
-    star = labor.json()["northstar"]
-    assert star["automated"] == 75
-    assert star["aesthetic"] == 82.5
-    assert labor.json()["supporting"]["outside_aid_hours_per_week"] == 10
-
-    rejected = client.patch(
-        f"/api/properties/{DEMO_PROPERTY_ID}/aesthetic",
-        json={"aesthetic": 140, "contact_id": CONTACT, "conversation_id": CONVERSATION},
-    )
-    assert rejected.status_code == 422
+    rejected = client.post("/webhooks/chatwoot", json=_message("I rate the beauty 140.", 4))
+    assert rejected.status_code == 200
+    assert store.properties[0]["northstar_aesthetic_pct"] == 82.5
 
 
-def test_local_rank_preview_prefers_the_maker_and_hides_walmart(client, store):
-    response = client.get(
-        f"/api/properties/{DEMO_PROPERTY_ID}/sponsors?service_tag=grow_lights&contact_id={CONTACT}&conversation_id={CONVERSATION}"
-    )
-    assert response.status_code == 200
-    names = [row["company_name"] for row in response.json()["sponsors"]]
-    assert names[0] == "Calcasieu Glass & Lamp"
-    assert "Chenier Logistics" in names
-    assert "Walmart" not in names
-    assert response.json()["tier_1"]["tier_weight"] == 1
-    assert store.sponsors[0]["referrals_last_14d"] == 0
+def test_asking_jane_ranks_the_maker_ahead_of_logistics(client, store):
+    response = client.post("/webhooks/chatwoot", json=_message("Where can I get a grow light?", 5))
+    reply = response.json()["reply"]
+    assert "Tier 1" in reply
+    assert reply.index("Calcasieu Glass & Lamp") < reply.index("Chenier Logistics")
+    assert "Walmart" not in reply
+    assert "amazon" not in reply.casefold()
+    assert store.sponsors[0]["referrals_last_14d"] == 1
+    assert client.get(f"/api/properties/{DEMO_PROPERTY_ID}/sponsors").status_code == 404
 
 
 def test_chat_turn_ranks_without_retailers_and_ignores_jane(client, store):
@@ -236,51 +217,66 @@ def test_collaboration_requires_two_yeses_and_kyc(store, monkeypatch):
     assert match["shared_chatwoot_conversation_id"] == 77
 
 
-def test_sponsor_registry_blocks_chains_and_waits_for_stripe(client):
+def test_sponsor_registry_is_a_conversation(client, store):
     blocked = client.post(
-        "/api/sponsors",
-        json={
-            "property_id": DEMO_PROPERTY_ID,
-            "contact_id": CONTACT,
-            "conversation_id": CONVERSATION,
-            "company_name": "Walmart",
-            "founding_city": "Lake Charles",
-            "founding_state": "LA",
-            "is_franchise_or_chain": True,
-            "sourcing_tier": "local_service_or_stock",
-            "service_tags": ["general_goods"],
-            "capabilities_summary": "A national checkout counter.",
-            "lat": 30.2,
-            "lng": -93.2,
-        },
+        "/webhooks/chatwoot",
+        json=_message(
+            "\n".join(
+                [
+                    "I want to register as a sponsor.",
+                    "Company: Walmart",
+                    "Founding city: Lake Charles",
+                    "Founding state: LA",
+                    "Tier: local_service_or_stock",
+                    "Tags: general_goods",
+                    "Summary: A national checkout counter for the parish.",
+                    "Franchise: yes",
+                ]
+            ),
+            40,
+        ),
     )
-    assert blocked.status_code == 422
-    assert "Rogers" in blocked.json()["detail"]
+    assert blocked.status_code == 200
+    assert "Rogers" in blocked.json()["reply"]
+    assert all(row["company_name"] != "Walmart" or row["locality_id"] != store.properties[0]["locality_id"] for row in store.sponsors)
 
     waiting = client.post(
-        "/api/sponsors",
-        json={
-            "property_id": DEMO_PROPERTY_ID,
-            "contact_id": CONTACT,
-            "conversation_id": CONVERSATION,
-            "company_name": "Prioux Pumps",
-            "founding_city": "Lake Charles",
-            "founding_state": "LA",
-            "is_franchise_or_chain": False,
-            "sourcing_tier": "local_manufacturer",
-            "service_tags": ["rain_catch"],
-            "capabilities_summary": "Machines cistern pumps on Enterprise Boulevard.",
-            "lat": 30.22,
-            "lng": -93.21,
-        },
+        "/webhooks/chatwoot",
+        json=_message(
+            "\n".join(
+                [
+                    "Register as a sponsor.",
+                    "Company: Prioux Pumps",
+                    "Founding city: Lake Charles",
+                    "Founding state: LA",
+                    "Tier: local_manufacturer",
+                    "Tags: rain_catch",
+                    "Summary: Machines cistern pumps on Enterprise Boulevard.",
+                    "Lat: 30.22",
+                    "Lng: -93.21",
+                    "Franchise: no",
+                ]
+            ),
+            41,
+        ),
     )
-    assert waiting.status_code == 503
+    assert waiting.status_code == 200
+    assert "Stripe is not configured" in waiting.json()["reply"]
+    filed = next(row for row in store.sponsors if row["company_name"] == "Prioux Pumps")
+    assert filed["is_active_sponsor"] is False
 
-    rogers = client.get(
-        "/api/properties/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2/sponsors?service_tag=general_goods&contact_id=102&conversation_id=502"
+    rogers = client.post(
+        "/webhooks/chatwoot",
+        json=_message(
+            "Where can I get general goods?",
+            42,
+            sender_id=202,
+            conversation_id=502,
+            contact_id=102,
+        ),
     )
-    assert rogers.status_code == 200
-    assert [row["company_name"] for row in rogers.json()["sponsors"]] == ["Walmart"]
+    assert "Walmart" in rogers.json()["reply"]
+    assert "ui/hud" not in rogers.json()["reply"]
 
 
 def test_promo_admin_and_signup_gate(store, monkeypatch):
@@ -304,13 +300,5 @@ def test_promo_admin_and_signup_gate(store, monkeypatch):
         )
         assert created.status_code == 200
         assert created.json()["code"] == "SWLA50"
-        signup = gated.post(
-            "/api/signup",
-            json={"name": "Ada Yard", "email": "ada@example.com", "password": "pasture-1", "zip_code": "70601"},
-        )
-        assert signup.status_code == 503
-        outside = gated.post(
-            "/api/signup",
-            json={"name": "Ada Yard", "email": "ada@example.com", "password": "pasture-1", "zip_code": "10001"},
-        )
-        assert outside.status_code == 503 or outside.status_code == 422
+        assert gated.get("/ui/signup").status_code == 404
+        assert gated.post("/api/signup", json={"name": "Ada Yard", "email": "ada@example.com", "password": "pasture-1", "zip_code": "70601"}).status_code == 404

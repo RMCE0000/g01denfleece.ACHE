@@ -42,7 +42,7 @@ When more than one sponsor can do the job:
 1. **Chat and education.** Jane reads the ledger, asks for gaps, and ranks the local registry when a part is needed. Tier 1 is always stated first. The ranked rows come from SQL (`g01_rank_local_sponsors`) or the same formula in the memory store. The model does not invent the order.
 2. **Demand polls.** A market question becomes a poll that matures 24 hours later. Neighbors are asked without the requester's street address. The synthesis quotes only the votes that came back.
 3. **Neighbor threads.** Background matching uses shared recorded goals, or 768-d cosine similarity at or above 0.72 when embeddings exist. Pitches go to each existing thread. The shared conversation id is written only after both statuses are `accepted` and both `kyc_verified` flags are true.
-4. **Sponsors and promo codes.** A logged-in homesteader can submit the questionnaire. The row stays inactive until Stripe Checkout reports `paid` or `no_payment_required`. Admins create promo codes with `X-G01-Admin-Token`. A code can discount the Stripe subscription (1–100%) and carry a recommendation boost from 0.50 to 3.00. Uses increment when the sponsor actually activates.
+4. **Sponsors and promo codes.** A homesteader files a sponsor by answering Jane in the thread. The row stays inactive until Stripe Checkout reports `paid` or `no_payment_required`. Admins create promo codes with `X-G01-Admin-Token`. A code can discount the Stripe subscription (1–100%) and carry a recommendation boost from 0.50 to 3.00. Uses increment when the sponsor actually activates.
 
 ## Services
 
@@ -53,7 +53,7 @@ Chatwoot (upstream image) keeps users, conversations, messages, and websockets. 
 - Matchmaking graph (`matchmaking_graph.py`): Pro may rephrase a rationale made only of recorded goals. A shared thread is a Chatwoot conversation.
 - Checkpointer: `AsyncPostgresSaver` on the same database when `G01_DATABASE_URL` is set.
 
-The HUD at `/ui/hud` is the Chatwoot Dashboard App. It listens for `appContext`. Aesthetic is a slider. Automated moves only when hours are saved.
+The only UI a homesteader can open is the Chatwoot conversation. North Star readout, aesthetic, labor hours, local ranking, the sponsor answers, and the KYC request are retrieved by asking Jane. Chatwoot's own account form is how someone signs up. A property attaches when they tell Jane a ZIP. Stripe's hosted Checkout and Identity pages may be linked from Jane's message. The sidecar does not publish `/ui/hud`, a signup page, or a Dashboard App.
 
 ## Constitution
 

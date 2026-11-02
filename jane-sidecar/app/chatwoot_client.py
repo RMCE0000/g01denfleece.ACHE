@@ -120,19 +120,3 @@ class ChatwootClient:
             f"/api/v1/accounts/{self._account()}/webhooks",
             {"url": target, "subscriptions": ["message_created"]},
         )
-
-    async def ensure_dashboard_app(self) -> None:
-        if not self.configured():
-            return
-        url = self.settings.public_base_url.rstrip("/") + "/ui/hud"
-        existing = await self._request("GET", f"/api/v1/accounts/{self._account()}/dashboard_apps")
-        rows = existing if isinstance(existing, list) else existing.get("payload", [])
-        for row in rows if isinstance(rows, list) else []:
-            content = row.get("content") if isinstance(row, dict) else None
-            if content and url in str(content):
-                return
-        await self._request(
-            "POST",
-            f"/api/v1/accounts/{self._account()}/dashboard_apps",
-            {"title": "g01 North Star", "content": [{"type": "frame", "url": url}]},
-        )
