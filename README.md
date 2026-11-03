@@ -72,7 +72,21 @@ curl -s http://localhost:8000/api/admin/conversations \
 
 Each row is a Jane thread or a connection, with the people, the topic, and the messages. Jane stays quiet in a connection unless someone says her name.
 
-The sidecar on port 8000 accepts the Chatwoot webhook, the login-page signup at `POST /api/signup`, and the admin routes. It does not serve a dashboard. Auto-resolve is left unset so the thread stays open. The bootstrap user is the operator. Chatwoot's own agent signup stays off.
+The private operator backend is an interactive terminal command center:
+
+```bash
+docker compose exec jane python -m app.operator
+```
+
+It lists and inspects all homesteaders and conversations, shows complete
+property records, runs deterministic engagement/North Star/network analyses,
+opens peer conversations, previews sponsor ranking, and can explicitly run the
+dormant poll, match, referral, and connection jobs. Mutating commands require
+confirmation. `python -m app.operator --json analyze all` provides scriptable
+output. See [`docs/OPERATOR_COMMAND_CENTER.md`](docs/OPERATOR_COMMAND_CENTER.md)
+for the command list and the supported Chatwoot capability boundary.
+
+The sidecar on port 8000 accepts the Chatwoot webhook, the login-page signup at `POST /api/signup`, and the admin routes. It does not serve a web dashboard; the command center runs on the host so user information remains private. Auto-resolve is left unset so the thread stays open. The bootstrap user is the operator. Chatwoot's own agent signup stays off.
 
 For a memory-backed webhook demo without Docker:
 

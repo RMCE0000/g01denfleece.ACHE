@@ -21,6 +21,7 @@ The minimum showcase (MS). Jane is a small local model. A prompt is her constitu
 - `jane-sidecar/CONSTITUTION.md` is what she is given. It is not the old JSON ledger prompt.
 - Ollama serves `qwen2.5:1.5b` (override with `G01_OLLAMA_MODEL`). Compose pulls it once. If it is down, she says she could not reach the local model.
 - `GET /api/admin/conversations` lists every Jane thread and every connection, with the people and the messages, so a connection can be opened with `POST /api/admin/conversations`.
+- `docker compose exec jane python -m app.operator` opens the private operator command center. It can inspect all homesteaders and transcripts, run engagement/North Star/network analyses, open connections, preview sponsor ranking, and explicitly run dormant jobs. The `capabilities` command identifies stock Chatwoot surfaces that are transport-only, unused, or still unconfigured.
 - `jane-worker` and `jane-beat` are behind the Compose profile `background` and are not started. The beat schedule is empty unless `G01_BACKGROUND_JOBS` is on.
 - Sign-in, the gold and white g01 chat, **Create an account**, and the private pair inbox are unchanged. Jane stays quiet in a connection unless someone says her name.
 - **Forgot your password?** sends a reset link. Compose delivers that mail to Mailpit (`http://localhost:8025`) until `SMTP_ADDRESS` is a real mailbox.
