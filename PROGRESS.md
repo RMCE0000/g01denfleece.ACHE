@@ -1,6 +1,6 @@
 # g01 progress log
 
-Updated 3 Nov 2026, 3:38 PM America/Chicago.
+Updated 3 Nov 2026, 4:49 PM America/Chicago.
 
 ## Still open from the MVP
 
@@ -26,5 +26,6 @@ The minimum showcase (MS). Jane is a small local model. A prompt is her constitu
 - **Forgot your password?** sends a reset link. Compose delivers that mail to Mailpit (`http://localhost:8025`) until `SMTP_ADDRESS` is a real mailbox.
 - The website name is **g01denfleece.com** (`https://g01denfleece.com`). Login, the widget, and reset mail use that name. This machine still serves the app at `localhost` until the public host points here.
 - The public host is one DigitalOcean droplet in Atlanta: Ubuntu 24.04, 8 GB RAM, 4 vCPU. `docker-compose.prod.yml` publishes only ports 80 and 443. Jane's admin API stays on `127.0.0.1:8000`.
+- Launch review: images are pinned, strict bootstrap requires both Chatwoot tokens, Caddy waits for Jane's health check, the droplet installs Git, and postflight checks the public stack. Jane receives the same constitution and history with real chat roles so the small model keeps Jane and the homesteader distinct.
 
 The checkpointer bug, Stripe, Gemini, sponsor ratings, capability embeddings, blueprints, and forget are unchanged. They are not on the live turn.

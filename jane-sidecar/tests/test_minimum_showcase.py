@@ -7,9 +7,10 @@ from fastapi.testclient import TestClient
 
 from app.config import get_settings
 from app.constitution import JANE_CONSTITUTION
-from app.local_model import UNREACHABLE, model_override
+from app.local_model import UNREACHABLE, chat_messages, model_override
 from app.main import create_app
 from app.seed import DEMO_CONVERSATION_ID, DEMO_PROPERTY_ID, DEMO_USER_ID
+from app.showcase import render_history
 from app.worker import celery_app
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -40,6 +41,22 @@ def test_a_copied_speaker_label_is_not_posted():
 
     lines = [{"speaker": "Ada", "role": "homesteader", "content": "The cistern is empty."}]
     assert reply_as_jane("Ada: Make it on the homestead.\nMake it on the homestead.", lines) == "Make it on the homestead."
+    assert reply_as_jane("I'm sorry, but I don't know how to answer.", lines) == (
+        "I do not know enough from this history yet. "
+        "What containers, materials, or tools do you already have on the homestead that could help?"
+    )
+
+
+def test_local_model_receives_real_chat_roles():
+    lines = [
+        {"speaker": "Jane", "role": "jane", "content": "Tell me what the place needs."},
+        {"speaker": "Ada", "role": "homesteader", "content": "The cistern is empty."},
+    ]
+    assert chat_messages("constitution", render_history(lines), lines) == [
+        {"role": "system", "content": "constitution"},
+        {"role": "assistant", "content": "Jane: Tell me what the place needs."},
+        {"role": "user", "content": "Ada: The cistern is empty."},
+    ]
 
 
 def test_prompt_is_the_constitution_and_the_history(client, store):
@@ -193,7 +210,7 @@ def test_background_jobs_stay_off():
     compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert 'profiles: ["background"]' in compose
     assert compose.count('profiles: ["background"]') == 2
-    assert "ollama/ollama:latest" in compose
+    assert "ollama/ollama@sha256:" in compose
     assert "G01_BACKGROUND_JOBS: \"0\"" in compose
     assert "qwen2.5:1.5b" in compose
     assert "qwen2.5:0.5b" not in compose

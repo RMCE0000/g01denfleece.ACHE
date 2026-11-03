@@ -14,6 +14,18 @@ log = logging.getLogger(__name__)
 
 _HISTORY_LIMIT = 40
 _BLOCKED = "I won't name a national store. Make it on the homestead, or find it in your own locality."
+_GROUNDED_QUESTION = (
+    "I do not know enough from this history yet. "
+    "What containers, materials, or tools do you already have on the homestead that could help?"
+)
+_GENERIC_NON_ANSWERS = {
+    "i don't know how to answer",
+    "i don't know how to answer.",
+    "i do not know how to answer",
+    "i do not know how to answer.",
+    "i'm sorry, but i don't know how to answer",
+    "i'm sorry, but i don't know how to answer.",
+}
 
 
 def _collapse_repeats(text: str) -> str:
@@ -35,7 +47,10 @@ def reply_as_jane(text: str, lines: list[dict]) -> str:
         if speaker and cleaned.startswith(prefix):
             cleaned = cleaned[len(prefix) :].strip()
             break
-    return _collapse_repeats(cleaned)
+    cleaned = _collapse_repeats(cleaned)
+    if cleaned.casefold() in _GENERIC_NON_ANSWERS:
+        return _GROUNDED_QUESTION
+    return cleaned
 
 
 def render_history(lines: list[dict]) -> str:
@@ -91,7 +106,7 @@ async def history_for(store, message: dict) -> list[dict]:
 async def answer(store, message: dict) -> str:
     """Prompt Jane with the constitution and the history, then post her reply."""
     lines = await history_for(store, message)
-    reply = reply_as_jane(await complete_text(JANE_CONSTITUTION, render_history(lines)), lines)
+    reply = reply_as_jane(await complete_text(JANE_CONSTITUTION, render_history(lines), lines), lines)
     cleaned = sanitize_reply(reply).strip() or _BLOCKED
     await store.append_transcript(
         conversation_id=int(message["conversation_id"]),

@@ -14,8 +14,29 @@ model_override: ContextVar = ContextVar("g01_model_override", default=None)
 UNREACHABLE = "I could not reach the local model."
 
 
-async def complete_text(system: str, user: str) -> str:
-    """Send the constitution as the system text and the history as the user text."""
+def chat_messages(system: str, user: str, history: list[dict] | None = None) -> list[dict]:
+    """Give Ollama real chat roles while preserving each speaker in the history."""
+    messages = [{"role": "system", "content": system}]
+    if not history:
+        return [*messages, {"role": "user", "content": user}]
+    for line in history:
+        content = str(line.get("content") or "").strip()
+        if not content:
+            continue
+        speaker = str(line.get("speaker") or "").strip()
+        if not speaker:
+            speaker = "Jane" if line.get("role") == "jane" else "Homesteader"
+        messages.append(
+            {
+                "role": "assistant" if line.get("role") == "jane" else "user",
+                "content": f"{speaker}: {content}",
+            }
+        )
+    return messages
+
+
+async def complete_text(system: str, user: str, history: list[dict] | None = None) -> str:
+    """Send only the constitution and history, with their actual chat roles."""
     override = model_override.get()
     if override is not None:
         result = override(system, user)
@@ -28,10 +49,7 @@ async def complete_text(system: str, user: str) -> str:
     body = {
         "model": settings.ollama_model,
         "stream": False,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
+        "messages": chat_messages(system, user, history),
         "options": {"temperature": 0.2, "num_predict": 180},
     }
     try:
