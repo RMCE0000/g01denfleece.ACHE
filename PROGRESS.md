@@ -1,6 +1,6 @@
 # g01 progress log
 
-Updated 3 Nov 2026, 1:33 PM America/Chicago.
+Updated 3 Nov 2026, 2:30 PM America/Chicago.
 
 ## Still open from the MVP
 
@@ -23,5 +23,6 @@ The minimum showcase (MS). Jane is a small local model. A prompt is her constitu
 - `GET /api/admin/conversations` lists every Jane thread and every connection, with the people and the messages, so a connection can be opened with `POST /api/admin/conversations`.
 - `jane-worker` and `jane-beat` are behind the Compose profile `background` and are not started. The beat schedule is empty unless `G01_BACKGROUND_JOBS` is on.
 - Sign-in, the gold and white g01 chat, **Create an account**, and the private pair inbox are unchanged. Jane stays quiet in a connection unless someone says her name.
+- **Forgot your password?** sends a reset link. Compose delivers that mail to Mailpit (`http://localhost:8025`) until `SMTP_ADDRESS` is a real mailbox.
 
 The checkpointer bug, Stripe, Gemini, sponsor ratings, capability embeddings, blueprints, and forget are unchanged. They are not on the live turn.

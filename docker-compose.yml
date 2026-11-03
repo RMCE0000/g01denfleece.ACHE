@@ -21,8 +21,10 @@ x-chatwoot-env: &chatwoot-env
   RAILS_SERVE_STATIC_FILES: "true"
   ENABLE_ACCOUNT_SIGNUP: "false"
   MAILER_SENDER_EMAIL: "${MAILER_SENDER_EMAIL:-Jane <jane@localhost>}"
-  SMTP_ADDRESS: ${SMTP_ADDRESS:-}
-  SMTP_PORT: ${SMTP_PORT:-587}
+  # Local mail is Mailpit. A public launch sets SMTP_ADDRESS, SMTP_PORT, and SMTP_ENABLE_STARTTLS_AUTO.
+  SMTP_ADDRESS: ${SMTP_ADDRESS:-mailpit}
+  SMTP_PORT: ${SMTP_PORT:-1025}
+  SMTP_ENABLE_STARTTLS_AUTO: ${SMTP_ENABLE_STARTTLS_AUTO:-false}
   ACTIVE_STORAGE_SERVICE: local
   # Jane is a private Docker hostname. Chatwoot otherwise refuses the webhook.
   SAFE_FETCH_ALLOW_PRIVATE_NETWORK: "true"
@@ -83,6 +85,11 @@ services:
       timeout: 3s
       retries: 20
 
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
+
   rails:
     image: chatwoot/chatwoot:latest
     depends_on:
@@ -90,6 +97,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     ports:
       - "3000:3000"
     environment:

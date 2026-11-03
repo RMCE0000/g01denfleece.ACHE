@@ -31,3 +31,6 @@ def test_brand_assets_are_gold_and_white():
     assert "/app/public/g01-logo.svg" in compose
     assert "g01_branding.rb" in compose
     assert "chatwoot_storage:/app/storage" in compose
+    assert "axllent/mailpit:latest" in compose
+    assert "SMTP_ADDRESS: ${SMTP_ADDRESS:-mailpit}" in compose
+    assert 'SMTP_ENABLE_STARTTLS_AUTO: ${SMTP_ENABLE_STARTTLS_AUTO:-false}' in compose
