@@ -40,7 +40,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-The website is [g01denfleece.com](https://g01denfleece.com). Login, the widget header, and the reset email use that name. On this machine the app is still `http://localhost:3000`. On the public host, set `FRONTEND_URL` and `G01_CHATWOOT_PUBLIC_URL` to `https://g01denfleece.com`.
+The website is [g01denfleece.com](https://g01denfleece.com). Login, the widget header, and the reset email use that name. On this machine the app is still `http://localhost:3000`. The public host is a DigitalOcean droplet; see below.
 
 The homesteader signs in at Chatwoot: `http://localhost:3000/app/login`. The screen is white with gold accents and the g01 logo. **Forgot your password?** emails a reset link. Locally that mail is in Mailpit at `http://localhost:8025`. A public launch points `SMTP_ADDRESS` at a real mailbox. **Create an account** on the login page asks for a name, email, password, and a ZIP already on the record (such as 70601). That creates the sign-in and a private thread with Jane, then opens it. Chatwoot's own account signup stays off, because that form would open a separate empty account. After bootstrap, `.chatwoot-bootstrap/operator.txt` has Jane's agent login and the admin token. When Jane finishes starting, `.chatwoot-bootstrap/homesteaders.txt` has two local demo people:
 
@@ -85,6 +85,27 @@ cd jane-sidecar && ../.venv/bin/uvicorn app.main:app --port 8000
 The seeded Lake Charles thread is conversation 501, contact 101. Rogers is conversation 502. A `message_created` webhook is answered by the local model from the constitution and that thread's history.
 
 Turn off the Chatwoot inbox auto-resolve timer. Jane's user id defaults to 1. Point a `message_created` webhook at `http://jane:8000/webhooks/chatwoot`. Do not add a Dashboard App.
+
+## DigitalOcean
+
+One droplet in Atlanta (`atl1`), the closest region to the homesteaders. Ubuntu 24.04 LTS. In that datacenter the plain 8 GB Basic plan is not offered, so choose Basic, Premium Intel, 8 GB RAM / 4 vCPU / 160 GB disk. If that row is missing, choose the v5 shared 8 GB plan with at least 80 GB of disk. Add an SSH key. Turn on monitoring and weekly backups. Paste `deploy/digitalocean/cloud-init.yaml` into user data.
+
+Create a cloud firewall named `g01-public` and attach it to the droplet. Inbound is SSH from your own IP, plus HTTP and HTTPS from anywhere. Outbound stays open. Leave Jane's port 8000, Postgres, Redis, and Mailpit off that list.
+
+DNS stays at GoDaddy. Replace the two A records for `@` with one A record set to the droplet's IPv4 address. Leave the `www` CNAME, the Microsoft 365 MX record, and the `onmicrosoft.com` TXT record. Add `include:spf.protection.outlook.com` to the SPF record so reset mail from Outlook is authorized.
+
+On the droplet, after `dig +short g01denfleece.com` shows that address:
+
+```bash
+git clone https://github.com/RMCE0000/g01denfleece.ACHE.git
+cd g01denfleece.ACHE
+cp .env.production.example .env
+# fill the placeholders, then:
+sh deploy/check-prod-env.sh
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Caddy serves https://g01denfleece.com and forwards to Chatwoot. The admin API is only on the droplet at `http://127.0.0.1:8000`.
 
 Tests:
 

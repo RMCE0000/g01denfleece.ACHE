@@ -26,6 +26,10 @@ x-chatwoot-env: &chatwoot-env
   SMTP_ADDRESS: ${SMTP_ADDRESS:-mailpit}
   SMTP_PORT: ${SMTP_PORT:-1025}
   SMTP_ENABLE_STARTTLS_AUTO: ${SMTP_ENABLE_STARTTLS_AUTO:-false}
+  SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_DOMAIN: ${SMTP_DOMAIN:-}
   ACTIVE_STORAGE_SERVICE: local
   # Jane is a private Docker hostname. Chatwoot otherwise refuses the webhook.
   SAFE_FETCH_ALLOW_PRIVATE_NETWORK: "true"
