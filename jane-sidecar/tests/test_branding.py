@@ -1,0 +1,32 @@
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_brand_assets_are_gold_and_white():
+    css = (ROOT / "branding" / "g01-brand.css").read_text(encoding="utf-8")
+    logo = (ROOT / "branding" / "g01-logo.svg").read_text(encoding="utf-8")
+    mark = (ROOT / "branding" / "g01-mark.svg").read_text(encoding="utf-8")
+    script = (ROOT / "branding" / "g01-brand.js").read_text(encoding="utf-8")
+    assert "#7a5e24" in css
+    assert "#ffffff" in css
+    assert "#7A5E24" in logo and "g01" in logo
+    assert "#7A5E24" in mark
+    assert "/g01-logo.svg" in script
+    assert (ROOT / "branding" / "g01-mark.png").stat().st_size > 500
+    initializer = (ROOT / "ops" / "g01_branding.rb").read_text(encoding="utf-8")
+    assert "g01-brand.css" in initializer
+    assert "/g01/signup" in initializer
+    assert "Create an account" in script
+    assert "/g01/signup" in script
+    bootstrap = (ROOT / "ops" / "bootstrap_chatwoot.rb").read_text(encoding="utf-8")
+    assert 'widget_color: "#7A5E24"' in bootstrap
+    assert "/g01-logo.svg" in bootstrap
+    assert "platform.access_token" in bootstrap
+    assert "CHATWOOT_INSTALLATION_ONBOARDING" in bootstrap
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    assert "\n  RAILS_SERVE_STATIC_FILES: \"true\"" in compose
+    assert "\n      RAILS_SERVE_STATIC_FILES:" not in compose
+    assert "/app/public/g01-logo.svg" in compose
+    assert "g01_branding.rb" in compose
+    assert "chatwoot_storage:/app/storage" in compose

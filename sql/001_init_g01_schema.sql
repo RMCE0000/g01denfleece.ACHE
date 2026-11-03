@@ -72,6 +72,28 @@ CREATE TABLE IF NOT EXISTS g01_properties (
 );
 
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS sponsor_draft JSONB;
+ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS display_name VARCHAR(255);
+ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS chatwoot_inbox_id BIGINT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS g01_properties_email_idx
+    ON g01_properties (lower(email)) WHERE email IS NOT NULL;
+
+-- A private Chatwoot inbox shared by two signed-in homesteaders. Jane stays quiet
+-- on these conversation ids unless the message says her name.
+CREATE TABLE IF NOT EXISTS g01_peer_conversations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    chatwoot_conversation_id BIGINT NOT NULL UNIQUE,
+    chatwoot_inbox_id BIGINT,
+    property_a_id UUID NOT NULL REFERENCES g01_properties(id),
+    property_b_id UUID NOT NULL REFERENCES g01_properties(id),
+    topic VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT g01_peer_distinct CHECK (property_a_id <> property_b_id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS g01_peer_pair_idx
+    ON g01_peer_conversations (property_a_id, property_b_id);
 
 ALTER TABLE g01_properties DROP CONSTRAINT IF EXISTS g01_properties_hours_nonnegative;
 ALTER TABLE g01_properties

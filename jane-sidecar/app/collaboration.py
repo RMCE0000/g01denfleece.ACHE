@@ -43,6 +43,12 @@ async def refresh_match_gate(store, match_id: str, speaker_property_id: str | No
                 await deliver(store, peer["primary_conversation_id"], sentence)
         return sentences[0]
 
+    if not peer_a.get("chatwoot_user_id") or not peer_b.get("chatwoot_user_id"):
+        return (
+            "Both of you accepted and both are verified. "
+            "Each of you needs a Chatwoot sign-in before I can open a thread you can both use."
+        )
+
     client = ChatwootClient(get_settings())
     try:
         conversation_id = await client.create_shared_conversation(peer_a, peer_b)
@@ -55,6 +61,12 @@ async def refresh_match_gate(store, match_id: str, speaker_property_id: str | No
             "so I did not invent a shared conversation."
         )
     await store.set_shared_conversation(match_id, conversation_id)
+    await store.remember_peer_conversation(
+        conversation_id,
+        peer_a["id"],
+        peer_b["id"],
+        topic=match.get("proposed_project_title"),
+    )
     notice = (
         f"You're both verified and you both accepted. I opened Chatwoot conversation {conversation_id}. "
         "Jane is a peer in it, and it stays open."

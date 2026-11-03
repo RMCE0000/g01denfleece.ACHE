@@ -18,6 +18,7 @@ x-chatwoot-env: &chatwoot-env
   REDIS_URL: redis://redis:6379
   REDIS_PASSWORD: ""
   RAILS_LOG_TO_STDOUT: "true"
+  RAILS_SERVE_STATIC_FILES: "true"
   ENABLE_ACCOUNT_SIGNUP: "false"
   MAILER_SENDER_EMAIL: "${MAILER_SENDER_EMAIL:-Jane <jane@localhost>}"
   SMTP_ADDRESS: ${SMTP_ADDRESS:-}
@@ -35,7 +36,8 @@ x-jane-env: &jane-env
   G01_SCHEMA_PATH: /sql/001_init_g01_schema.sql
   # Reachable from Chatwoot Sidekiq, not from a browser.
   G01_PUBLIC_BASE_URL: ${G01_PUBLIC_BASE_URL:-http://jane:8000}
-  G01_ADMIN_TOKEN: ${G01_ADMIN_TOKEN:-}
+  G01_ADMIN_TOKEN: ${G01_ADMIN_TOKEN:-g01-local-admin-token}
+  G01_SEED_HOMESTEADERS: ${G01_SEED_HOMESTEADERS:-1}
   G01_GEMINI_API_KEY: ${G01_GEMINI_API_KEY:-}
   G01_GEMINI_CHAT_MODEL: gemini-2.5-flash
   G01_GEMINI_DELIBERATION_MODEL: gemini-2.5-pro
@@ -89,10 +91,18 @@ services:
       - "3000:3000"
     environment:
       <<: *chatwoot-env
+      G01_SIGNUP_UPSTREAM: http://jane:8000/api/signup
     entrypoint: docker/entrypoints/rails.sh
     command: ["sh", "-lc", "bundle exec rails db:chatwoot_prepare && exec bundle exec rails s -p 3000 -b 0.0.0.0"]
     volumes:
       - chatwoot_storage:/app/storage
+      - ./branding:/branding:ro
+      - ./branding/g01-logo.svg:/app/public/g01-logo.svg:ro
+      - ./branding/g01-mark.svg:/app/public/g01-mark.svg:ro
+      - ./branding/g01-mark.png:/app/public/g01-mark.png:ro
+      - ./branding/g01-brand.css:/app/public/g01-brand.css:ro
+      - ./branding/g01-brand.js:/app/public/g01-brand.js:ro
+      - ./ops/g01_branding.rb:/app/config/initializers/g01_branding.rb:ro
     healthcheck:
       test: ["CMD-SHELL", "ruby -e \"require 'net/http'; code = Net::HTTP.get_response(URI('http://127.0.0.1:3000/api')).code.to_i; exit(code < 500 ? 0 : 1)\""]
       interval: 15s
@@ -120,10 +130,13 @@ services:
     environment:
       <<: *chatwoot-env
       JANE_WEBHOOK_URL: http://jane:8000/webhooks/chatwoot
+      G01_ADMIN_TOKEN: ${G01_ADMIN_TOKEN:-g01-local-admin-token}
     entrypoint: docker/entrypoints/rails.sh
     command: ["bundle", "exec", "rails", "runner", "/bootstrap/bootstrap_chatwoot.rb"]
     volumes:
+      - chatwoot_storage:/app/storage
       - ./ops/bootstrap_chatwoot.rb:/bootstrap/bootstrap_chatwoot.rb:ro
+      - ./branding:/branding:ro
       - ./.chatwoot-bootstrap:/bootstrap/out
     restart: "no"
 
@@ -142,7 +155,7 @@ services:
       <<: *jane-env
     volumes:
       - ./sql/001_init_g01_schema.sql:/sql/001_init_g01_schema.sql:ro
-      - ./.chatwoot-bootstrap:/bootstrap:ro
+      - ./.chatwoot-bootstrap:/bootstrap
 
   jane-worker:
     build: ./jane-sidecar

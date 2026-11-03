@@ -10,11 +10,13 @@ from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.errors import G01Error
+from app.homesteaders import open_peer_conversation, provision_homesteader, register_homesteader
 from app.payments import apply_stripe_event
 from app.runtime import current_checkpointer, open_checkpointer, open_store, set_store
 from app.stripe_service import construct_event
 from app.turn import run_turn
 
+logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("g01")
 
 
@@ -23,6 +25,19 @@ def _admin(request: Request) -> None:
     supplied = request.headers.get("x-g01-admin-token", "")
     if not expected or not secrets.compare_digest(supplied, expected):
         raise G01Error("admin token required", 401)
+
+
+class HomesteaderIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    email: str = Field(min_length=3, max_length=255)
+    password: str = Field(min_length=8, max_length=128)
+    zip_code: str = Field(min_length=5, max_length=12)
+
+
+class PeerIn(BaseModel):
+    left: str = Field(min_length=1, max_length=255)
+    right: str = Field(min_length=1, max_length=255)
+    topic: str | None = Field(default=None, max_length=255)
 
 
 class PromoIn(BaseModel):
@@ -53,6 +68,13 @@ async def lifespan(app: FastAPI):
             await client.ensure_webhook()
         except Exception:
             log.exception("Chatwoot webhook registration did not finish; the sidecar will keep serving")
+        if settings.seed_homesteaders and settings.chatwoot_api_token and settings.chatwoot_platform_token:
+            from app.homestead_seed import seed_signed_in_homesteaders
+
+            try:
+                await seed_signed_in_homesteaders(store)
+            except Exception:
+                log.exception("signed-in homesteader seed did not finish")
     try:
         yield
     finally:
@@ -79,6 +101,20 @@ def create_app(store=None) -> FastAPI:
     async def create_promo(body: PromoIn, request: Request):
         _admin(request)
         return await app.state.store.create_promo(body.model_dump())
+
+    @app.post("/api/signup")
+    async def signup(body: HomesteaderIn):
+        return await register_homesteader(app.state.store, body.model_dump())
+
+    @app.post("/api/admin/homesteaders")
+    async def create_homesteader(body: HomesteaderIn, request: Request):
+        _admin(request)
+        return await provision_homesteader(app.state.store, body.model_dump())
+
+    @app.post("/api/admin/conversations")
+    async def create_peer_conversation(body: PeerIn, request: Request):
+        _admin(request)
+        return await open_peer_conversation(app.state.store, body.left, body.right, body.topic)
 
     @app.post("/webhooks/chatwoot")
     async def chatwoot_webhook(request: Request):

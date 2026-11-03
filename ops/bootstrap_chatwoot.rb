@@ -12,6 +12,7 @@ WEBHOOK_URL = ENV.fetch("JANE_WEBHOOK_URL", "http://jane:8000/webhooks/chatwoot"
 FRONTEND = ENV.fetch("FRONTEND_URL", "http://localhost:3000")
 
 FileUtils.mkdir_p(OUT_DIR)
+FileUtils.chmod(0o777, OUT_DIR)
 operator_path = File.join(OUT_DIR, "operator.txt")
 env_path = File.join(OUT_DIR, "chatwoot.env")
 
@@ -75,6 +76,62 @@ inbox.update!(
 )
 InboxMember.find_or_create_by!(inbox: inbox, user: user)
 
+channel.update!(
+  widget_color: "#7A5E24",
+  welcome_title: "g01",
+  welcome_tagline: "Talk with Jane. The thread stays open."
+)
+
+{
+  "INSTALLATION_NAME" => "g01",
+  "BRAND_NAME" => "g01",
+  "LOGO" => "/g01-logo.svg",
+  "LOGO_DARK" => "/g01-logo.svg",
+  "LOGO_THUMBNAIL" => "/g01-mark.svg",
+  "BRAND_URL" => FRONTEND,
+  "WIDGET_BRAND_URL" => FRONTEND,
+  "DISPLAY_MANIFEST" => false
+}.each do |name, value|
+  row = InstallationConfig.find_or_initialize_by(name: name)
+  row.value = value
+  row.save!
+end
+
+begin
+  logo = "/branding/g01-mark.png"
+  if File.exist?(logo)
+    inbox.avatar.purge if inbox.avatar.attached?
+    inbox.avatar.attach(io: File.open(logo), filename: "g01-mark.png", content_type: "image/png")
+  else
+    puts "g01 mark was not found at #{logo}"
+  end
+rescue StandardError => e
+  puts "g01 logo was not attached: #{e.message}"
+end
+
+begin
+  GlobalConfig.clear_cache if defined?(GlobalConfig) && GlobalConfig.respond_to?(:clear_cache)
+  Rails.cache.clear
+rescue StandardError => e
+  puts "g01 brand cache was not cleared: #{e.message}"
+end
+
+platform_token = nil
+begin
+  platform = PlatformApp.find_or_create_by!(name: "g01")
+  platform.platform_app_permissibles.find_or_create_by!(permissible: account)
+  access = platform.access_token || platform.create_access_token!
+  platform_token = access.token
+rescue StandardError => e
+  puts "g01 platform token was not created: #{e.message}"
+end
+
+begin
+  Redis::Alfred.delete(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING)
+rescue StandardError => e
+  puts "g01 sign-in was left on the installation screen: #{e.message}"
+end
+
 hook = Webhook.find_by(account: account, url: WEBHOOK_URL) || Webhook.new(account: account, url: WEBHOOK_URL)
 hook.subscriptions = ["message_created"]
 hook.webhook_type = :account_type
@@ -85,6 +142,7 @@ widget_url = "#{FRONTEND}/widget?website_token=#{channel.website_token}"
 
 File.write(env_path, <<~ENV)
   G01_CHATWOOT_API_TOKEN=#{access.token}
+  G01_CHATWOOT_PLATFORM_TOKEN=#{platform_token}
   G01_CHATWOOT_ACCOUNT_ID=#{account.id}
   G01_CHATWOOT_INBOX_ID=#{inbox.id}
   G01_JANE_USER_ID=#{user.id}
@@ -99,6 +157,9 @@ File.write(operator_path, <<~TXT)
   account_id: #{account.id}
   inbox_id: #{inbox.id}
   jane_user_id: #{user.id}
+  Sign in at #{FRONTEND}/app/login
+  Admin token: #{ENV.fetch("G01_ADMIN_TOKEN", "")}
+  Demo homesteader logins, after Jane starts: homesteaders.txt in this folder
 TXT
 
 puts "g01 bootstrap ready"
