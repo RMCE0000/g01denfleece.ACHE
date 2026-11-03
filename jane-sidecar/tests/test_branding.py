@@ -18,9 +18,13 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-brand.css" in initializer
     assert "/g01/signup" in initializer
     assert "Create an account" in script
+    assert "thread with Jane" not in script
     assert "/g01/signup" in script
     bootstrap = (ROOT / "ops" / "bootstrap_chatwoot.rb").read_text(encoding="utf-8")
     assert 'widget_color: "#7A5E24"' in bootstrap
+    assert 'SITE_NAME = "g01denfleece.com"' in bootstrap
+    assert 'SITE_URL = "https://g01denfleece.com"' in bootstrap
+    assert "website_url: SITE_URL" in bootstrap
     assert "/g01-logo.svg" in bootstrap
     assert "platform.access_token" in bootstrap
     assert "CHATWOOT_INSTALLATION_ONBOARDING" in bootstrap
@@ -30,3 +34,6 @@ def test_brand_assets_are_gold_and_white():
     assert "/app/public/g01-logo.svg" in compose
     assert "g01_branding.rb" in compose
     assert "chatwoot_storage:/app/storage" in compose
+    assert "axllent/mailpit@sha256:" in compose
+    assert "SMTP_ADDRESS: ${SMTP_ADDRESS:-mailpit}" in compose
+    assert 'SMTP_ENABLE_STARTTLS_AUTO: ${SMTP_ENABLE_STARTTLS_AUTO:-false}' in compose

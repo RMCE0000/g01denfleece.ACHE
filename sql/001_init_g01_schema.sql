@@ -240,6 +240,24 @@ CREATE TABLE IF NOT EXISTS g01_outbox (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Minimum showcase transcript. Jane's prompt is this history plus her constitution.
+CREATE TABLE IF NOT EXISTS g01_transcript (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id BIGINT NOT NULL,
+    message_id TEXT,
+    role VARCHAR(16) NOT NULL,
+    speaker VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS g01_transcript_message_idx
+    ON g01_transcript (conversation_id, message_id)
+    WHERE message_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS g01_transcript_conversation_idx
+    ON g01_transcript (conversation_id, created_at);
+
 CREATE INDEX IF NOT EXISTS g01_sponsors_locality_idx ON g01_sponsors (locality_id);
 CREATE INDEX IF NOT EXISTS g01_sponsors_tags_idx ON g01_sponsors USING GIN (service_tags);
 CREATE INDEX IF NOT EXISTS g01_properties_locality_idx ON g01_properties (locality_id);

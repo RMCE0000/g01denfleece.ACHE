@@ -30,6 +30,7 @@ class MemoryStore:
         self.events: set[str] = set()
         self.checkouts: dict[str, str] = {}
         self.outbox: list[dict] = []
+        self.transcript: list[dict] = []
 
     async def close(self) -> None:
         return None
@@ -478,6 +479,47 @@ class MemoryStore:
 
     async def unmark_event(self, event_id: str) -> None:
         self.events.discard(event_id)
+
+    async def list_properties(self) -> list[dict]:
+        return deepcopy(self.properties)
+
+    async def list_peer_conversations(self) -> list[dict]:
+        return deepcopy(self.peers)
+
+    async def append_transcript(
+        self,
+        *,
+        conversation_id: int | None,
+        message_id: str | None,
+        role: str,
+        speaker: str,
+        content: str,
+    ) -> dict | None:
+        text = str(content or "").strip()
+        if conversation_id is None or not text:
+            return None
+        if message_id:
+            for row in self.transcript:
+                if int(row["conversation_id"]) == int(conversation_id) and row.get("message_id") == str(message_id):
+                    return deepcopy(row)
+        row = {
+            "id": str(uuid4()),
+            "conversation_id": int(conversation_id),
+            "message_id": str(message_id) if message_id else None,
+            "role": role,
+            "speaker": speaker or ("Jane" if role == "jane" else "Homesteader"),
+            "content": text,
+            "created_at": self._clock(),
+        }
+        self.transcript.append(row)
+        return deepcopy(row)
+
+    async def list_transcript(self, conversation_id: int) -> list[dict]:
+        rows = [row for row in self.transcript if int(row["conversation_id"]) == int(conversation_id)]
+        return deepcopy(rows)
+
+    async def transcript_conversation_ids(self) -> list[int]:
+        return sorted({int(row["conversation_id"]) for row in self.transcript})
 
     async def add_outbox(self, conversation_id: int | None, content: str, delivered: bool) -> dict:
         row = {

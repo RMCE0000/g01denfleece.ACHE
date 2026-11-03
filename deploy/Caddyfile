@@ -1,0 +1,12 @@
+# Public site. Caddy asks Let's Encrypt for the certificate once DNS points here.
+{
+	email {$ACME_EMAIL}
+}
+
+www.g01denfleece.com {
+	redir https://g01denfleece.com{uri} permanent
+}
+
+g01denfleece.com {
+	reverse_proxy rails:3000
+}

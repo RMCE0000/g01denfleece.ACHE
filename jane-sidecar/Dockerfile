@@ -8,6 +8,7 @@ RUN useradd --create-home --uid 10001 jane
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
+COPY CONSTITUTION.md ./CONSTITUTION.md
 COPY docker-entrypoint.sh /srv/docker-entrypoint.sh
 RUN chmod 755 /srv/docker-entrypoint.sh
 USER jane

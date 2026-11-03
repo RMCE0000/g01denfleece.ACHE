@@ -1,0 +1,17 @@
+#cloud-config
+# Paste this into the droplet's user-data field. It installs Docker and
+# allows SSH, HTTP, and HTTPS on the machine itself. The DigitalOcean
+# firewall is still required, because Docker can bypass ufw.
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - ufw
+runcmd:
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable --now docker
+  - ufw allow OpenSSH
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable

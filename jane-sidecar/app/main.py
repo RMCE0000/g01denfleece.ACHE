@@ -14,6 +14,7 @@ from app.homesteaders import open_peer_conversation, provision_homesteader, regi
 from app.payments import apply_stripe_event
 from app.runtime import current_checkpointer, open_checkpointer, open_store, set_store
 from app.stripe_service import construct_event
+from app.showcase import list_conversations
 from app.turn import run_turn
 
 logging.basicConfig(level=logging.INFO)
@@ -95,7 +96,7 @@ def create_app(store=None) -> FastAPI:
     @app.get("/health")
     async def health():
         store_name = type(app.state.store).__name__ if getattr(app.state, "store", None) else "unopened"
-        return {"ok": True, "store": store_name, "service": "jane-sidecar"}
+        return {"ok": True, "store": store_name, "service": "jane-sidecar", "showcase": "minimum"}
 
     @app.post("/api/admin/promo-codes")
     async def create_promo(body: PromoIn, request: Request):
@@ -110,6 +111,11 @@ def create_app(store=None) -> FastAPI:
     async def create_homesteader(body: HomesteaderIn, request: Request):
         _admin(request)
         return await provision_homesteader(app.state.store, body.model_dump())
+
+    @app.get("/api/admin/conversations")
+    async def list_admin_conversations(request: Request):
+        _admin(request)
+        return await list_conversations(app.state.store)
 
     @app.post("/api/admin/conversations")
     async def create_peer_conversation(body: PeerIn, request: Request):

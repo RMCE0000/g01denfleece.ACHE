@@ -656,6 +656,74 @@ class PostgresStore:
     async def unmark_event(self, event_id: str) -> None:
         await self._write("DELETE FROM g01_processed_webhook_events WHERE event_id = :id", {"id": event_id})
 
+    async def list_properties(self) -> list[dict]:
+        return await self._all(f"SELECT {_PROPERTY} FROM g01_properties ORDER BY display_name NULLS LAST, email NULLS LAST")
+
+    async def list_peer_conversations(self) -> list[dict]:
+        return await self._all(
+            """
+            SELECT id, chatwoot_conversation_id, chatwoot_inbox_id, property_a_id, property_b_id, topic, created_at
+            FROM g01_peer_conversations
+            ORDER BY created_at ASC
+            """
+        )
+
+    async def append_transcript(
+        self,
+        *,
+        conversation_id: int | None,
+        message_id: str | None,
+        role: str,
+        speaker: str,
+        content: str,
+    ) -> dict | None:
+        text = str(content or "").strip()
+        if conversation_id is None or not text:
+            return None
+        params = {
+            "conversation_id": int(conversation_id),
+            "message_id": str(message_id) if message_id else None,
+            "role": role,
+            "speaker": speaker or ("Jane" if role == "jane" else "Homesteader"),
+            "content": text,
+        }
+        rows = await self._write(
+            """
+            INSERT INTO g01_transcript (conversation_id, message_id, role, speaker, content)
+            VALUES (:conversation_id, :message_id, :role, :speaker, :content)
+            ON CONFLICT (conversation_id, message_id) WHERE message_id IS NOT NULL DO NOTHING
+            RETURNING id, conversation_id, message_id, role, speaker, content, created_at
+            """,
+            params,
+        )
+        if rows:
+            return rows[0]
+        if not message_id:
+            return None
+        return await self._one(
+            """
+            SELECT id, conversation_id, message_id, role, speaker, content, created_at
+            FROM g01_transcript
+            WHERE conversation_id = :conversation_id AND message_id = :message_id
+            """,
+            params,
+        )
+
+    async def list_transcript(self, conversation_id: int) -> list[dict]:
+        return await self._all(
+            """
+            SELECT id, conversation_id, message_id, role, speaker, content, created_at
+            FROM g01_transcript
+            WHERE conversation_id = :conversation_id
+            ORDER BY created_at ASC, id ASC
+            """,
+            {"conversation_id": int(conversation_id)},
+        )
+
+    async def transcript_conversation_ids(self) -> list[int]:
+        rows = await self._all("SELECT DISTINCT conversation_id FROM g01_transcript ORDER BY conversation_id")
+        return [int(row["conversation_id"]) for row in rows]
+
     async def add_outbox(self, conversation_id: int | None, content: str, delivered: bool) -> dict:
         rows = await self._write(
             """
