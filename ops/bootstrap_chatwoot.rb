@@ -7,6 +7,9 @@ require "fileutils"
 JANE_EMAIL = "jane@g01.local"
 ACCOUNT_NAME = "g01denfleece"
 INBOX_NAME = "Homestead"
+# The public website. FRONTEND_URL is wherever this Chatwoot process is reached.
+SITE_NAME = "g01denfleece.com"
+SITE_URL = "https://g01denfleece.com"
 OUT_DIR = "/bootstrap/out"
 WEBHOOK_URL = ENV.fetch("JANE_WEBHOOK_URL", "http://jane:8000/webhooks/chatwoot")
 FRONTEND = ENV.fetch("FRONTEND_URL", "http://localhost:3000")
@@ -49,7 +52,7 @@ channel = account.web_widgets.joins(:inbox).find_by(inboxes: { name: INBOX_NAME 
 if channel.nil?
   channel = Channel::WebWidget.create!(
     account: account,
-    website_url: FRONTEND,
+    website_url: SITE_URL,
     widget_color: "#3d5a3d",
     welcome_title: "Jane",
     welcome_tagline: "The homestead thread stays open.",
@@ -77,19 +80,20 @@ inbox.update!(
 InboxMember.find_or_create_by!(inbox: inbox, user: user)
 
 channel.update!(
+  website_url: SITE_URL,
   widget_color: "#7A5E24",
-  welcome_title: "g01",
+  welcome_title: SITE_NAME,
   welcome_tagline: "Talk with Jane. The thread stays open."
 )
 
 {
-  "INSTALLATION_NAME" => "g01",
-  "BRAND_NAME" => "g01",
+  "INSTALLATION_NAME" => SITE_NAME,
+  "BRAND_NAME" => SITE_NAME,
   "LOGO" => "/g01-logo.svg",
   "LOGO_DARK" => "/g01-logo.svg",
   "LOGO_THUMBNAIL" => "/g01-mark.svg",
-  "BRAND_URL" => FRONTEND,
-  "WIDGET_BRAND_URL" => FRONTEND,
+  "BRAND_URL" => SITE_URL,
+  "WIDGET_BRAND_URL" => SITE_URL,
   "DISPLAY_MANIFEST" => false
 }.each do |name, value|
   row = InstallationConfig.find_or_initialize_by(name: name)

@@ -7,6 +7,7 @@ x-chatwoot-env: &chatwoot-env
   INSTALLATION_ENV: docker
   # Alphanumeric. Chatwoot rejects a short or symbolic key.
   SECRET_KEY_BASE: ${SECRET_KEY_BASE:-G01devSecretKeyBase0123456789abcdefghijklmnopqrstuvwxyzABCDEF}
+  # This process. The public website is https://g01denfleece.com.
   FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
   DEFAULT_LOCALE: en
   FORCE_SSL: "false"
@@ -20,7 +21,7 @@ x-chatwoot-env: &chatwoot-env
   RAILS_LOG_TO_STDOUT: "true"
   RAILS_SERVE_STATIC_FILES: "true"
   ENABLE_ACCOUNT_SIGNUP: "false"
-  MAILER_SENDER_EMAIL: "${MAILER_SENDER_EMAIL:-Jane <jane@localhost>}"
+  MAILER_SENDER_EMAIL: "${MAILER_SENDER_EMAIL:-Jane <jane@g01denfleece.com>}"
   # Local mail is Mailpit. A public launch sets SMTP_ADDRESS, SMTP_PORT, and SMTP_ENABLE_STARTTLS_AUTO.
   SMTP_ADDRESS: ${SMTP_ADDRESS:-mailpit}
   SMTP_PORT: ${SMTP_PORT:-1025}
@@ -48,6 +49,7 @@ x-jane-env: &jane-env
   G01_GEMINI_DELIBERATION_MODEL: gemini-2.5-pro
   G01_GEMINI_EMBEDDING_MODEL: text-embedding-004
   G01_CHATWOOT_BASE_URL: http://rails:3000
+  # Browser links. On the public host this is https://g01denfleece.com.
   G01_CHATWOOT_PUBLIC_URL: ${G01_CHATWOOT_PUBLIC_URL:-http://localhost:3000}
   G01_CHATWOOT_ACCOUNT_ID: ${CHATWOOT_ACCOUNT_ID:-1}
   G01_CHATWOOT_API_TOKEN: ${G01_CHATWOOT_API_TOKEN:-}

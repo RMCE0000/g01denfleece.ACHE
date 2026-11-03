@@ -1,6 +1,6 @@
 # g01 progress log
 
-Updated 3 Nov 2026, 2:30 PM America/Chicago.
+Updated 3 Nov 2026, 3:18 PM America/Chicago.
 
 ## Still open from the MVP
 
@@ -24,5 +24,6 @@ The minimum showcase (MS). Jane is a small local model. A prompt is her constitu
 - `jane-worker` and `jane-beat` are behind the Compose profile `background` and are not started. The beat schedule is empty unless `G01_BACKGROUND_JOBS` is on.
 - Sign-in, the gold and white g01 chat, **Create an account**, and the private pair inbox are unchanged. Jane stays quiet in a connection unless someone says her name.
 - **Forgot your password?** sends a reset link. Compose delivers that mail to Mailpit (`http://localhost:8025`) until `SMTP_ADDRESS` is a real mailbox.
+- The website name is **g01denfleece.com** (`https://g01denfleece.com`). Login, the widget, and reset mail use that name. This machine still serves the app at `localhost` until the public host points here.
 
 The checkpointer bug, Stripe, Gemini, sponsor ratings, capability embeddings, blueprints, and forget are unchanged. They are not on the live turn.
