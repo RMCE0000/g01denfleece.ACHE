@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.errors import G01Error
-from app.homesteaders import open_peer_conversation, provision_homesteader
+from app.homesteaders import open_peer_conversation, provision_homesteader, register_homesteader
 from app.payments import apply_stripe_event
 from app.runtime import current_checkpointer, open_checkpointer, open_store, set_store
 from app.stripe_service import construct_event
@@ -101,6 +101,10 @@ def create_app(store=None) -> FastAPI:
     async def create_promo(body: PromoIn, request: Request):
         _admin(request)
         return await app.state.store.create_promo(body.model_dump())
+
+    @app.post("/api/signup")
+    async def signup(body: HomesteaderIn):
+        return await register_homesteader(app.state.store, body.model_dump())
 
     @app.post("/api/admin/homesteaders")
     async def create_homesteader(body: HomesteaderIn, request: Request):

@@ -75,7 +75,22 @@ def _public_homesteader(prop: dict, *, existing: bool) -> dict:
     }
 
 
-async def provision_homesteader(store, fields: dict) -> dict:
+async def register_homesteader(store, fields: dict) -> dict:
+    """Public login-page signup. An email that already has a sign-in does not get a new session."""
+    email = _email(fields.get("email") or "")
+    if await store.get_property_by_email(email):
+        raise G01Error("That email already has a sign-in.", 409)
+    created = await provision_homesteader(store, fields, reject_existing_user=True)
+    return {
+        "name": created["name"],
+        "email": created["email"],
+        "login_url": created["login_url"],
+        "conversation_url": created["conversation_url"],
+        "sso_url": created.get("sso_url"),
+    }
+
+
+async def provision_homesteader(store, fields: dict, *, reject_existing_user: bool = False) -> dict:
     """Create a Chatwoot sign-in, a private Jane inbox, and the property row."""
     name = " ".join(str(fields.get("name") or "").split())
     if not name:
@@ -100,7 +115,10 @@ async def provision_homesteader(store, fields: dict) -> dict:
     client = ChatwootClient(get_settings())
     _require_platform(client)
     settings = get_settings()
-    user = await client.create_platform_user(name, email, password)
+    nonce = uuid4().hex if reject_existing_user else None
+    user = await client.create_platform_user(name, email, password, signup_nonce=nonce)
+    if nonce and (user.get("custom_attributes") or {}).get("g01_signup") != nonce:
+        raise G01Error("That email already has a sign-in.", 409)
     user_id = int(user["id"])
     await client.add_account_user(user_id, role="agent")
     opened = await client.open_agent_conversation(

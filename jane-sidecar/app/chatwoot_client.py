@@ -63,11 +63,14 @@ class ChatwootClient:
             },
         )
 
-    async def create_platform_user(self, name: str, email: str, password: str) -> dict:
+    async def create_platform_user(self, name: str, email: str, password: str, signup_nonce: str | None = None) -> dict:
+        custom = {"g01": True}
+        if signup_nonce:
+            custom["g01_signup"] = signup_nonce
         payload = await self._request(
             "POST",
             "/platform/api/v1/users",
-            {"name": name, "display_name": name, "email": email, "password": password, "custom_attributes": {"g01": True}},
+            {"name": name, "display_name": name, "email": email, "password": password, "custom_attributes": custom},
             platform=True,
         )
         if isinstance(payload, dict) and "id" not in payload and isinstance(payload.get("user"), dict):

@@ -91,6 +91,7 @@ services:
       - "3000:3000"
     environment:
       <<: *chatwoot-env
+      G01_SIGNUP_UPSTREAM: http://jane:8000/api/signup
     entrypoint: docker/entrypoints/rails.sh
     command: ["sh", "-lc", "bundle exec rails db:chatwoot_prepare && exec bundle exec rails s -p 3000 -b 0.0.0.0"]
     volumes:

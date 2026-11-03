@@ -10,6 +10,7 @@ from app.main import create_app
 class FakeChatwoot:
     calls = []
     seq = 800
+    preexisting = {}
 
     def __init__(self, settings=None):
         self.settings = settings
@@ -18,6 +19,7 @@ class FakeChatwoot:
     def reset(cls):
         cls.calls = []
         cls.seq = 800
+        cls.preexisting = {}
 
     def configured(self):
         return True
@@ -29,10 +31,17 @@ class FakeChatwoot:
         FakeChatwoot.seq += 1
         return FakeChatwoot.seq
 
-    async def create_platform_user(self, name, email, password):
+    async def create_platform_user(self, name, email, password, signup_nonce=None):
+        if email in FakeChatwoot.preexisting:
+            user_id = FakeChatwoot.preexisting[email]
+            FakeChatwoot.calls.append(("user", user_id, email))
+            return {"id": user_id, "name": name, "email": email, "custom_attributes": {}}
         user_id = self._next()
         FakeChatwoot.calls.append(("user", user_id, email))
-        return {"id": user_id, "name": name, "email": email}
+        attributes = {"g01": True}
+        if signup_nonce:
+            attributes["g01_signup"] = signup_nonce
+        return {"id": user_id, "name": name, "email": email, "custom_attributes": attributes}
 
     async def add_account_user(self, user_id, role="agent"):
         FakeChatwoot.calls.append(("account_user", int(user_id), role))
@@ -162,6 +171,37 @@ def test_admin_opens_sign_in_and_a_private_conversation(store, monkeypatch):
         assert named.status_code == 200
         assert named.json().get("ignored") != "peer"
         assert named.json()["reply"]
+
+
+def test_login_page_signup_opens_a_sign_in(store, monkeypatch):
+    FakeChatwoot.reset()
+    monkeypatch.setenv("G01_CHATWOOT_API_TOKEN", "api-token")
+    monkeypatch.setenv("G01_CHATWOOT_PLATFORM_TOKEN", "platform-token")
+    monkeypatch.setenv("G01_CHATWOOT_PUBLIC_URL", "http://localhost:3000")
+    monkeypatch.setenv("G01_JANE_USER_ID", "4")
+    get_settings.cache_clear()
+    monkeypatch.setattr("app.homesteaders.ChatwootClient", FakeChatwoot)
+
+    with TestClient(create_app(store)) as client:
+        created = client.post("/api/signup", json=_person("Cara North", "cara.north@example.com", "70607"))
+        assert created.status_code == 200
+        body = created.json()
+        assert body["email"] == "cara.north@example.com"
+        assert body["sso_url"].startswith("http://localhost:3000/auth/sso?user=")
+        assert "api_access_token" not in body
+        assert any(call[0] == "inbox" and call[1] == "Jane — Cara North" for call in FakeChatwoot.calls)
+
+        again = client.post("/api/signup", json=_person("Cara North", "cara.north@example.com", "70607"))
+        assert again.status_code == 409
+        assert "sso_url" not in again.json()
+
+        FakeChatwoot.preexisting["drew.existing@example.com"] = 77
+        taken = client.post("/api/signup", json=_person("Drew Existing", "drew.existing@example.com", "70601"))
+        assert taken.status_code == 409
+        assert not any(call[0] == "inbox" and "Drew Existing" in call[1] for call in FakeChatwoot.calls)
+
+        outside = client.post("/api/signup", json=_person("Cara North", "cara.other@example.com", "10001"))
+        assert outside.status_code == 422
 
 
 def test_homesteader_routes_need_chatwoot(store, monkeypatch):

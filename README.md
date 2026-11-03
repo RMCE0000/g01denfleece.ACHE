@@ -38,7 +38,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-The homesteader signs in at Chatwoot: `http://localhost:3000/app/login`. The screen is white with gold accents and the g01 logo. After bootstrap, `.chatwoot-bootstrap/operator.txt` has Jane's agent login and the admin token. When Jane finishes starting, `.chatwoot-bootstrap/homesteaders.txt` has two local demo people:
+The homesteader signs in at Chatwoot: `http://localhost:3000/app/login`. The screen is white with gold accents and the g01 logo. **Create an account** on that page asks for a name, email, password, and a ZIP already on the record (such as 70601). That creates the sign-in and a private thread with Jane, then opens it. Chatwoot's own account signup stays off, because that form would open a separate empty account. After bootstrap, `.chatwoot-bootstrap/operator.txt` has Jane's agent login and the admin token. When Jane finishes starting, `.chatwoot-bootstrap/homesteaders.txt` has two local demo people:
 
 - Ada Yard, `ada.yard@example.com`, password `G01seed-Ada-70601`
 - Bea Chenier, `bea.chenier@example.com`, password `G01seed-Bea-70605`
@@ -61,7 +61,7 @@ curl -s -X POST http://localhost:8000/api/admin/conversations \
 
 `left` and `right` take an email, a Chatwoot user id, or a property id. Scores, labor hours, aesthetic, local ranking, sponsorship, and identity verification are still replies in the Jane thread. Stripe Checkout and Stripe Identity stay on Stripe; Jane may paste those links.
 
-The sidecar on port 8000 accepts the Chatwoot webhook, the Stripe webhook, and the admin promo route. It does not serve a dashboard or a signup form. Auto-resolve is left unset so the thread stays open. Agent account signup is off; the bootstrap user is the operator.
+The sidecar on port 8000 accepts the Chatwoot webhook, the Stripe webhook, the login-page signup at `POST /api/signup`, and the admin promo route. It does not serve a dashboard. Auto-resolve is left unset so the thread stays open. The bootstrap user is the operator. Chatwoot's own agent signup stays off.
 
 For a memory-backed webhook demo without Docker:
 

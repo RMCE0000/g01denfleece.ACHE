@@ -101,6 +101,48 @@ select:focus {
   outline-color: #7a5e24 !important;
 }
 
+.g01-signup-card input {
+  width: 100%;
+  border: 1px solid #e7d7b1;
+  border-radius: 6px;
+  background: #fff;
+  color: #2a2418;
+  padding: 0.55rem 0.75rem;
+}
+
+.g01-signup-card button[type="submit"] {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: #7a5e24;
+  color: #fff;
+  padding: 0.7rem 1rem;
+  font-weight: 600;
+}
+
+.g01-signup-card button[type="submit"]:disabled {
+  opacity: 0.6;
+}
+
+.g01-signup-link,
+.g01-signup-back {
+  background: none;
+  border: 0;
+  color: #7a5e24;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.g01-signup-error {
+  color: #8a3b2a;
+  font-size: 0.875rem;
+}
+
+body.g01-signup-open section.bg-white.shadow:not(#g01-signup-card) {
+  display: none !important;
+}
+
 .border-n-brand,
 .border-woot-500,
 .border-n-weak,
