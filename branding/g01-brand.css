@@ -1,0 +1,141 @@
+/* g01 gold and white on the Chatwoot shell. The signed-in app compiles its
+   brand blue to #2781F6 / bg-n-brand, so those rules are overridden here. */
+:root,
+.dark {
+  color-scheme: light;
+  --blue-1: 255 253 248;
+  --blue-2: 255 250 240;
+  --blue-3: 251 246 235;
+  --blue-4: 244 232 204;
+  --blue-5: 232 210 164;
+  --blue-8: 184 146 74;
+  --blue-9: 122 94 36;
+  --blue-10: 110 83 24;
+  --blue-11: 90 68 20;
+  --blue-12: 42 36 24;
+  --text-blue: 74 56 16;
+  --border-blue: 122, 94, 36, 0.45;
+  --border-blue-strong: 122 94 36;
+  --solid-blue: 244 232 204;
+  --solid-blue-2: 255 252 246;
+  --background-color: 255 255 255;
+  --slate-1: 255 255 255;
+  --slate-2: 255 252 246;
+  --slate-3: 247 242 230;
+  --slate-12: 42 36 24;
+  --surface-1: 255 255 255;
+  --surface-2: 255 255 255;
+  --surface-active: 255 252 246;
+  --card-color: 255 255 255;
+  --solid-1: 255 255 255;
+  --solid-2: 255 252 246;
+  --solid-3: 255 252 246;
+  --solid-active: 247 242 230;
+  --border-weak: 231 215 177;
+  --border-strong: 212 184 122;
+  --border-container: 231 215 177;
+  --button-color: 255 255 255;
+  --label-background: 255 252 246;
+}
+
+html,
+body,
+#app,
+.v3-app {
+  background: #ffffff !important;
+  color: #2a2418;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #7a5e24;
+  z-index: 10000;
+  pointer-events: none;
+}
+
+.bg-n-brand,
+.bg-woot-500,
+.bg-woot-600,
+.button.primary,
+button.primary,
+.bg-n-brand\/80,
+.bg-n-brand\/90 {
+  background-color: #7a5e24 !important;
+  color: #ffffff !important;
+}
+
+/* Login and empty states use a 5% brand wash. Upstream brand is blue, so the wash stays blue unless this is white. */
+.bg-n-brand\/5,
+.bg-n-brand\/10,
+.bg-n-brand\/20 {
+  background-color: #ffffff !important;
+}
+
+.hover\:bg-n-brand:hover,
+.hover\:bg-woot-500:hover,
+.hover\:bg-woot-600:hover,
+.button.primary:hover,
+button.primary:hover {
+  background-color: #5e4818 !important;
+  color: #ffffff !important;
+}
+
+.text-n-brand,
+.text-woot-500,
+.text-n-blue-text,
+.text-n-blue-11,
+a.text-n-blue-text,
+.text-link,
+a.text-link {
+  color: #7a5e24 !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline-color: #7a5e24 !important;
+}
+
+.border-n-brand,
+.border-woot-500,
+.border-n-weak,
+.border-n-strong {
+  border-color: #d4b87a !important;
+}
+
+.bg-n-background,
+.bg-n-surface-1,
+.bg-n-surface-2,
+.bg-n-solid-1,
+.bg-n-solid-2,
+.bg-n-slate-1,
+.bg-n-slate-2 {
+  background-color: #ffffff !important;
+}
+
+img[src*="g01-logo"],
+img[src*="g01-mark"] {
+  max-height: 48px;
+  width: auto;
+  background: transparent;
+}
+
+.chat-bubble.outgoing .message-content,
+.conversation-wrap .right .message-content,
+.widget-header,
+.header-brand {
+  background-color: #7a5e24 !important;
+  color: #ffffff !important;
+}
+
+.conversation-wrap,
+.messages-wrap,
+.reply-box,
+.widget-wrap {
+  background: #ffffff !important;
+}

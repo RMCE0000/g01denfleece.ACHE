@@ -25,6 +25,7 @@ class MemoryStore:
         self.invites: list[dict] = []
         self.votes: list[dict] = []
         self.matches: list[dict] = []
+        self.peers: list[dict] = []
         self.referrals: list[dict] = []
         self.events: set[str] = set()
         self.checkouts: dict[str, str] = {}
@@ -68,6 +69,9 @@ class MemoryStore:
             "chatwoot_user_id": fields.get("chatwoot_user_id"),
             "chatwoot_contact_id": int(fields["chatwoot_contact_id"]),
             "primary_conversation_id": fields.get("primary_conversation_id"),
+            "chatwoot_inbox_id": fields.get("chatwoot_inbox_id"),
+            "email": fields.get("email"),
+            "display_name": fields.get("display_name"),
             "locality_id": fields["locality_id"],
             "street_address": fields.get("street_address"),
             "zip_code": fields["zip_code"],
@@ -110,6 +114,12 @@ class MemoryStore:
 
     async def get_property_by_user(self, user_id: int) -> dict | None:
         return self._find_property(lambda row: row["chatwoot_user_id"] is not None and int(row["chatwoot_user_id"]) == int(user_id))
+
+    async def get_property_by_email(self, email: str) -> dict | None:
+        wanted = (email or "").strip().casefold()
+        if not wanted:
+            return None
+        return self._find_property(lambda row: (row.get("email") or "").casefold() == wanted)
 
     def _mutate(self, property_id: str) -> dict:
         for prop in self.properties:
@@ -518,6 +528,55 @@ class MemoryStore:
 
     async def properties_with_goals(self) -> list[dict]:
         return [deepcopy(row) for row in self.properties if (row.get("known_facts_ledger") or {}).get("active_goals")]
+
+    def _ordered_pair(self, left: str, right: str) -> tuple[str, str]:
+        first, second = str(left), str(right)
+        if first == second:
+            raise G01Error("choose two different homesteaders", 422)
+        return (first, second) if first < second else (second, first)
+
+    async def find_peer_between(self, left_id: str, right_id: str) -> dict | None:
+        first, second = self._ordered_pair(left_id, right_id)
+        for row in self.peers:
+            if row["property_a_id"] == first and row["property_b_id"] == second:
+                return deepcopy(row)
+        return None
+
+    async def get_peer_by_conversation(self, conversation_id: int) -> dict | None:
+        for row in self.peers:
+            if int(row["chatwoot_conversation_id"]) == int(conversation_id):
+                return deepcopy(row)
+        return None
+
+    async def is_peer_conversation(self, conversation_id: int) -> bool:
+        return await self.get_peer_by_conversation(conversation_id) is not None
+
+    async def remember_peer_conversation(
+        self,
+        conversation_id: int,
+        left_id: str,
+        right_id: str,
+        inbox_id: int | None = None,
+        topic: str | None = None,
+    ) -> dict:
+        first, second = self._ordered_pair(left_id, right_id)
+        existing = await self.find_peer_between(first, second)
+        if existing:
+            return existing
+        by_conversation = await self.get_peer_by_conversation(conversation_id)
+        if by_conversation:
+            return by_conversation
+        row = {
+            "id": str(uuid4()),
+            "chatwoot_conversation_id": int(conversation_id),
+            "chatwoot_inbox_id": int(inbox_id) if inbox_id is not None else None,
+            "property_a_id": first,
+            "property_b_id": second,
+            "topic": topic,
+            "created_at": self._clock(),
+        }
+        self.peers.append(row)
+        return deepcopy(row)
 
 
 def seed_demo(store: MemoryStore) -> MemoryStore:

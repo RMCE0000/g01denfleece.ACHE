@@ -1,5 +1,7 @@
 """Chatwoot message_created intake. Jane's own posts are ignored so the webhook cannot loop."""
 
+import re
+
 from app.config import get_settings
 from app.graphs.sync_peer_graph import build_sync_peer_graph
 from app.runtime import set_store
@@ -26,6 +28,9 @@ def extract_message(payload: dict) -> dict:
         "user_id": user_id,
         "content_attributes": payload.get("content_attributes") or {},
     }
+
+
+_MENTIONS_JANE = re.compile(r"\bjane\b", re.I)
 
 
 def ignore_reason(message: dict) -> str | None:
@@ -55,6 +60,10 @@ async def run_turn(store, payload: dict) -> dict:
     reason = ignore_reason(message)
     if reason:
         return {"ok": True, "ignored": reason}
+    conversation_id = message.get("conversation_id")
+    if conversation_id is not None and await store.is_peer_conversation(int(conversation_id)):
+        if not _MENTIONS_JANE.search(message.get("content") or ""):
+            return {"ok": True, "ignored": "peer"}
     event_id = f"cw:{message.get('message_id')}:{message.get('conversation_id')}"
     message["event_id"] = event_id
     if not await store.mark_event(event_id):

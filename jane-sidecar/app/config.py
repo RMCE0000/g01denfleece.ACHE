@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     stripe_success_url: str = "http://localhost:3000"
     stripe_cancel_url: str = "http://localhost:3000"
 
+    seed_homesteaders: bool = False
     poll_mature_hours: int = 24
     match_similarity_threshold: float = 0.72
     full_manual_hours_per_week: float = 40.0

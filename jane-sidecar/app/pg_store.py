@@ -18,7 +18,8 @@ locality_id, street_address, zip_code, lat, lng,
 northstar_automated_pct, outside_aid_hours_per_week, northstar_aesthetic_pct,
 northstar_material_independent, material_surplus_profitable,
 northstar_energetic_pct, northstar_energetic_profitable, northstar_contained_zero_waste,
-known_facts_ledger, sponsor_draft, kyc_verified, stripe_identity_session_id, updated_at
+known_facts_ledger, sponsor_draft, kyc_verified, stripe_identity_session_id, updated_at,
+email, display_name, chatwoot_inbox_id
 """
 
 _SPONSOR = """
@@ -107,9 +108,11 @@ class PostgresStore:
                 f"""
                 INSERT INTO g01_properties (
                     chatwoot_account_id, chatwoot_user_id, chatwoot_contact_id, primary_conversation_id,
+                    chatwoot_inbox_id, email, display_name,
                     locality_id, street_address, zip_code, lat, lng, known_facts_ledger
                 ) VALUES (
                     :account_id, :user_id, :contact_id, :conversation_id,
+                    :inbox_id, :email, :display_name,
                     CAST(:locality_id AS uuid), :street, :zip, :lat, :lng, CAST(:ledger AS jsonb)
                 )
                 RETURNING {_PROPERTY}
@@ -119,6 +122,9 @@ class PostgresStore:
                     "user_id": fields.get("chatwoot_user_id"),
                     "contact_id": int(fields["chatwoot_contact_id"]),
                     "conversation_id": fields.get("primary_conversation_id"),
+                    "inbox_id": fields.get("chatwoot_inbox_id"),
+                    "email": fields.get("email"),
+                    "display_name": fields.get("display_name"),
                     "locality_id": fields["locality_id"],
                     "street": fields.get("street_address"),
                     "zip": fields["zip_code"],
@@ -156,6 +162,15 @@ class PostgresStore:
         return await self._one(
             f"SELECT {_PROPERTY} FROM g01_properties WHERE chatwoot_user_id = :user_id",
             {"user_id": int(user_id)},
+        )
+
+    async def get_property_by_email(self, email: str) -> dict | None:
+        wanted = (email or "").strip()
+        if not wanted:
+            return None
+        return await self._one(
+            f"SELECT {_PROPERTY} FROM g01_properties WHERE lower(email) = lower(:email)",
+            {"email": wanted},
         )
 
     async def update_aesthetic(self, property_id: str, aesthetic: float) -> dict:
@@ -761,3 +776,76 @@ class PostgresStore:
             elif raw is None:
                 row["goals_embedding"] = None
         return rows
+
+    def _ordered_pair(self, left: str, right: str) -> tuple[str, str]:
+        first, second = str(left), str(right)
+        if first == second:
+            raise G01Error("choose two different homesteaders", 422)
+        return (first, second) if first < second else (second, first)
+
+    async def find_peer_between(self, left_id: str, right_id: str) -> dict | None:
+        first, second = self._ordered_pair(left_id, right_id)
+        return await self._one(
+            """
+            SELECT id, chatwoot_conversation_id, chatwoot_inbox_id, property_a_id, property_b_id, topic, created_at
+            FROM g01_peer_conversations
+            WHERE property_a_id = CAST(:first AS uuid) AND property_b_id = CAST(:second AS uuid)
+            """,
+            {"first": first, "second": second},
+        )
+
+    async def get_peer_by_conversation(self, conversation_id: int) -> dict | None:
+        return await self._one(
+            """
+            SELECT id, chatwoot_conversation_id, chatwoot_inbox_id, property_a_id, property_b_id, topic, created_at
+            FROM g01_peer_conversations
+            WHERE chatwoot_conversation_id = :conversation_id
+            """,
+            {"conversation_id": int(conversation_id)},
+        )
+
+    async def is_peer_conversation(self, conversation_id: int) -> bool:
+        return await self.get_peer_by_conversation(conversation_id) is not None
+
+    async def remember_peer_conversation(
+        self,
+        conversation_id: int,
+        left_id: str,
+        right_id: str,
+        inbox_id: int | None = None,
+        topic: str | None = None,
+    ) -> dict:
+        first, second = self._ordered_pair(left_id, right_id)
+        existing = await self.find_peer_between(first, second)
+        if existing:
+            return existing
+        by_conversation = await self.get_peer_by_conversation(conversation_id)
+        if by_conversation:
+            return by_conversation
+        try:
+            rows = await self._write(
+                """
+                INSERT INTO g01_peer_conversations (
+                    chatwoot_conversation_id, chatwoot_inbox_id, property_a_id, property_b_id, topic
+                ) VALUES (
+                    :conversation_id, :inbox_id, CAST(:first AS uuid), CAST(:second AS uuid), :topic
+                )
+                RETURNING id, chatwoot_conversation_id, chatwoot_inbox_id, property_a_id, property_b_id, topic, created_at
+                """,
+                {
+                    "conversation_id": int(conversation_id),
+                    "inbox_id": inbox_id,
+                    "first": first,
+                    "second": second,
+                    "topic": topic,
+                },
+            )
+        except IntegrityError:
+            found = await self.find_peer_between(first, second)
+            if found:
+                return found
+            again = await self.get_peer_by_conversation(conversation_id)
+            if again:
+                return again
+            raise
+        return rows[0]

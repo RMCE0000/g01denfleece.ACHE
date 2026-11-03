@@ -38,7 +38,28 @@ cp .env.example .env
 docker compose up --build
 ```
 
-The homesteader page is Chatwoot's own widget. After bootstrap finishes, `.chatwoot-bootstrap/operator.txt` has the widget URL (`http://localhost:3000/widget?website_token=...`) and Jane's agent login. The pre-chat form asks for a name and email. Jane attaches the property when the person sends a ZIP. Scores, labor hours, aesthetic, local ranking, sponsorship, and identity verification are replies in that thread. Stripe Checkout and Stripe Identity stay on Stripe; Jane may paste those links.
+The homesteader signs in at Chatwoot: `http://localhost:3000/app/login`. The screen is white with gold accents and the g01 logo. After bootstrap, `.chatwoot-bootstrap/operator.txt` has Jane's agent login and the admin token. When Jane finishes starting, `.chatwoot-bootstrap/homesteaders.txt` has two local demo people:
+
+- Ada Yard, `ada.yard@example.com`, password `G01seed-Ada-70601`
+- Bea Chenier, `bea.chenier@example.com`, password `G01seed-Bea-70605`
+
+Each has a private inbox named `Jane — {name}` for talking with Jane, and a shared inbox `Ada Yard and Bea Chenier`. Jane stays quiet in the shared inbox unless someone says her name. The public widget remains at the URL in `operator.txt`; its header is the same gold.
+
+Create another sign-in, then a conversation between two of them:
+
+```bash
+curl -s -X POST http://localhost:8000/api/admin/homesteaders \
+  -H "X-G01-Admin-Token: g01-local-admin-token" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Cara North","email":"cara.north@example.com","password":"Pasture-70607","zip_code":"70607"}'
+
+curl -s -X POST http://localhost:8000/api/admin/conversations \
+  -H "X-G01-Admin-Token: g01-local-admin-token" \
+  -H "Content-Type: application/json" \
+  -d '{"left":"ada.yard@example.com","right":"cara.north@example.com","topic":"the well"}'
+```
+
+`left` and `right` take an email, a Chatwoot user id, or a property id. Scores, labor hours, aesthetic, local ranking, sponsorship, and identity verification are still replies in the Jane thread. Stripe Checkout and Stripe Identity stay on Stripe; Jane may paste those links.
 
 The sidecar on port 8000 accepts the Chatwoot webhook, the Stripe webhook, and the admin promo route. It does not serve a dashboard or a signup form. Auto-resolve is left unset so the thread stays open. Agent account signup is off; the bootstrap user is the operator.
 
