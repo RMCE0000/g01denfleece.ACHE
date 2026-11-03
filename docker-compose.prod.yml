@@ -4,7 +4,7 @@
 
 services:
   caddy:
-    image: caddy:2
+    image: caddy@sha256:36c24ad91a7ff7bc4c87fe22bfa8df3c4b18da0773d73fc12ee2c52b98c0bb7e
     restart: unless-stopped
     ports:
       - "80:80"
@@ -18,6 +18,8 @@ services:
       - caddy_config:/config
     depends_on:
       rails:
+        condition: service_healthy
+      jane:
         condition: service_healthy
 
   postgres:
@@ -33,9 +35,19 @@ services:
   rails:
     restart: unless-stopped
     ports: !override []
+    environment:
+      SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-login}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_DOMAIN: ${SMTP_DOMAIN:-g01denfleece.com}
 
   sidekiq:
     restart: unless-stopped
+    environment:
+      SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-login}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_DOMAIN: ${SMTP_DOMAIN:-g01denfleece.com}
 
   ollama:
     restart: unless-stopped

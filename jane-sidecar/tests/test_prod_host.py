@@ -15,14 +15,24 @@ def _value(text: str, key: str) -> str:
 
 def test_production_compose_publishes_only_the_website():
     compose = (ROOT / "docker-compose.prod.yml").read_text(encoding="utf-8")
-    assert "caddy:2" in compose
+    assert "caddy@sha256:" in compose
     assert '"127.0.0.1:8000:8000"' in compose
     assert "8000:8000\"" not in compose.replace('"127.0.0.1:8000:8000"', "")
     caddy = (ROOT / "deploy" / "Caddyfile").read_text(encoding="utf-8")
     assert "g01denfleece.com" in caddy
     assert "reverse_proxy rails:3000" in caddy
     base = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
-    assert "SMTP_USERNAME: ${SMTP_USERNAME:-}" in base
+    assert "SMTP_USERNAME:" not in base
+    assert "SMTP_USERNAME: ${SMTP_USERNAME:-}" in compose
+    assert "image: chatwoot/chatwoot@sha256:" in base
+    assert "image: ollama/ollama@sha256:" in base
+    assert "condition: service_healthy" in compose
+    assert "git" in (
+        ROOT / "deploy" / "digitalocean" / "cloud-init.yaml"
+    ).read_text(encoding="utf-8")
+    bootstrap = (ROOT / "ops" / "bootstrap_chatwoot.rb").read_text(encoding="utf-8")
+    assert 'raise "g01 platform token is empty"' in bootstrap
+    assert 'raise "g01 Chatwoot API token is empty"' in bootstrap
 
     rendered = subprocess.run(
         [
@@ -82,6 +92,8 @@ def test_production_env_check_rejects_local_secrets(tmp_path):
         "POSTGRES_PASSWORD": "b" * 24,
         "G01_ADMIN_TOKEN": "c" * 32,
         "ACME_EMAIL": "ops@g01denfleece.com",
+        "SMTP_ADDRESS": "smtp.example.net",
+        "SMTP_USERNAME": "smtp-user",
         "SMTP_PASSWORD": "mailbox-secret",
     }
     lines = []

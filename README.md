@@ -92,7 +92,9 @@ One droplet in Atlanta (`atl1`), the closest region to the homesteaders. Ubuntu 
 
 Create a cloud firewall named `g01-public` and attach it to the droplet. Inbound is SSH from your own IP, plus HTTP and HTTPS from anywhere. Outbound stays open. Leave Jane's port 8000, Postgres, Redis, and Mailpit off that list.
 
-DNS stays at GoDaddy. Replace the two A records for `@` with one A record set to the droplet's IPv4 address. Leave the `www` CNAME, the Microsoft 365 MX record, and the `onmicrosoft.com` TXT record. Add `include:spf.protection.outlook.com` to the SPF record so reset mail from Outlook is authorized.
+DNS stays at GoDaddy. Replace the two A records for `@` with one A record set to the droplet's IPv4 address. Leave the `www` CNAME, the Microsoft 365 MX record, and the `onmicrosoft.com` TXT record.
+
+Use a transactional SMTP provider for password resets and authorize `jane@g01denfleece.com` there. Add that provider's exact SPF and DKIM records in GoDaddy; do not replace the existing Microsoft records. Microsoft 365 password-based SMTP is acceptable only as a temporary test when SMTP AUTH is explicitly enabled for the tenant and mailbox. Microsoft plans to disable it by default at the end of December 2026, and Security Defaults may already block it.
 
 On the droplet, after `dig +short g01denfleece.com` shows that address:
 
@@ -103,9 +105,13 @@ cp .env.production.example .env
 # fill the placeholders, then:
 sh deploy/check-prod-env.sh
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+sh deploy/check-running.sh
 ```
 
 Caddy serves https://g01denfleece.com and forwards to Chatwoot. The admin API is only on the droplet at `http://127.0.0.1:8000`.
+The final check refuses to pass if Chatwoot's API or platform token is empty, if a required container is stopped, if Jane is unhealthy, or if the public Chatwoot health endpoint is unhealthy.
+
+Run these commands only after the sign-in and minimum-showcase pull requests have been merged to `main`. Until then, a default clone does not contain the launch stack.
 
 Tests:
 

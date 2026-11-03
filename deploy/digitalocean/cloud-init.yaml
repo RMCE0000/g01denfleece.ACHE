@@ -6,6 +6,7 @@ package_update: true
 packages:
   - ca-certificates
   - curl
+  - git
   - ufw
 runcmd:
   - curl -fsSL https://get.docker.com | sh

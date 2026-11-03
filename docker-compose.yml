@@ -26,10 +26,6 @@ x-chatwoot-env: &chatwoot-env
   SMTP_ADDRESS: ${SMTP_ADDRESS:-mailpit}
   SMTP_PORT: ${SMTP_PORT:-1025}
   SMTP_ENABLE_STARTTLS_AUTO: ${SMTP_ENABLE_STARTTLS_AUTO:-false}
-  SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-}
-  SMTP_USERNAME: ${SMTP_USERNAME:-}
-  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-  SMTP_DOMAIN: ${SMTP_DOMAIN:-}
   ACTIVE_STORAGE_SERVICE: local
   # Jane is a private Docker hostname. Chatwoot otherwise refuses the webhook.
   SAFE_FETCH_ALLOW_PRIVATE_NETWORK: "true"
@@ -69,7 +65,7 @@ x-jane-env: &jane-env
 
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector@sha256:0dd3149a06e4579a0d70d8fef9945636cd514005e7237deb27f9b67886f8dc4f
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-g01}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-g01}
@@ -84,7 +80,7 @@ services:
       retries: 20
 
   redis:
-    image: redis:7-alpine
+    image: redis@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -92,12 +88,12 @@ services:
       retries: 20
 
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
     ports:
       - "8025:8025"
 
   rails:
-    image: chatwoot/chatwoot:latest
+    image: chatwoot/chatwoot@sha256:0ea1fdeecf99470d76c51ca6d60f54d0e0b044c149ea069290741b35113a720d
     depends_on:
       postgres:
         condition: service_healthy
@@ -129,7 +125,7 @@ services:
       start_period: 180s
 
   sidekiq:
-    image: chatwoot/chatwoot:latest
+    image: chatwoot/chatwoot@sha256:0ea1fdeecf99470d76c51ca6d60f54d0e0b044c149ea069290741b35113a720d
     depends_on:
       rails:
         condition: service_healthy
@@ -141,7 +137,7 @@ services:
       - chatwoot_storage:/app/storage
 
   bootstrap:
-    image: chatwoot/chatwoot:latest
+    image: chatwoot/chatwoot@sha256:0ea1fdeecf99470d76c51ca6d60f54d0e0b044c149ea069290741b35113a720d
     depends_on:
       rails:
         condition: service_healthy
@@ -159,7 +155,7 @@ services:
     restart: "no"
 
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama@sha256:ebaef4f4c5d93660e1f25f8ad085a112f51ccfb0e8458073e71793959dba91c9
     volumes:
       - ollama_models:/root/.ollama
     healthcheck:
@@ -170,7 +166,7 @@ services:
       start_period: 5s
 
   ollama-pull:
-    image: ollama/ollama:latest
+    image: ollama/ollama@sha256:ebaef4f4c5d93660e1f25f8ad085a112f51ccfb0e8458073e71793959dba91c9
     depends_on:
       ollama:
         condition: service_healthy
@@ -198,6 +194,12 @@ services:
     volumes:
       - ./sql/001_init_g01_schema.sql:/sql/001_init_g01_schema.sql:ro
       - ./.chatwoot-bootstrap:/bootstrap
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
 
   # Off for the minimum showcase. `docker compose --profile background up` starts them.
   jane-worker:

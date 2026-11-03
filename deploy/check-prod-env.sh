@@ -52,12 +52,13 @@ printf '%s' "$database_url" | grep -F -q "$postgres" || fail "G01_DATABASE_URL m
 case "$acme" in
   ""|*example.com|*replace-with*) fail "ACME_EMAIL needs a real mailbox for certificate notices" ;;
 esac
-[ "$smtp" = "smtp.office365.com" ] || fail "SMTP_ADDRESS must be smtp.office365.com"
-case "$smtp_user" in
-  *@g01denfleece.com) ;;
-  *) fail "SMTP_USERNAME must be a mailbox at g01denfleece.com" ;;
+case "$smtp" in
+  ""|mailpit|*replace-with*) fail "SMTP_ADDRESS needs a public SMTP provider" ;;
 esac
-printf '%s' "$sender" | grep -F -q "$smtp_user" || fail "MAILER_SENDER_EMAIL must use the same mailbox as SMTP_USERNAME"
+case "$smtp_user" in
+  ""|*replace-with*) fail "SMTP_USERNAME still has a placeholder" ;;
+esac
+printf '%s' "$sender" | grep -F -q "jane@g01denfleece.com" || fail "MAILER_SENDER_EMAIL must be Jane <jane@g01denfleece.com>"
 case "$smtp_password" in
   ""|*replace-with*) fail "SMTP_PASSWORD still has a placeholder" ;;
 esac

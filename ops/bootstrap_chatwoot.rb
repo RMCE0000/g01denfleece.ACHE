@@ -120,15 +120,13 @@ rescue StandardError => e
   puts "g01 brand cache was not cleared: #{e.message}"
 end
 
-platform_token = nil
-begin
-  platform = PlatformApp.find_or_create_by!(name: "g01")
-  platform.platform_app_permissibles.find_or_create_by!(permissible: account)
-  access = platform.access_token || platform.create_access_token!
-  platform_token = access.token
-rescue StandardError => e
-  puts "g01 platform token was not created: #{e.message}"
-end
+# Account creation needs this token. Failing bootstrap is safer than bringing up
+# a login page whose Create an account action can only return 503.
+platform = PlatformApp.find_or_create_by!(name: "g01")
+platform.platform_app_permissibles.find_or_create_by!(permissible: account)
+platform_access = platform.access_token || platform.create_access_token!
+platform_token = platform_access.token
+raise "g01 platform token is empty" if platform_token.blank?
 
 begin
   Redis::Alfred.delete(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING)
@@ -142,6 +140,7 @@ hook.webhook_type = :account_type
 hook.save!
 
 access = AccessToken.find_by(owner: user) || AccessToken.create!(owner: user)
+raise "g01 Chatwoot API token is empty" if access.token.blank?
 widget_url = "#{FRONTEND}/widget?website_token=#{channel.website_token}"
 
 File.write(env_path, <<~ENV)
