@@ -57,6 +57,14 @@ async def _say(store, client: ChatwootClient, conversation_id: int | None, conte
         except Exception:
             log.exception("Chatwoot did not accept Jane's message on conversation %s", conversation_id)
     await store.add_outbox(int(conversation_id) if conversation_id is not None else None, content, delivered)
+    if conversation_id is not None:
+        await store.append_transcript(
+            conversation_id=int(conversation_id),
+            message_id=None,
+            role="jane",
+            speaker="Jane",
+            content=content,
+        )
 
 
 def _public_homesteader(prop: dict, *, existing: bool) -> dict:
@@ -130,7 +138,7 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
     )
     intro = (
         f"I'm Jane. This is your open homestead thread for {locality['name']} (ZIP {zip_code}). "
-        "Ask me for scores, a local part, or another homesteader. The thread stays open."
+        "Tell me what the place needs. The thread stays open."
     )
     await _say(store, client, opened["conversation_id"], intro)
     prop = await store.create_property(

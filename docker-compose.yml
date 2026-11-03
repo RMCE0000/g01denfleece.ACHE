@@ -38,6 +38,9 @@ x-jane-env: &jane-env
   G01_PUBLIC_BASE_URL: ${G01_PUBLIC_BASE_URL:-http://jane:8000}
   G01_ADMIN_TOKEN: ${G01_ADMIN_TOKEN:-g01-local-admin-token}
   G01_SEED_HOMESTEADERS: ${G01_SEED_HOMESTEADERS:-1}
+  G01_BACKGROUND_JOBS: "0"
+  G01_OLLAMA_BASE_URL: http://ollama:11434
+  G01_OLLAMA_MODEL: ${G01_OLLAMA_MODEL:-qwen2.5:1.5b}
   G01_GEMINI_API_KEY: ${G01_GEMINI_API_KEY:-}
   G01_GEMINI_CHAT_MODEL: gemini-2.5-flash
   G01_GEMINI_DELIBERATION_MODEL: gemini-2.5-pro
@@ -140,6 +143,28 @@ services:
       - ./.chatwoot-bootstrap:/bootstrap/out
     restart: "no"
 
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      G01_OLLAMA_MODEL: ${G01_OLLAMA_MODEL:-qwen2.5:1.5b}
+    entrypoint: ["sh", "-c", "ollama pull \"$${G01_OLLAMA_MODEL:-qwen2.5:1.5b}\""]
+    restart: "no"
+
   jane:
     build: ./jane-sidecar
     depends_on:
@@ -149,6 +174,8 @@ services:
         condition: service_healthy
       bootstrap:
         condition: service_completed_successfully
+      ollama-pull:
+        condition: service_completed_successfully
     ports:
       - "8000:8000"
     environment:
@@ -157,7 +184,9 @@ services:
       - ./sql/001_init_g01_schema.sql:/sql/001_init_g01_schema.sql:ro
       - ./.chatwoot-bootstrap:/bootstrap
 
+  # Off for the minimum showcase. `docker compose --profile background up` starts them.
   jane-worker:
+    profiles: ["background"]
     build: ./jane-sidecar
     command: ["celery", "-A", "app.worker:celery_app", "worker", "--loglevel=info"]
     depends_on:
@@ -174,6 +203,7 @@ services:
       - ./.chatwoot-bootstrap:/bootstrap:ro
 
   jane-beat:
+    profiles: ["background"]
     build: ./jane-sidecar
     command: ["celery", "-A", "app.worker:celery_app", "beat", "--loglevel=info", "--schedule", "/tmp/celerybeat-schedule"]
     depends_on:
@@ -185,3 +215,4 @@ services:
 volumes:
   pgdata:
   chatwoot_storage:
+  ollama_models:

@@ -20,3 +20,11 @@ async def deliver(store, conversation_id: int | None, content: str) -> None:
         except Exception:
             log.exception("Chatwoot did not accept Jane's message on conversation %s", conversation_id)
     await store.add_outbox(int(conversation_id) if conversation_id is not None else None, content, delivered)
+    if conversation_id is not None:
+        await store.append_transcript(
+            conversation_id=int(conversation_id),
+            message_id=None,
+            role="jane",
+            speaker="Jane",
+            content=content,
+        )

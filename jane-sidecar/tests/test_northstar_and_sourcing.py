@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.constitution import JANE_SYSTEM_PROMPT
+from app.constitution import JANE_CONSTITUTION, JANE_SYSTEM_PROMPT
 from app.northstar import NorthStar, automated_pct_from_hours
 from app.sanitize import sanitize_reply
 from app.sourcing import rank_sponsor_rows, recommendation_score, sponsor_rejection_reason
@@ -147,6 +147,26 @@ def test_retailer_sentences_are_removed_whole():
     refusal = sanitize_reply("Walmart may only appear in Rogers, Arkansas. I did not file the listing.")
     assert "Rogers" in refusal
     assert "did not file" in refusal
+
+
+def test_showcase_constitution_is_short_and_local():
+    assert JANE_CONSTITUTION.startswith("You are Jane")
+    for phrase in (
+        "Automated",
+        "Aesthetic",
+        "Material",
+        "Energetic",
+        "Contained",
+        "Make it on the homestead",
+        "Amazon, Home Depot, Lowe's, Walmart",
+        "Rogers, Arkansas",
+        "said your name",
+        "only here in this chat",
+    ):
+        assert phrase in JANE_CONSTITUTION
+    assert "JSON object" not in JANE_CONSTITUTION
+    assert "known_facts_ledger" not in JANE_CONSTITUTION
+    assert "tier_weight" not in JANE_CONSTITUTION
 
 
 def test_constitution_and_sql_keep_the_rules():

@@ -1,10 +1,14 @@
-"""Jane's system prompt and the sourcing rules the rest of the sidecar enforces.
+"""Jane's constitution, plus the longer prompt the unused ledger graphs still read.
 
-The brief's prompt text is kept through the start of law 3, where the source
-paste ended mid-word ("3. DIY"). Laws 3 through 10 finish that sentence from
-the North Star, the four-tier weights, and the collaboration rules in the brief.
-They do not relax anything above them.
+The minimum showcase sends CONSTITUTION.md and nothing else. The brief's older
+prompt is kept through the start of law 3, where the source paste ended
+mid-word ("3. DIY"). Laws 3 through 10 finish that sentence from the North
+Star, the four-tier weights, and the collaboration rules in the brief.
 """
+
+from pathlib import Path
+
+JANE_CONSTITUTION = (Path(__file__).resolve().parents[1] / "CONSTITUTION.md").read_text(encoding="utf-8").strip() + "\n"
 
 JANE_SYSTEM_PROMPT = """
 You are Jane, a persistent peer and sovereign homesteading advisor inside g01denfleece ACHE (g01).

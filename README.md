@@ -1,6 +1,8 @@
 # g01denfleece ACHE
 
-Jane is a peer inside an ordinary Chatwoot thread. The thread stays open. The work of a homestead is the five-part North Star, and the only shops Jane will name are in the homesteader's own locality.
+Jane is a peer inside an ordinary Chatwoot thread. This is the minimum showcase: a small, free, local model. Each time she is prompted she receives her constitution (`jane-sidecar/CONSTITUTION.md`) and the message history, and nothing else. Background jobs are off.
+
+The work she is written to care about is the five-part North Star, and the only shops she will name are in the homesteader's own locality.
 
 | Dimension | Stored as | Meaning |
 | --- | --- | --- |
@@ -26,10 +28,10 @@ Ties break toward fewer referrals in the last 14 days, then sponsor id.
 ## Layout
 
 - `chatwoot-fork/` — notes and optional proxy controllers. Compose runs upstream Chatwoot, not a rewritten Rails app.
-- `jane-sidecar/` — FastAPI, LangGraph, and Stripe. It has no homesteader page.
+- `jane-sidecar/` — FastAPI. The live turn calls Ollama. It has no homesteader page.
 - `sql/001_init_g01_schema.sql` — g01 tables, pgvector, and the ranking functions. Apply after Chatwoot prepares the database. The sidecar also applies this file on boot.
 
-Live chat turns use `gemini-2.5-flash`. Poll synthesis and matchmaking use `gemini-2.5-pro`. Embeddings use `text-embedding-004` (768 dimensions) with `AsyncPostgresSaver` when `G01_DATABASE_URL` is set. Without a Gemini key, Jane still posts from the ledger and the registry; she does not invent scores.
+Live turns call Ollama (`qwen2.5:1.5b` unless `G01_OLLAMA_MODEL` is set) at `G01_OLLAMA_BASE_URL`. The system text is the constitution. The user text is the thread, one line per message. If Ollama is down, Jane says she could not reach the local model. Celery beat and the worker are not started; `docker compose --profile background up` is what would start them.
 
 ## Run
 
@@ -59,9 +61,16 @@ curl -s -X POST http://localhost:8000/api/admin/conversations \
   -d '{"left":"ada.yard@example.com","right":"cara.north@example.com","topic":"the well"}'
 ```
 
-`left` and `right` take an email, a Chatwoot user id, or a property id. Scores, labor hours, aesthetic, local ranking, sponsorship, and identity verification are still replies in the Jane thread. Stripe Checkout and Stripe Identity stay on Stripe; Jane may paste those links.
+`left` and `right` take an email, a Chatwoot user id, or a property id. Read every thread before opening one:
 
-The sidecar on port 8000 accepts the Chatwoot webhook, the Stripe webhook, the login-page signup at `POST /api/signup`, and the admin promo route. It does not serve a dashboard. Auto-resolve is left unset so the thread stays open. The bootstrap user is the operator. Chatwoot's own agent signup stays off.
+```bash
+curl -s http://localhost:8000/api/admin/conversations \
+  -H "X-G01-Admin-Token: g01-local-admin-token"
+```
+
+Each row is a Jane thread or a connection, with the people, the topic, and the messages. Jane stays quiet in a connection unless someone says her name.
+
+The sidecar on port 8000 accepts the Chatwoot webhook, the login-page signup at `POST /api/signup`, and the admin routes. It does not serve a dashboard. Auto-resolve is left unset so the thread stays open. The bootstrap user is the operator. Chatwoot's own agent signup stays off.
 
 For a memory-backed webhook demo without Docker:
 
@@ -71,7 +80,7 @@ python -m venv .venv
 cd jane-sidecar && ../.venv/bin/uvicorn app.main:app --port 8000
 ```
 
-The seeded Lake Charles thread is conversation 501, contact 101. Rogers is conversation 502. Ask in the webhook payload the way a Chatwoot `message_created` event would: "What are my scores?", "Where can I get a grow light?", or the sponsor answers.
+The seeded Lake Charles thread is conversation 501, contact 101. Rogers is conversation 502. A `message_created` webhook is answered by the local model from the constitution and that thread's history.
 
 Turn off the Chatwoot inbox auto-resolve timer. Jane's user id defaults to 1. Point a `message_created` webhook at `http://jane:8000/webhooks/chatwoot`. Do not add a Dashboard App.
 

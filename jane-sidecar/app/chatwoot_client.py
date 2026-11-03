@@ -51,6 +51,47 @@ class ChatwootClient:
     def _account(self) -> int:
         return int(self.settings.chatwoot_account_id)
 
+    async def list_messages(self, conversation_id: int) -> list[dict]:
+        payload = await self._request(
+            "GET",
+            f"/api/v1/accounts/{self._account()}/conversations/{int(conversation_id)}/messages",
+        )
+        rows = payload
+        if isinstance(payload, dict):
+            rows = payload.get("payload") or payload.get("data") or []
+            if isinstance(rows, dict):
+                rows = rows.get("payload") or rows.get("messages") or []
+        if not isinstance(rows, list):
+            return []
+        jane_id = int(self.settings.jane_user_id)
+        lines: list[dict] = []
+        for row in rows:
+            if not isinstance(row, dict) or row.get("private"):
+                continue
+            if row.get("message_type") in (2, "activity", "template"):
+                continue
+            content = str(row.get("content") or "").strip()
+            if not content:
+                continue
+            attributes = row.get("content_attributes") or {}
+            sender = row.get("sender") or {}
+            sender_type = str(sender.get("type") or "")
+            sender_id = sender.get("id")
+            is_jane = attributes.get("g01_author") == "jane" or sender_type.lower() in ("agent_bot", "agentbot")
+            if sender_type.lower() == "user" and sender_id is not None and int(sender_id) == jane_id:
+                is_jane = True
+            speaker = "Jane" if is_jane else (sender.get("name") or sender.get("available_name") or "Homesteader")
+            lines.append(
+                {
+                    "conversation_id": int(conversation_id),
+                    "message_id": str(row.get("id") or ""),
+                    "role": "jane" if is_jane else "homesteader",
+                    "speaker": speaker,
+                    "content": content,
+                }
+            )
+        return lines
+
     async def post_message(self, conversation_id: int, content: str) -> dict:
         return await self._request(
             "POST",
