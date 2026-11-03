@@ -115,7 +115,7 @@
     title.style.marginTop = "0";
     title.style.fontSize = "1.5rem";
     var lead = document.createElement("p");
-    lead.textContent = "This opens your sign-in and a thread with Jane. Use a ZIP that is already on the record, such as 70601.";
+    lead.textContent = "Use a ZIP that is already on the record, such as 70601.";
     lead.style.margin = "0.5rem 0 1rem";
     lead.style.color = "#5c5346";
 

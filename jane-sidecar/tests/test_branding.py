@@ -18,6 +18,7 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-brand.css" in initializer
     assert "/g01/signup" in initializer
     assert "Create an account" in script
+    assert "thread with Jane" not in script
     assert "/g01/signup" in script
     bootstrap = (ROOT / "ops" / "bootstrap_chatwoot.rb").read_text(encoding="utf-8")
     assert 'widget_color: "#7A5E24"' in bootstrap
