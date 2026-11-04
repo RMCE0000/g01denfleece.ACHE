@@ -78,8 +78,8 @@ async def test_langchain_flow_selects_the_model_for_task_complexity():
     finally:
         gemini_override.reset(token)
     assert seen == [
-        ("gemini-2.5-flash", "standard"),
-        ("gemini-2.5-pro", "complex"),
+        ("gemini-3.5-flash", "standard"),
+        ("gemini-3.1-pro-preview", "complex"),
     ]
 
 
@@ -103,7 +103,7 @@ def test_prompt_is_the_constitution_and_the_history(client, store):
     assert first.status_code == 200
     assert first.json()["reply"] == "Make the cistern on the homestead."
     assert seen["system"] == JANE_CONSTITUTION
-    assert seen["models"] == ["gemini-2.5-flash", "gemini-2.5-flash"]
+    assert seen["models"] == ["gemini-3.5-flash", "gemini-3.5-flash"]
     assert seen["complexities"] == ["standard", "standard"]
     assert seen["prompts"][0] == "Ada: The cistern is empty."
     assert "tier_weight" not in seen["system"]
@@ -267,5 +267,5 @@ def test_background_jobs_stay_off_and_ollama_is_removed():
     assert compose.count('profiles: ["background"]') == 2
     assert "ollama/ollama" not in compose
     assert "G01_BACKGROUND_JOBS: \"0\"" in compose
-    assert "G01_GEMINI_CHAT_MODEL: gemini-2.5-flash" in compose
-    assert "G01_GEMINI_DELIBERATION_MODEL: gemini-2.5-pro" in compose
+    assert "G01_GEMINI_CHAT_MODEL: gemini-3.5-flash" in compose
+    assert "G01_GEMINI_DELIBERATION_MODEL: gemini-3.1-pro-preview" in compose

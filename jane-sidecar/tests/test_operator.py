@@ -22,8 +22,8 @@ async def test_dashboard_users_and_complete_user_view(backend):
     assert dashboard["mode"] == "minimum showcase"
     assert dashboard["homesteaders"] == 2
     assert dashboard["localities"] == 2
-    assert dashboard["integrations"]["gemini_standard_model"] == "gemini-2.5-flash"
-    assert dashboard["integrations"]["gemini_complex_model"] == "gemini-2.5-pro"
+    assert dashboard["integrations"]["gemini_standard_model"] == "gemini-3.5-flash"
+    assert dashboard["integrations"]["gemini_complex_model"] == "gemini-3.1-pro-preview"
 
     users = await backend.users()
     assert users[0]["name"] == "Lake Charles Homestead"

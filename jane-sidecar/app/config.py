@@ -26,8 +26,8 @@ class Settings(BaseSettings):
     background_jobs: bool = False
 
     gemini_api_key: str = ""
-    gemini_chat_model: str = "gemini-2.5-flash"
-    gemini_deliberation_model: str = "gemini-2.5-pro"
+    gemini_chat_model: str = "gemini-3.5-flash"
+    gemini_deliberation_model: str = "gemini-3.1-pro-preview"
     gemini_embedding_model: str = "text-embedding-004"
 
     chatwoot_base_url: str = "http://localhost:3000"
