@@ -20,16 +20,15 @@ class Settings(BaseSettings):
     schema_path: str = str(_DEFAULT_SCHEMA)
     public_base_url: str = "http://localhost:8000"
     admin_token: str = ""
+    bridge_secret: str = ""
 
-    # Minimum showcase: a small local model, and no Celery beat.
+    # Focused sidecar schedulers run without the optional Celery beat.
     background_jobs: bool = False
-    ollama_base_url: str = "http://127.0.0.1:11434"
-    ollama_model: str = "qwen2.5:1.5b"
 
     gemini_api_key: str = ""
-    gemini_chat_model: str = "gemini-2.5-flash"
-    gemini_deliberation_model: str = "gemini-2.5-pro"
-    gemini_embedding_model: str = "text-embedding-004"
+    gemini_chat_model: str = "gemini-3.5-flash"
+    gemini_deliberation_model: str = "gemini-3.1-pro-preview"
+    gemini_embedding_model: str = "gemini-embedding-2"
 
     chatwoot_base_url: str = "http://localhost:3000"
     chatwoot_public_url: str = "http://localhost:3000"
@@ -48,7 +47,13 @@ class Settings(BaseSettings):
 
     seed_homesteaders: bool = False
     poll_mature_hours: int = 24
-    match_similarity_threshold: float = 0.72
+    daily_poll_enabled: bool = True
+    poll_timezone: str = "America/Chicago"
+    community_poll_hours: int = 24
+    poll_scheduler_interval_seconds: int = 300
+    automatic_matchmaking_enabled: bool = True
+    match_scheduler_interval_seconds: int = 900
+    match_similarity_threshold: float = 0.82
     full_manual_hours_per_week: float = 40.0
 
 

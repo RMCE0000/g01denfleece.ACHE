@@ -76,6 +76,13 @@
     input.autocomplete = type === "password" ? "new-password" : name;
     if (placeholder) input.placeholder = placeholder;
     if (name === "password") input.minLength = 8;
+    if (name === "username") {
+      input.minLength = 3;
+      input.maxLength = 32;
+      input.pattern = "[a-z][a-z0-9._-]{2,31}";
+      input.autocapitalize = "none";
+      input.spellcheck = false;
+    }
     if (name === "zip_code") input.inputMode = "numeric";
     label.appendChild(caption);
     label.appendChild(input);
@@ -121,6 +128,7 @@
 
     var form = document.createElement("form");
     form.appendChild(field("Full name", "name", "text", "Ada Yard"));
+    form.appendChild(field("Username", "username", "text", "ada.yard"));
     form.appendChild(field("Email", "email", "email", "ada@example.com"));
     form.appendChild(field("Password", "password", "password", "At least 8 characters"));
     form.appendChild(field("ZIP code", "zip_code", "text", "70601"));
@@ -172,6 +180,7 @@
       }
       var payload = {
         name: value("name"),
+        username: value("username"),
         email: value("email"),
         password: value("password"),
         zip_code: value("zip_code"),
@@ -218,4 +227,189 @@
 
   if (document.body) watchSignup();
   else document.addEventListener("DOMContentLoaded", watchSignup);
+
+  function currentAccountId() {
+    var match = location.pathname.match(/^\/app\/accounts\/(\d+)(?:\/|$)/);
+    return match ? match[1] : null;
+  }
+
+  function communityHeaders() {
+    return { "X-G01-Requested-With": "community-v1" };
+  }
+
+  function closeCommunity() {
+    var modal = document.getElementById("g01-community-modal");
+    if (modal) modal.remove();
+    var opener = document.getElementById("g01-community-open");
+    if (opener) opener.focus();
+  }
+
+  function communityElement(tag, className, text) {
+    var element = document.createElement(tag);
+    if (className) element.className = className;
+    if (typeof text === "string") element.textContent = text;
+    return element;
+  }
+
+  function showCommunityError(panel, message) {
+    var error = panel.querySelector(".g01-community-error");
+    error.textContent = message;
+    error.hidden = false;
+  }
+
+  function renderCommunityState(panel, payload) {
+    var identity = panel.querySelector(".g01-community-identity");
+    var self = payload && payload.self;
+    identity.textContent = self && self.username ? "Your username: @" + self.username : "";
+    var list = panel.querySelector(".g01-community-list");
+    list.replaceChildren();
+    var connections = payload && Array.isArray(payload.connections) ? payload.connections : [];
+    if (!connections.length) {
+      list.appendChild(communityElement("p", "g01-community-empty", "You have no existing homesteader conversations."));
+      return;
+    }
+    connections.forEach(function (connection) {
+      var card = communityElement("article", "g01-community-member");
+      card.appendChild(communityElement("h3", "", connection.name || "Homesteader"));
+      var details = "@" + (connection.username || "unknown") + " · " + (connection.locality || "Locality not recorded");
+      card.appendChild(communityElement("p", "g01-community-locality", details));
+      var open = communityElement("a", "g01-community-primary", "Open conversation");
+      open.href = connection.conversation_path;
+      card.appendChild(open);
+      list.appendChild(card);
+    });
+  }
+
+  function openCommunity() {
+    if (document.getElementById("g01-community-modal")) return;
+    var accountId = currentAccountId();
+    if (!accountId || !window.axios) return;
+
+    var backdrop = communityElement("div", "g01-community-backdrop");
+    backdrop.id = "g01-community-modal";
+    backdrop.setAttribute("role", "presentation");
+    var panel = communityElement("section", "g01-community-panel");
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-labelledby", "g01-community-title");
+    var header = communityElement("header", "g01-community-header");
+    var title = communityElement("h2", "", "g01 Community");
+    title.id = "g01-community-title";
+    var close = communityElement("button", "g01-community-close", "Close");
+    close.type = "button";
+    close.addEventListener("click", closeCommunity);
+    header.appendChild(title);
+    header.appendChild(close);
+    panel.appendChild(header);
+    panel.appendChild(
+      communityElement(
+        "p",
+        "g01-community-intro",
+        "Enter a homesteader's exact username to start a private Chatwoot conversation. There is no public member directory."
+      )
+    );
+    panel.appendChild(communityElement("p", "g01-community-identity"));
+    var form = communityElement("form", "g01-community-dial");
+    var username = communityElement("input", "g01-community-username");
+    username.type = "text";
+    username.required = true;
+    username.minLength = 3;
+    username.maxLength = 33;
+    username.placeholder = "@username";
+    username.autocapitalize = "none";
+    username.spellcheck = false;
+    username.setAttribute("aria-label", "Homesteader username");
+    var topic = communityElement("input", "g01-community-topic");
+    topic.type = "text";
+    topic.maxLength = 255;
+    topic.placeholder = "Optional topic";
+    topic.setAttribute("aria-label", "Conversation topic");
+    var start = communityElement("button", "g01-community-primary", "Start conversation");
+    start.type = "submit";
+    form.appendChild(username);
+    form.appendChild(topic);
+    form.appendChild(start);
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      start.disabled = true;
+      panel.querySelector(".g01-community-error").hidden = true;
+      window.axios
+        .post(
+          "/api/v1/accounts/" + accountId + "/g01/community",
+          { username: username.value.trim(), topic: topic.value.trim() || null },
+          { headers: communityHeaders() }
+        )
+        .then(function (response) {
+          var data = response && response.data;
+          if (!data || !data.conversation_path) throw new Error("Conversation path missing");
+          window.location.assign(data.conversation_path);
+        })
+        .catch(function (requestError) {
+          var detail = requestError && requestError.response && requestError.response.data;
+          showCommunityError(panel, (detail && (detail.detail || detail.error)) || "Conversation was not started.");
+          start.disabled = false;
+        });
+    });
+    panel.appendChild(form);
+    var error = communityElement("p", "g01-community-error");
+    error.hidden = true;
+    panel.appendChild(error);
+    panel.appendChild(communityElement("h3", "g01-community-existing-title", "Existing conversations"));
+    panel.appendChild(communityElement("div", "g01-community-list", "Loading conversations…"));
+    backdrop.appendChild(panel);
+    backdrop.addEventListener("click", function (event) {
+      if (event.target === backdrop) closeCommunity();
+    });
+    document.body.appendChild(backdrop);
+    close.focus();
+
+    window.axios
+      .get("/api/v1/accounts/" + accountId + "/g01/community", { headers: communityHeaders() })
+      .then(function (response) {
+        renderCommunityState(panel, response.data);
+      })
+      .catch(function (requestError) {
+        if (requestError && requestError.response && requestError.response.status === 403) {
+          closeCommunity();
+          var button = document.getElementById("g01-community-open");
+          if (button) button.remove();
+          return;
+        }
+        var detail = requestError && requestError.response && requestError.response.data;
+        showCommunityError(panel, (detail && (detail.detail || detail.error)) || "Community service is unavailable.");
+        panel.querySelector(".g01-community-list").replaceChildren();
+      });
+  }
+
+  function ensureCommunityButton() {
+    var accountId = currentAccountId();
+    var existing = document.getElementById("g01-community-open");
+    if (!accountId) {
+      if (existing) existing.remove();
+      closeCommunity();
+      return;
+    }
+    if (existing) return;
+    var nav = document.querySelector("nav.woot-sidebar-menu, nav.woot-sidebar-main-w-g, nav");
+    if (!nav) return;
+    var button = communityElement("button", "g01-community-open", "g01 Community");
+    button.id = "g01-community-open";
+    button.type = "button";
+    button.addEventListener("click", openCommunity);
+    nav.appendChild(button);
+  }
+
+  function watchCommunity() {
+    ensureCommunityButton();
+    new MutationObserver(function () {
+      ensureCommunityButton();
+    }).observe(document.body, { childList: true, subtree: true });
+    window.addEventListener("popstate", ensureCommunityButton);
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") closeCommunity();
+    });
+  }
+
+  if (document.body) watchCommunity();
+  else document.addEventListener("DOMContentLoaded", watchCommunity);
 })();

@@ -22,6 +22,9 @@ x-chatwoot-env: &chatwoot-env
   RAILS_SERVE_STATIC_FILES: "true"
   ENABLE_ACCOUNT_SIGNUP: "false"
   MAILER_SENDER_EMAIL: "${MAILER_SENDER_EMAIL:-Jane <jane@g01denfleece.com>}"
+  G01_BRIDGE_SECRET: ${G01_BRIDGE_SECRET:-g01-local-bridge-token}
+  G01_CHATWOOT_ACCOUNT_ID: ${CHATWOOT_ACCOUNT_ID:-1}
+  G01_COMMUNITY_UPSTREAM: http://jane:8000
   # Local mail is Mailpit. A public launch sets SMTP_ADDRESS, SMTP_PORT, and SMTP_ENABLE_STARTTLS_AUTO.
   SMTP_ADDRESS: ${SMTP_ADDRESS:-mailpit}
   SMTP_PORT: ${SMTP_PORT:-1025}
@@ -40,14 +43,20 @@ x-jane-env: &jane-env
   # Reachable from Chatwoot Sidekiq, not from a browser.
   G01_PUBLIC_BASE_URL: ${G01_PUBLIC_BASE_URL:-http://jane:8000}
   G01_ADMIN_TOKEN: ${G01_ADMIN_TOKEN:-g01-local-admin-token}
+  G01_BRIDGE_SECRET: ${G01_BRIDGE_SECRET:-g01-local-bridge-token}
   G01_SEED_HOMESTEADERS: ${G01_SEED_HOMESTEADERS:-1}
   G01_BACKGROUND_JOBS: "0"
-  G01_OLLAMA_BASE_URL: http://ollama:11434
-  G01_OLLAMA_MODEL: ${G01_OLLAMA_MODEL:-qwen2.5:1.5b}
+  G01_DAILY_POLL_ENABLED: ${G01_DAILY_POLL_ENABLED:-1}
+  G01_POLL_TIMEZONE: ${G01_POLL_TIMEZONE:-America/Chicago}
+  G01_COMMUNITY_POLL_HOURS: ${G01_COMMUNITY_POLL_HOURS:-24}
+  G01_POLL_SCHEDULER_INTERVAL_SECONDS: ${G01_POLL_SCHEDULER_INTERVAL_SECONDS:-300}
+  G01_AUTOMATIC_MATCHMAKING_ENABLED: ${G01_AUTOMATIC_MATCHMAKING_ENABLED:-1}
+  G01_MATCH_SCHEDULER_INTERVAL_SECONDS: ${G01_MATCH_SCHEDULER_INTERVAL_SECONDS:-900}
+  G01_MATCH_SIMILARITY_THRESHOLD: ${G01_MATCH_SIMILARITY_THRESHOLD:-0.82}
   G01_GEMINI_API_KEY: ${G01_GEMINI_API_KEY:-}
-  G01_GEMINI_CHAT_MODEL: gemini-2.5-flash
-  G01_GEMINI_DELIBERATION_MODEL: gemini-2.5-pro
-  G01_GEMINI_EMBEDDING_MODEL: text-embedding-004
+  G01_GEMINI_CHAT_MODEL: gemini-3.5-flash
+  G01_GEMINI_DELIBERATION_MODEL: gemini-3.1-pro-preview
+  G01_GEMINI_EMBEDDING_MODEL: gemini-embedding-2
   G01_CHATWOOT_BASE_URL: http://rails:3000
   # Browser links. On the public host this is https://g01denfleece.com.
   G01_CHATWOOT_PUBLIC_URL: ${G01_CHATWOOT_PUBLIC_URL:-http://localhost:3000}
@@ -117,6 +126,8 @@ services:
       - ./branding/g01-brand.css:/app/public/g01-brand.css:ro
       - ./branding/g01-brand.js:/app/public/g01-brand.js:ro
       - ./ops/g01_branding.rb:/app/config/initializers/g01_branding.rb:ro
+      - ./ops/g01_contacts_scope.rb:/app/config/initializers/g01_contacts_scope.rb:ro
+      - ./ops/g01_community_controller.rb:/app/app/controllers/api/v1/accounts/g01_community_controller.rb:ro
     healthcheck:
       test: ["CMD-SHELL", "ruby -e \"require 'net/http'; code = Net::HTTP.get_response(URI('http://127.0.0.1:3000/api')).code.to_i; exit(code < 500 ? 0 : 1)\""]
       interval: 15s
@@ -154,28 +165,6 @@ services:
       - ./.chatwoot-bootstrap:/bootstrap/out
     restart: "no"
 
-  ollama:
-    image: ollama/ollama@sha256:ebaef4f4c5d93660e1f25f8ad085a112f51ccfb0e8458073e71793959dba91c9
-    volumes:
-      - ollama_models:/root/.ollama
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 5s
-
-  ollama-pull:
-    image: ollama/ollama@sha256:ebaef4f4c5d93660e1f25f8ad085a112f51ccfb0e8458073e71793959dba91c9
-    depends_on:
-      ollama:
-        condition: service_healthy
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-      G01_OLLAMA_MODEL: ${G01_OLLAMA_MODEL:-qwen2.5:1.5b}
-    entrypoint: ["sh", "-c", "ollama pull \"$${G01_OLLAMA_MODEL:-qwen2.5:1.5b}\""]
-    restart: "no"
-
   jane:
     build: ./jane-sidecar
     depends_on:
@@ -184,8 +173,6 @@ services:
       redis:
         condition: service_healthy
       bootstrap:
-        condition: service_completed_successfully
-      ollama-pull:
         condition: service_completed_successfully
     ports:
       - "8000:8000"
@@ -232,4 +219,3 @@ services:
 volumes:
   pgdata:
   chatwoot_storage:
-  ollama_models:

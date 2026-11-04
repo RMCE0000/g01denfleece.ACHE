@@ -1,8 +1,9 @@
 """Signed-in homesteaders and the private Chatwoot thread between two of them."""
 
+import asyncio
 import logging
 import re
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from app.chatwoot_client import ChatwootClient
 from app.config import get_settings
@@ -11,6 +12,8 @@ from app.errors import G01Error
 log = logging.getLogger(__name__)
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_USERNAME = re.compile(r"^[a-z][a-z0-9._-]{2,31}$")
+_PEER_LOCKS: dict[tuple[str, str], asyncio.Lock] = {}
 
 
 def login_url() -> str:
@@ -35,6 +38,15 @@ def _zip(value: str) -> str:
     if len(digits) < 5:
         raise G01Error("ZIP code is not one of the seeded localities", 422)
     return digits[:5]
+
+
+def _username(value: str | None, email: str) -> str:
+    username = (value or "").strip().casefold().removeprefix("@")
+    if not username:
+        username = re.sub(r"[^a-z0-9._-]", "-", email.split("@", 1)[0].casefold())
+    if not _USERNAME.fullmatch(username):
+        raise G01Error("username must start with a letter and use 3–32 lowercase letters, numbers, dots, dashes, or underscores", 422)
+    return username
 
 
 def _require_api(client: ChatwootClient) -> None:
@@ -67,11 +79,76 @@ async def _say(store, client: ChatwootClient, conversation_id: int | None, conte
         )
 
 
+async def _sync_homesteader_metadata(client: ChatwootClient, prop: dict, locality: dict) -> None:
+    """Mirror safe, filterable g01 context into ordinary Chatwoot surfaces."""
+    try:
+        await client.set_contact_labels(int(prop["chatwoot_contact_id"]), ["g01-homesteader"])
+        await client.update_contact_custom_attributes(
+            int(prop["chatwoot_contact_id"]),
+            {
+                "g01_member": True,
+                "g01_locality": locality.get("name") or "",
+            },
+        )
+        await client.set_conversation_labels(
+            int(prop["primary_conversation_id"]),
+            ["g01-homestead", "g01-jane"],
+        )
+        await client.update_conversation_custom_attributes(
+            int(prop["primary_conversation_id"]),
+            {
+                "g01_kind": "jane",
+                "g01_property_id": str(prop["id"]),
+                "g01_locality": locality.get("name") or "",
+            },
+        )
+    except Exception:
+        # The Chatwoot conversation is still usable if metadata synchronization
+        # fails; a later bootstrap or operator run can repair labels.
+        log.exception("Chatwoot metadata did not synchronize for property %s", prop.get("id"))
+
+
+async def _sync_peer_metadata(client: ChatwootClient, row: dict, peer_a: dict, peer_b: dict) -> None:
+    try:
+        conversation_id = int(row["chatwoot_conversation_id"])
+        await client.set_conversation_labels(conversation_id, ["g01-homestead", "g01-connection"])
+        await client.update_conversation_custom_attributes(
+            conversation_id,
+            {
+                "g01_kind": "connection",
+                "g01_topic": row.get("topic") or "",
+                "g01_property_a_id": str(peer_a["id"]),
+                "g01_property_b_id": str(peer_b["id"]),
+            },
+        )
+    except Exception:
+        log.exception("Chatwoot metadata did not synchronize for peer conversation %s", row.get("chatwoot_conversation_id"))
+
+
+async def sync_workspace_metadata(store) -> None:
+    """Backfill native Chatwoot labels and attributes for existing records."""
+    client = ChatwootClient(get_settings())
+    if not client.configured():
+        return
+    properties = await store.list_properties()
+    by_id = {str(prop["id"]): prop for prop in properties}
+    localities = {str(row["id"]): row for row in await store.list_localities()}
+    for prop in properties:
+        if prop.get("chatwoot_contact_id") and prop.get("primary_conversation_id"):
+            await _sync_homesteader_metadata(client, prop, localities.get(str(prop.get("locality_id")), {}))
+    for row in await store.list_peer_conversations():
+        peer_a = by_id.get(str(row.get("property_a_id")))
+        peer_b = by_id.get(str(row.get("property_b_id")))
+        if peer_a and peer_b:
+            await _sync_peer_metadata(client, row, peer_a, peer_b)
+
+
 def _public_homesteader(prop: dict, *, existing: bool) -> dict:
     conversation_id = prop.get("primary_conversation_id")
     return {
         "name": prop.get("display_name"),
         "email": prop.get("email"),
+        "username": prop.get("username"),
         "property_id": prop["id"],
         "chatwoot_user_id": prop.get("chatwoot_user_id"),
         "chatwoot_contact_id": prop.get("chatwoot_contact_id"),
@@ -92,6 +169,7 @@ async def register_homesteader(store, fields: dict) -> dict:
     return {
         "name": created["name"],
         "email": created["email"],
+        "username": created["username"],
         "login_url": created["login_url"],
         "conversation_url": created["conversation_url"],
         "sso_url": created.get("sso_url"),
@@ -104,6 +182,7 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
     if not name:
         raise G01Error("name is required", 422)
     email = _email(fields.get("email") or "")
+    username = _username(fields.get("username"), email)
     password = str(fields.get("password") or "")
     if len(password) < 8:
         raise G01Error("password must be at least 8 characters", 422)
@@ -119,6 +198,8 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
         if client.platform_configured() and existing.get("chatwoot_user_id"):
             result["sso_url"] = await client.sso_link(int(existing["chatwoot_user_id"]))
         return result
+    if await store.get_property_by_username(username):
+        raise G01Error("That username is already in use.", 409)
 
     client = ChatwootClient(get_settings())
     _require_platform(client)
@@ -154,8 +235,10 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
             "lng": locality["center_lng"],
             "email": email,
             "display_name": name,
+            "username": username,
         }
     )
+    await _sync_homesteader_metadata(client, prop, locality)
     result = _public_homesteader(prop, existing=False)
     result["sso_url"] = await client.sso_link(user_id)
     return result
@@ -166,11 +249,18 @@ async def resolve_homesteader(store, token: str) -> dict:
     if not raw:
         raise G01Error("name the homesteader by email, Chatwoot user id, or property id", 422)
     if "@" in raw:
-        found = await store.get_property_by_email(_email(raw))
+        found = await store.get_property_by_username(raw) if raw.startswith("@") else await store.get_property_by_email(_email(raw))
     elif raw.isdigit():
         found = await store.get_property_by_user(int(raw))
     else:
-        found = await store.get_property(raw)
+        found = await store.get_property_by_username(raw)
+        if found is None:
+            try:
+                UUID(raw)
+            except ValueError:
+                found = None
+            else:
+                found = await store.get_property(raw)
     if found is None:
         raise G01Error("no homesteader matches that email, user id, or property id", 404)
     if not found.get("chatwoot_user_id"):
@@ -184,6 +274,13 @@ async def open_peer_conversation(store, left: str, right: str, topic: str | None
     peer_b = await resolve_homesteader(store, right)
     if peer_a["id"] == peer_b["id"]:
         raise G01Error("choose two different homesteaders", 422)
+    pair = tuple(sorted((str(peer_a["id"]), str(peer_b["id"]))))
+    lock = _PEER_LOCKS.setdefault(pair, asyncio.Lock())
+    async with lock:
+        return await _open_peer_conversation(store, peer_a, peer_b, topic)
+
+
+async def _open_peer_conversation(store, peer_a: dict, peer_b: dict, topic: str | None = None) -> dict:
     existing = await store.find_peer_between(peer_a["id"], peer_b["id"])
     if existing:
         return _peer_payload(peer_a, peer_b, existing, existing=True)
@@ -213,6 +310,7 @@ async def open_peer_conversation(store, left: str, right: str, topic: str | None
         inbox_id=opened["inbox_id"],
         topic=(topic or "").strip() or None,
     )
+    await _sync_peer_metadata(client, row, peer_a, peer_b)
     await _say(store, client, opened["conversation_id"], intro)
     for speaker, other in ((peer_a, name_b), (peer_b, name_a)):
         if speaker.get("primary_conversation_id"):

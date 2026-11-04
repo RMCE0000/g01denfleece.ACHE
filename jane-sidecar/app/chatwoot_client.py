@@ -165,6 +165,34 @@ class ChatwootClient:
                 return row
         return None
 
+    async def update_contact_custom_attributes(self, contact_id: int, attributes: dict) -> dict:
+        return await self._request(
+            "PATCH",
+            f"/api/v1/accounts/{self._account()}/contacts/{int(contact_id)}",
+            {"custom_attributes": attributes},
+        )
+
+    async def set_contact_labels(self, contact_id: int, labels: list[str]) -> dict:
+        return await self._request(
+            "POST",
+            f"/api/v1/accounts/{self._account()}/contacts/{int(contact_id)}/labels",
+            {"labels": labels},
+        )
+
+    async def set_conversation_labels(self, conversation_id: int, labels: list[str]) -> dict:
+        return await self._request(
+            "POST",
+            f"/api/v1/accounts/{self._account()}/conversations/{int(conversation_id)}/labels",
+            {"labels": labels},
+        )
+
+    async def update_conversation_custom_attributes(self, conversation_id: int, attributes: dict) -> dict:
+        return await self._request(
+            "POST",
+            f"/api/v1/accounts/{self._account()}/conversations/{int(conversation_id)}/custom_attributes",
+            {"custom_attributes": attributes, "merge": True},
+        )
+
     async def create_conversation(
         self,
         contact_id: int,

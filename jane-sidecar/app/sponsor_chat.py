@@ -3,7 +3,7 @@
 import re
 
 from app.errors import G01Error
-from app.sourcing import SPONSOR_TIERS, sponsor_rejection_reason
+from app.sourcing import SPONSOR_TIERS, normalize_service_tag, sponsor_rejection_reason
 from app.stripe_service import create_sponsor_checkout
 
 _FIELD_ORDER = (
@@ -43,10 +43,7 @@ def missing_fields(draft: dict) -> list[str]:
 
 
 def _tag(raw: str) -> str | None:
-    tag = re.sub(r"[^a-z0-9_]+", "_", raw.strip().lower().replace("-", "_")).strip("_")
-    if re.fullmatch(r"[a-z0-9_]{2,40}", tag):
-        return tag
-    return None
+    return normalize_service_tag(raw)
 
 
 def parse_labeled_sponsor_fields(text: str) -> dict:

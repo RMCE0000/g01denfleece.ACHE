@@ -19,7 +19,28 @@ SPONSOR_TIERS = (
     "local_logistics_proxy",
 )
 
+_SEARCH_STOP_WORDS = {
+    "and", "for", "from", "get", "help", "local", "need", "some", "that",
+    "the", "their", "this", "with",
+}
+
 EARTH_RADIUS_MILES = 3958.7613
+
+
+def normalize_service_tag(raw: str) -> str | None:
+    tag = re.sub(r"[^a-z0-9_]+", "_", str(raw or "").strip().lower().replace("-", "_")).strip("_")
+    return tag if re.fullmatch(r"[a-z0-9_]{2,120}", tag) else None
+
+
+def _search_terms(raw: str) -> set[str]:
+    terms: set[str] = set()
+    for word in re.findall(r"[a-z0-9]+", str(raw or "").casefold().replace("_", " ")):
+        if word in _SEARCH_STOP_WORDS or len(word) < 2:
+            continue
+        # Prefix stems make tomato/tomatoes and print/printed/printing meet
+        # without asking Gemini to invent a product category.
+        terms.add(word[:5] if len(word) >= 5 else word)
+    return terms
 
 
 def company_norm(name: str) -> str:
@@ -96,9 +117,17 @@ def recommendation_score(
 
 
 def sponsor_matches_tag(sponsor: dict, service_tag: str) -> bool:
-    wanted = (service_tag or "").strip().casefold()
-    tags = [str(tag).strip().casefold() for tag in sponsor.get("service_tags") or []]
-    return wanted in tags
+    wanted = normalize_service_tag(service_tag)
+    tags = [normalize_service_tag(tag) for tag in sponsor.get("service_tags") or []]
+    if wanted and wanted in tags:
+        return True
+    profile_text = " ".join(
+        [
+            *(str(tag) for tag in sponsor.get("service_tags") or []),
+            str(sponsor.get("capabilities_summary") or ""),
+        ]
+    )
+    return bool(_search_terms(service_tag) & _search_terms(profile_text))
 
 
 def rank_sponsor_rows(

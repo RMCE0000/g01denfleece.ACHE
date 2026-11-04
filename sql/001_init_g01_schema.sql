@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS g01_properties (
     chatwoot_user_id BIGINT UNIQUE,
     chatwoot_contact_id BIGINT UNIQUE NOT NULL,
     primary_conversation_id BIGINT UNIQUE,
+    username VARCHAR(32),
     locality_id UUID REFERENCES g01_localities(id) NOT NULL,
     street_address TEXT,
     zip_code VARCHAR(20) NOT NULL,
@@ -75,9 +76,40 @@ ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS sponsor_draft JSONB;
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS email VARCHAR(255);
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS display_name VARCHAR(255);
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS chatwoot_inbox_id BIGINT;
+ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS username VARCHAR(32);
+
+-- Existing accounts receive a stable handle. Prefer the email local-part when
+-- it is valid and unique; otherwise use an opaque property suffix.
+WITH candidates AS (
+    SELECT
+        id,
+        regexp_replace(lower(split_part(COALESCE(email, ''), '@', 1)), '[^a-z0-9._-]', '', 'g') AS candidate
+    FROM g01_properties
+    WHERE username IS NULL
+),
+counted AS (
+    SELECT id, candidate, COUNT(*) OVER (PARTITION BY candidate) AS candidate_count
+    FROM candidates
+)
+UPDATE g01_properties AS property
+SET username = CASE
+    WHEN counted.candidate ~ '^[a-z][a-z0-9._-]{2,31}$' AND counted.candidate_count = 1
+        THEN counted.candidate
+    ELSE 'homesteader-' || substr(property.id::text, 1, 8)
+END
+FROM counted
+WHERE property.id = counted.id;
+
+ALTER TABLE g01_properties ALTER COLUMN username SET NOT NULL;
+ALTER TABLE g01_properties DROP CONSTRAINT IF EXISTS g01_properties_username_format;
+ALTER TABLE g01_properties
+    ADD CONSTRAINT g01_properties_username_format
+    CHECK (username ~ '^[a-z][a-z0-9._-]{2,31}$');
 
 CREATE UNIQUE INDEX IF NOT EXISTS g01_properties_email_idx
     ON g01_properties (lower(email)) WHERE email IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS g01_properties_username_idx
+    ON g01_properties (lower(username));
 
 -- A private Chatwoot inbox shared by two signed-in homesteaders. Jane stays quiet
 -- on these conversation ids unless the message says her name.
@@ -149,6 +181,13 @@ ALTER TABLE g01_sponsors
         sourcing_tier IN ('local_manufacturer', 'local_service_or_stock', 'local_logistics_proxy')
     );
 
+-- A sponsor profile exists independently. Linking it to a homestead is
+-- optional, and deleting a homestead must not delete the sponsor registry.
+ALTER TABLE g01_sponsors DROP CONSTRAINT IF EXISTS g01_sponsors_property_id_fkey;
+ALTER TABLE g01_sponsors
+    ADD CONSTRAINT g01_sponsors_property_id_fkey
+    FOREIGN KEY (property_id) REFERENCES g01_properties(id) ON DELETE SET NULL;
+
 -- 5. NEIGHBORHOOD DEMAND POLLING
 CREATE TABLE IF NOT EXISTS g01_demand_polls (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -197,6 +236,40 @@ CREATE TABLE IF NOT EXISTS g01_poll_invites (
     UNIQUE (poll_id, neighbor_property_id)
 );
 
+-- General Jane polls: one curated daily question, plus explicit user/operator
+-- questions. These keep free-text answers separate from demand units/prices.
+CREATE TABLE IF NOT EXISTS g01_community_polls (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    poll_key VARCHAR(255) NOT NULL UNIQUE,
+    poll_kind VARCHAR(24) NOT NULL CHECK (poll_kind IN ('daily', 'requested', 'operator')),
+    requester_property_id UUID REFERENCES g01_properties(id) ON DELETE SET NULL,
+    question TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+    opens_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    closes_at TIMESTAMPTZ NOT NULL,
+    compiled_report TEXT,
+    compiled_analysis JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS g01_community_poll_recipients (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    poll_id UUID NOT NULL REFERENCES g01_community_polls(id) ON DELETE CASCADE,
+    property_id UUID NOT NULL REFERENCES g01_properties(id) ON DELETE CASCADE,
+    conversation_id BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (poll_id, property_id)
+);
+
+CREATE TABLE IF NOT EXISTS g01_community_poll_answers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    poll_id UUID NOT NULL REFERENCES g01_community_polls(id) ON DELETE CASCADE,
+    property_id UUID NOT NULL REFERENCES g01_properties(id) ON DELETE CASCADE,
+    answer TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (poll_id, property_id)
+);
+
 -- 6. NEIGHBOR COLLABORATION MATCHES
 CREATE TABLE IF NOT EXISTS g01_neighbor_matches (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -205,12 +278,34 @@ CREATE TABLE IF NOT EXISTS g01_neighbor_matches (
     peer_b_property_id UUID REFERENCES g01_properties(id) NOT NULL,
     proposed_project_title VARCHAR(255) NOT NULL,
     jane_synergy_rationale TEXT NOT NULL,
+    operator_status VARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK (operator_status IN ('pending', 'approved', 'rejected')),
+    operator_review_note TEXT,
+    operator_reviewed_at TIMESTAMPTZ,
     peer_a_status VARCHAR(20) DEFAULT 'pitched',
     peer_b_status VARCHAR(20) DEFAULT 'pitched',
     shared_chatwoot_conversation_id BIGINT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (peer_a_property_id, peer_b_property_id, proposed_project_title)
 );
+
+-- Existing installations pitched matches before operator review existed. Keep
+-- those actionable while making every newly discovered match pending.
+ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS operator_status VARCHAR(20);
+ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS operator_review_note TEXT;
+ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS operator_reviewed_at TIMESTAMPTZ;
+UPDATE g01_neighbor_matches SET operator_status = 'approved' WHERE operator_status IS NULL;
+ALTER TABLE g01_neighbor_matches ALTER COLUMN operator_status SET DEFAULT 'pending';
+ALTER TABLE g01_neighbor_matches ALTER COLUMN operator_status SET NOT NULL;
+DO $$
+BEGIN
+    ALTER TABLE g01_neighbor_matches
+        ADD CONSTRAINT g01_neighbor_matches_operator_status_check
+        CHECK (operator_status IN ('pending', 'approved', 'rejected'));
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END
+$$;
 
 CREATE TABLE IF NOT EXISTS g01_referral_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -262,6 +357,9 @@ CREATE INDEX IF NOT EXISTS g01_sponsors_locality_idx ON g01_sponsors (locality_i
 CREATE INDEX IF NOT EXISTS g01_sponsors_tags_idx ON g01_sponsors USING GIN (service_tags);
 CREATE INDEX IF NOT EXISTS g01_properties_locality_idx ON g01_properties (locality_id);
 CREATE INDEX IF NOT EXISTS g01_demand_polls_status_idx ON g01_demand_polls (status, mature_at);
+CREATE INDEX IF NOT EXISTS g01_community_polls_status_idx ON g01_community_polls (status, closes_at);
+CREATE INDEX IF NOT EXISTS g01_community_poll_recipients_property_idx
+    ON g01_community_poll_recipients (property_id, poll_id);
 CREATE INDEX IF NOT EXISTS g01_properties_goals_hnsw
     ON g01_properties USING hnsw (goals_embedding vector_cosine_ops);
 
@@ -419,7 +517,31 @@ CREATE OR REPLACE FUNCTION g01_rank_local_sponsors(
     JOIN g01_localities l ON l.id = p.locality_id
     WHERE s.locality_id = p.locality_id
       AND s.is_active_sponsor
-      AND lower(p_service_tag) = ANY (SELECT lower(t) FROM unnest(s.service_tags) AS u(t))
+      AND (
+          lower(p_service_tag) = ANY (SELECT lower(t) FROM unnest(s.service_tags) AS u(t))
+          OR EXISTS (
+              SELECT 1
+              FROM regexp_split_to_table(
+                  lower(replace(p_service_tag, '_', ' ')),
+                  '[^a-z0-9]+'
+              ) AS query_term
+              JOIN regexp_split_to_table(
+                  lower(array_to_string(s.service_tags, ' ') || ' ' || s.capabilities_summary),
+                  '[^a-z0-9]+'
+              ) AS profile_term
+                ON (
+                    length(query_term) >= 5
+                    AND left(query_term, 5) = left(profile_term, 5)
+                ) OR (
+                    length(query_term) BETWEEN 2 AND 4
+                    AND query_term = profile_term
+                )
+              WHERE query_term NOT IN (
+                  'and', 'for', 'from', 'get', 'help', 'local', 'need',
+                  'some', 'that', 'the', 'their', 'this', 'with'
+              )
+          )
+      )
       AND (
           NOT s.is_franchise_or_chain
           OR (

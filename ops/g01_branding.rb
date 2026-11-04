@@ -6,7 +6,7 @@ require "net/http"
 require "uri"
 
 class G01Branding
-  SNIPPET = '<link rel="stylesheet" href="/g01-brand.css?v=3"><script src="/g01-brand.js?v=3"></script>'
+  SNIPPET = '<link rel="stylesheet" href="/g01-brand.css?v=5"><script src="/g01-brand.js?v=5"></script>'
   SIGNUP_PATH = "/g01/signup"
 
   def initialize(app)
@@ -61,3 +61,12 @@ class G01Branding
 end
 
 Rails.application.config.middleware.use G01Branding
+
+# The controller is mounted as an overlay beside this initializer. It inherits
+# Chatwoot's account authentication and proxies only the narrow community API.
+Rails.application.routes.append do
+  get "/api/v1/accounts/:account_id/g01/community",
+      to: "api/v1/accounts/g01_community#index"
+  post "/api/v1/accounts/:account_id/g01/community",
+       to: "api/v1/accounts/g01_community#create"
+end

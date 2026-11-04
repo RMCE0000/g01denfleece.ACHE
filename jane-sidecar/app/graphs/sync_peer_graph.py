@@ -86,7 +86,7 @@ async def deliberate(state: dict) -> dict:
             json.dumps(context, default=str),
         )
     except Exception:
-        log.exception("gemini-2.5-flash turn failed; posting the grounded reply")
+        log.exception("Gemini chat turn failed; posting the grounded reply")
         return {"decision": decision}
     if isinstance(raw, dict) and isinstance(raw.get("reply"), str) and raw["reply"].strip():
         decision["reply"] = raw["reply"].strip()

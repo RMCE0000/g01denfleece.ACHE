@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from app.chatwoot_client import ChatwootClient
 from app.jobs import mature_demand_polls, open_ready_collaborations, scan_neighbor_synergies
 from app.llm import llm_override
+from app.matchmaking import approve_match
 from app.seed import DEMO_CONTACT_ID, DEMO_CONVERSATION_ID, DEMO_PROPERTY_ID, DEMO_USER_ID
 from tests.ledger_turn import ledger_reply, run_ledger_turn
 
@@ -141,6 +142,7 @@ def test_demand_poll_waits_twenty_four_hours(client, store):
                 "chatwoot_user_id": 301,
                 "chatwoot_contact_id": 301,
                 "primary_conversation_id": 601,
+                "username": "egg-neighbor",
                 "locality_id": store.properties[0]["locality_id"],
                 "zip_code": "70605",
                 "lat": 30.23,
@@ -178,6 +180,7 @@ def test_collaboration_requires_two_yeses_and_kyc(store, monkeypatch):
                 "chatwoot_user_id": 302,
                 "chatwoot_contact_id": 302,
                 "primary_conversation_id": 602,
+                "username": "aquaponics-peer",
                 "locality_id": store.properties[0]["locality_id"],
                 "zip_code": "70607",
                 "lat": 30.24,
@@ -190,6 +193,12 @@ def test_collaboration_requires_two_yeses_and_kyc(store, monkeypatch):
     assert created
     match_id = created[0]
     assert store.matches[0]["shared_chatwoot_conversation_id"] is None
+    assert store.matches[0]["operator_status"] == "pending"
+    assert not any(match_id in row["content"] for row in store.outbox)
+
+    approved = asyncio.run(approve_match(store, match_id, "Goals are grounded."))
+    assert approved["match"]["operator_status"] == "approved"
+    assert len(approved["pitched_property_ids"]) == 2
     assert any(match_id in row["content"] for row in store.outbox)
 
     asyncio.run(run_ledger_turn(store, _message(f"YES {match_id}", 30)))

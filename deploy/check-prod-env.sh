@@ -21,6 +21,7 @@ fail() {
 secret=$(value SECRET_KEY_BASE)
 postgres=$(value POSTGRES_PASSWORD)
 admin=$(value G01_ADMIN_TOKEN)
+bridge=$(value G01_BRIDGE_SECRET)
 database_url=$(value G01_DATABASE_URL)
 frontend=$(value FRONTEND_URL)
 public_url=$(value G01_CHATWOOT_PUBLIC_URL)
@@ -30,6 +31,7 @@ smtp_user=$(value SMTP_USERNAME)
 smtp_password=$(value SMTP_PASSWORD)
 sender=$(value MAILER_SENDER_EMAIL)
 seed=$(value G01_SEED_HOMESTEADERS)
+gemini=$(value G01_GEMINI_API_KEY)
 
 case "$secret" in
   ""|G01devSecretKeyBase0123456789abcdefghijklmnopqrstuvwxyzABCDEF|*replace-with*)
@@ -46,6 +48,12 @@ case "$admin" in
     fail "G01_ADMIN_TOKEN still has a placeholder. On the droplet: openssl rand -hex 32"
     ;;
 esac
+case "$bridge" in
+  ""|g01-local-bridge-token|*replace-with*)
+    fail "G01_BRIDGE_SECRET still has a placeholder. On the droplet: openssl rand -hex 32"
+    ;;
+esac
+[ "$bridge" != "$admin" ] || fail "G01_BRIDGE_SECRET must differ from G01_ADMIN_TOKEN"
 printf '%s' "$database_url" | grep -F -q "$postgres" || fail "G01_DATABASE_URL must contain the same POSTGRES_PASSWORD"
 [ "$frontend" = "https://g01denfleece.com" ] || fail "FRONTEND_URL must be https://g01denfleece.com"
 [ "$public_url" = "https://g01denfleece.com" ] || fail "G01_CHATWOOT_PUBLIC_URL must be https://g01denfleece.com"
@@ -63,5 +71,8 @@ case "$smtp_password" in
   ""|*replace-with*) fail "SMTP_PASSWORD still has a placeholder" ;;
 esac
 [ "$seed" = "0" ] || fail "G01_SEED_HOMESTEADERS must be 0 on the public machine"
+case "$gemini" in
+  ""|*replace-with*) fail "G01_GEMINI_API_KEY needs a Google AI Studio API key" ;;
+esac
 
 echo "production env is ready"

@@ -104,6 +104,7 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
                     "chatwoot_user_id": message.get("user_id"),
                     "chatwoot_contact_id": int(contact_id),
                     "primary_conversation_id": int(message["conversation_id"]),
+                    "username": f"homesteader-{int(contact_id)}",
                     "locality_id": found["id"],
                     "zip_code": zip_code,
                     "lat": found["center_lat"],

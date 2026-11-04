@@ -20,6 +20,12 @@ def test_brand_assets_are_gold_and_white():
     assert "Create an account" in script
     assert "thread with Jane" not in script
     assert "/g01/signup" in script
+    assert "g01 Community" in script
+    assert "Username" in script
+    assert "There is no public member directory" in script
+    assert "member_id" not in script
+    assert "window.axios" in script
+    assert "X-G01-Requested-With" in script
     bootstrap = (ROOT / "ops" / "bootstrap_chatwoot.rb").read_text(encoding="utf-8")
     assert 'widget_color: "#7A5E24"' in bootstrap
     assert 'SITE_NAME = "g01denfleece.com"' in bootstrap
@@ -27,12 +33,25 @@ def test_brand_assets_are_gold_and_white():
     assert "website_url: SITE_URL" in bootstrap
     assert "/g01-logo.svg" in bootstrap
     assert "platform.access_token" in bootstrap
+    assert 'raise "g01 bridge secret is empty"' in bootstrap
     assert "CHATWOOT_INSTALLATION_ONBOARDING" in bootstrap
+    assert "g01-connection" in bootstrap
+    assert "custom_attribute_definitions" in bootstrap
+    controller = (ROOT / "ops" / "g01_community_controller.rb").read_text(encoding="utf-8")
+    assert "Api::V1::Accounts::BaseController" in controller
+    assert "dashboard authentication required" in controller
+    assert "G01_BRIDGE_SECRET" in controller
+    contacts_scope = (ROOT / "ops" / "g01_contacts_scope.rb").read_text(encoding="utf-8")
+    assert "g01_visible_contacts" in contacts_scope
+    assert "InboxMember.where(user_id: Current.user.id)" in contacts_scope
     compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert "\n  RAILS_SERVE_STATIC_FILES: \"true\"" in compose
     assert "\n      RAILS_SERVE_STATIC_FILES:" not in compose
     assert "/app/public/g01-logo.svg" in compose
     assert "g01_branding.rb" in compose
+    assert "g01_community_controller.rb" in compose
+    assert "g01_contacts_scope.rb" in compose
+    assert "G01_BRIDGE_SECRET:" in compose
     assert "chatwoot_storage:/app/storage" in compose
     assert "axllent/mailpit@sha256:" in compose
     assert "SMTP_ADDRESS: ${SMTP_ADDRESS:-mailpit}" in compose
