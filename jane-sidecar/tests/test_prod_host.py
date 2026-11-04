@@ -91,6 +91,7 @@ def test_production_env_check_rejects_local_secrets(tmp_path):
         "SECRET_KEY_BASE": "a" * 64,
         "POSTGRES_PASSWORD": "b" * 24,
         "G01_ADMIN_TOKEN": "c" * 32,
+        "G01_BRIDGE_SECRET": "d" * 32,
         "ACME_EMAIL": "ops@g01denfleece.com",
         "SMTP_ADDRESS": "smtp.example.net",
         "SMTP_USERNAME": "smtp-user",

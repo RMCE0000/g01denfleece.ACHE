@@ -49,6 +49,14 @@ The homesteader signs in at Chatwoot: `http://localhost:3000/app/login`. The scr
 
 Each has a private inbox named `Jane — {name}` for talking with Jane, and a shared inbox `Ada Yard and Bea Chenier`. Jane stays quiet in the shared inbox unless someone says her name. The public widget remains at the URL in `operator.txt`; its header is the same gold.
 
+Signed-in homesteaders use Chatwoot normally: messages, attachments, private
+notes, contacts, labels, assignment, status, snooze, and priority remain stock
+Chatwoot behavior. The sidebar adds **g01 Community**, a private directory that
+lets a homesteader open their own shared inbox with another registered
+homesteader. g01 labels and custom fields make Jane and connection threads
+filterable without exposing the ledger, KYC data, coordinates, or other private
+property records in Chatwoot's account-wide contacts.
+
 Create another sign-in, then a conversation between two of them:
 
 ```bash

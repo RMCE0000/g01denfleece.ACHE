@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     schema_path: str = str(_DEFAULT_SCHEMA)
     public_base_url: str = "http://localhost:8000"
     admin_token: str = ""
+    bridge_secret: str = ""
 
     # Minimum showcase: a small local model, and no Celery beat.
     background_jobs: bool = False

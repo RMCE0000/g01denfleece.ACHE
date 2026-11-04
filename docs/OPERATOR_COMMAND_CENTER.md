@@ -68,27 +68,32 @@ does not update the old MVP ledger or North Star values.
 
 ## Chatwoot boundary
 
-Chatwoot is the transport, browser UI, authentication system, real-time message
-store, and password-reset system. g01 does not fork its large helpdesk product
-into a separate homesteading application.
+Chatwoot remains a normally usable workspace: it owns the browser UI,
+authentication, real-time messaging, files, private notes, contacts, labels,
+assignment, status, snooze, priority, and password reset. g01 adds homestead
+records and workflows without replacing those features.
 
 | Area | Current behavior |
 | --- | --- |
 | Sign-in and reset | Active through Chatwoot and configured SMTP |
 | g01 signup | Creates a Chatwoot agent, a property row, and a private Jane inbox |
 | Private Jane chat | Active; Ollama receives the constitution and visible history |
-| Homesteader connection | The operator opens it with `connect`; both people can then use it |
-| Contacts, labels, assignment, status, snooze | Stock Chatwoot transport controls; no g01 analysis is attached |
-| Reports, campaigns, help center | Unused in the minimum showcase |
-| Email, WhatsApp, and social inboxes | Unconfigured until each provider is added and verified |
+| Homesteader connection | A user opens **g01 Community** in Chatwoot, or the operator uses `connect` |
+| Files and private notes | Work normally inside every conversation the user may access |
+| Contacts | Normal Chatwoot CRM; g01 mirrors only non-sensitive member/locality data because contacts are account-wide |
+| Labels and custom fields | g01 thread types and public locality metadata are filterable in Chatwoot |
+| Assignment, status, snooze, priority | Normal Chatwoot behavior remains available |
+| Reports | Chatwoot administrators use normal messaging reports; the command center provides g01 analyses |
+| Campaigns and help center | Administrators can use the normal Chatwoot workflows after configuring content and audiences |
+| Email, WhatsApp, and social inboxes | Work normally only after each external provider is added and verified |
 | North Star and ledger | Inspectable in the command center; not updated by live MS chat |
 | Sponsors | Ranking can be previewed with `rank` |
 | Polls and matchmaking | Existing workflows can be run explicitly with `jobs`; scheduling remains off |
 | Stripe and identity | Operate only when production keys and webhooks are configured |
 
-The `capabilities` command carries this boundary into the running system. A
-visible upstream menu is not evidence that g01 configured the corresponding
-provider or workflow.
+The `capabilities` command carries this boundary into the running system.
+Provider-backed channels cannot be made operational without that provider's
+account and credentials.
 
 ## Access and data handling
 

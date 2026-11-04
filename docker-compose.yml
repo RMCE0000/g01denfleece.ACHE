@@ -22,6 +22,9 @@ x-chatwoot-env: &chatwoot-env
   RAILS_SERVE_STATIC_FILES: "true"
   ENABLE_ACCOUNT_SIGNUP: "false"
   MAILER_SENDER_EMAIL: "${MAILER_SENDER_EMAIL:-Jane <jane@g01denfleece.com>}"
+  G01_BRIDGE_SECRET: ${G01_BRIDGE_SECRET:-g01-local-bridge-token}
+  G01_CHATWOOT_ACCOUNT_ID: ${CHATWOOT_ACCOUNT_ID:-1}
+  G01_COMMUNITY_UPSTREAM: http://jane:8000
   # Local mail is Mailpit. A public launch sets SMTP_ADDRESS, SMTP_PORT, and SMTP_ENABLE_STARTTLS_AUTO.
   SMTP_ADDRESS: ${SMTP_ADDRESS:-mailpit}
   SMTP_PORT: ${SMTP_PORT:-1025}
@@ -40,6 +43,7 @@ x-jane-env: &jane-env
   # Reachable from Chatwoot Sidekiq, not from a browser.
   G01_PUBLIC_BASE_URL: ${G01_PUBLIC_BASE_URL:-http://jane:8000}
   G01_ADMIN_TOKEN: ${G01_ADMIN_TOKEN:-g01-local-admin-token}
+  G01_BRIDGE_SECRET: ${G01_BRIDGE_SECRET:-g01-local-bridge-token}
   G01_SEED_HOMESTEADERS: ${G01_SEED_HOMESTEADERS:-1}
   G01_BACKGROUND_JOBS: "0"
   G01_OLLAMA_BASE_URL: http://ollama:11434
@@ -117,6 +121,7 @@ services:
       - ./branding/g01-brand.css:/app/public/g01-brand.css:ro
       - ./branding/g01-brand.js:/app/public/g01-brand.js:ro
       - ./ops/g01_branding.rb:/app/config/initializers/g01_branding.rb:ro
+      - ./ops/g01_community_controller.rb:/app/app/controllers/api/v1/accounts/g01_community_controller.rb:ro
     healthcheck:
       test: ["CMD-SHELL", "ruby -e \"require 'net/http'; code = Net::HTTP.get_response(URI('http://127.0.0.1:3000/api')).code.to_i; exit(code < 500 ? 0 : 1)\""]
       interval: 15s

@@ -3,14 +3,16 @@
 import logging
 import secrets
 from contextlib import asynccontextmanager
+from uuid import UUID
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from app.community import bridge_actor, list_members, start_connection
 from app.config import get_settings
 from app.errors import G01Error
-from app.homesteaders import open_peer_conversation, provision_homesteader, register_homesteader
+from app.homesteaders import open_peer_conversation, provision_homesteader, register_homesteader, sync_workspace_metadata
 from app.payments import apply_stripe_event
 from app.runtime import current_checkpointer, open_checkpointer, open_store, set_store
 from app.stripe_service import construct_event
@@ -50,6 +52,11 @@ class PromoIn(BaseModel):
     max_uses: int = Field(default=100, ge=1)
 
 
+class CommunityConnectionIn(BaseModel):
+    member_id: UUID
+    topic: str | None = Field(default=None, max_length=255)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
@@ -69,6 +76,10 @@ async def lifespan(app: FastAPI):
             await client.ensure_webhook()
         except Exception:
             log.exception("Chatwoot webhook registration did not finish; the sidecar will keep serving")
+        try:
+            await sync_workspace_metadata(store)
+        except Exception:
+            log.exception("Chatwoot workspace metadata synchronization did not finish")
         if settings.seed_homesteaders and settings.chatwoot_api_token and settings.chatwoot_platform_token:
             from app.homestead_seed import seed_signed_in_homesteaders
 
@@ -121,6 +132,18 @@ def create_app(store=None) -> FastAPI:
     async def create_peer_conversation(body: PeerIn, request: Request):
         _admin(request)
         return await open_peer_conversation(app.state.store, body.left, body.right, body.topic)
+
+    @app.get("/api/internal/community")
+    async def community_members(request: Request):
+        actor = await bridge_actor(app.state.store, request, get_settings().bridge_secret)
+        return await list_members(app.state.store, actor)
+
+    @app.post("/api/internal/community/connections")
+    async def community_connection(body: CommunityConnectionIn, request: Request, response: Response):
+        actor = await bridge_actor(app.state.store, request, get_settings().bridge_secret)
+        opened = await start_connection(app.state.store, actor, str(body.member_id), body.topic)
+        response.status_code = 200 if opened["existing"] else 201
+        return opened
 
     @app.post("/webhooks/chatwoot")
     async def chatwoot_webhook(request: Request):

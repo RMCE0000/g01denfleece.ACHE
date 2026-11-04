@@ -59,6 +59,22 @@ class FakeChatwoot:
         FakeChatwoot.calls.append(("message", int(conversation_id), content))
         return {"id": 1}
 
+    async def set_contact_labels(self, contact_id, labels):
+        FakeChatwoot.calls.append(("contact_labels", int(contact_id), labels))
+        return {}
+
+    async def update_contact_custom_attributes(self, contact_id, attributes):
+        FakeChatwoot.calls.append(("contact_attributes", int(contact_id), attributes))
+        return {}
+
+    async def set_conversation_labels(self, conversation_id, labels):
+        FakeChatwoot.calls.append(("conversation_labels", int(conversation_id), labels))
+        return {}
+
+    async def update_conversation_custom_attributes(self, conversation_id, attributes):
+        FakeChatwoot.calls.append(("conversation_attributes", int(conversation_id), attributes))
+        return {}
+
     async def sso_link(self, user_id):
         return f"http://localhost:3000/auth/sso?user={int(user_id)}"
 
@@ -147,6 +163,12 @@ def test_admin_opens_sign_in_and_a_private_conversation(store, monkeypatch):
         assert 4 in inbox_calls[0][2]
         assert inbox_calls[-1][1] == "Ada Yard and Bea Chenier"
         assert set(inbox_calls[-1][2]) >= {ada["chatwoot_user_id"], 4}
+        assert any(call[0] == "contact_labels" and call[2] == ["g01-homesteader"] for call in FakeChatwoot.calls)
+        assert any(call[0] == "conversation_labels" and "g01-connection" in call[2] for call in FakeChatwoot.calls)
+        assert any(
+            call[0] == "conversation_attributes" and call[2].get("g01_kind") == "connection"
+            for call in FakeChatwoot.calls
+        )
 
         intro = [call for call in FakeChatwoot.calls if call[0] == "message" and "stay quiet" in call[2]]
         assert intro and "the well" in intro[0][2]
@@ -202,6 +224,59 @@ def test_login_page_signup_opens_a_sign_in(store, monkeypatch):
 
         outside = client.post("/api/signup", json=_person("Cara North", "cara.other@example.com", "10001"))
         assert outside.status_code == 422
+
+
+def test_chatwoot_bridge_lists_members_and_starts_own_connection(store, monkeypatch):
+    FakeChatwoot.reset()
+    monkeypatch.setenv("G01_CHATWOOT_API_TOKEN", "api-token")
+    monkeypatch.setenv("G01_CHATWOOT_PLATFORM_TOKEN", "platform-token")
+    monkeypatch.setenv("G01_CHATWOOT_PUBLIC_URL", "http://localhost:3000")
+    monkeypatch.setenv("G01_JANE_USER_ID", "4")
+    monkeypatch.setenv("G01_BRIDGE_SECRET", "bridge-secret")
+    get_settings.cache_clear()
+    monkeypatch.setattr("app.homesteaders.ChatwootClient", FakeChatwoot)
+
+    with TestClient(create_app(store)) as client:
+        client.post("/api/signup", json=_person("Ada Yard", "ada.community@example.com", "70601"))
+        client.post("/api/signup", json=_person("Bea Chenier", "bea.community@example.com", "70605"))
+        ada = next(row for row in store.properties if row.get("email") == "ada.community@example.com")
+        bea = next(row for row in store.properties if row.get("email") == "bea.community@example.com")
+        headers = {
+            "x-g01-bridge-secret": "bridge-secret",
+            "x-g01-account-id": "1",
+            "x-g01-user-id": str(ada["chatwoot_user_id"]),
+        }
+
+        assert client.get("/api/internal/community", headers={**headers, "x-g01-bridge-secret": "wrong"}).status_code == 401
+        directory = client.get("/api/internal/community", headers=headers)
+        assert directory.status_code == 200
+        member = next(row for row in directory.json()["members"] if row["id"] == bea["id"])
+        assert member == {
+            "id": bea["id"],
+            "name": "Bea Chenier",
+            "locality": "Lake Charles & Calcasieu Suburbs",
+            "connected": False,
+        }
+        assert "email" not in directory.text
+        assert "zip" not in directory.text
+
+        opened = client.post(
+            "/api/internal/community/connections",
+            headers=headers,
+            json={"member_id": bea["id"], "topic": "seed exchange"},
+        )
+        assert opened.status_code == 201
+        assert opened.json()["conversation_path"].startswith("/app/accounts/1/conversations/")
+        assert opened.json()["existing"] is False
+
+        repeated = client.post(
+            "/api/internal/community/connections",
+            headers=headers,
+            json={"member_id": bea["id"], "topic": "ignored duplicate topic"},
+        )
+        assert repeated.status_code == 200
+        assert repeated.json()["conversation_id"] == opened.json()["conversation_id"]
+        assert repeated.json()["existing"] is True
 
 
 def test_homesteader_routes_need_chatwoot(store, monkeypatch):

@@ -1,5 +1,5 @@
 # Idempotent Chatwoot setup for g01. Run inside the Chatwoot container after db:chatwoot_prepare.
-# Creates Jane, the website widget (the only homesteader form), and the message webhook.
+# Creates Jane, the website widget, g01 workspace metadata, and the message webhook.
 # Leaves auto-resolve unset so the homestead thread stays open.
 
 require "fileutils"
@@ -32,6 +32,40 @@ settings.delete("auto_resolve_message")
 account.settings = settings
 account.auto_resolve_duration = nil if account.has_attribute?(:auto_resolve_duration)
 account.save!
+
+# These make ordinary Chatwoot filtering, contacts, and conversation details
+# useful without moving authoritative or sensitive g01 records out of Jane.
+[
+  ["g01-homesteader", "A registered g01 homesteader contact", "#7A5E24"],
+  ["g01-homestead", "A g01 homestead conversation", "#B8924A"],
+  ["g01-jane", "A private conversation with Jane", "#8C6E2F"],
+  ["g01-connection", "A conversation between homesteaders", "#3D5A3D"]
+].each do |title, description, color|
+  label = account.labels.find_or_initialize_by(title: title)
+  label.assign_attributes(description: description, color: color, show_on_sidebar: true)
+  label.save!
+end
+
+[
+  ["g01_member", "g01 member", "contact_attribute", "checkbox", "Mirrors whether this contact is a registered homesteader."],
+  ["g01_locality", "g01 locality", "contact_attribute", "text", "Public locality mirror for contact filtering."],
+  ["g01_kind", "g01 conversation kind", "conversation_attribute", "text", "Jane or homesteader connection thread."],
+  ["g01_topic", "g01 connection topic", "conversation_attribute", "text", "Operator or homesteader supplied connection topic."],
+  ["g01_property_id", "g01 property id", "conversation_attribute", "text", "Authoritative property reference held by Jane."],
+  ["g01_property_a_id", "g01 first property id", "conversation_attribute", "text", "First property in a peer connection."],
+  ["g01_property_b_id", "g01 second property id", "conversation_attribute", "text", "Second property in a peer connection."]
+].each do |key, display_name, model, display_type, description|
+  definition = account.custom_attribute_definitions.find_or_initialize_by(
+    attribute_key: key,
+    attribute_model: model
+  )
+  definition.assign_attributes(
+    attribute_display_name: display_name,
+    attribute_display_type: display_type,
+    attribute_description: description
+  )
+  definition.save!
+end
 
 user = User.from_email(JANE_EMAIL)
 created_user = user.nil?
@@ -127,6 +161,7 @@ platform.platform_app_permissibles.find_or_create_by!(permissible: account)
 platform_access = platform.access_token || platform.create_access_token!
 platform_token = platform_access.token
 raise "g01 platform token is empty" if platform_token.blank?
+raise "g01 bridge secret is empty" if ENV["G01_BRIDGE_SECRET"].blank?
 
 begin
   Redis::Alfred.delete(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING)

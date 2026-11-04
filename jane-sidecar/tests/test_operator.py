@@ -95,7 +95,8 @@ async def test_capability_catalog_and_json_output(backend):
     output = await backend.execute(["capabilities"])
     areas = {row["area"]: row["status"] for row in output.value}
     assert areas["Private Jane chat"] == "active"
-    assert areas["Reports, campaigns, help center"] == "unused"
+    assert areas["Contacts, labels, and custom fields"] == "active"
+    assert areas["Reports"] == "administrator"
 
     payload = json.loads(render(CommandOutput("Test", {"at": None, "ok": True}), as_json=True))
     assert payload == {"title": "Test", "data": {"at": None, "ok": True}}
