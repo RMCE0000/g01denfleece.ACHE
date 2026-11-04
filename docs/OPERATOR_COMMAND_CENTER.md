@@ -89,8 +89,9 @@ the same locality. New proposals are operator-pending and contact no one.
 `match-reject` records the decision without contacting either user. A shared
 thread still requires both users to accept and both to pass identity verification.
 
-These are deterministic operational analyses. The minimum-showcase live chat
-does not update the old MVP ledger or North Star values.
+These are deterministic operational analyses. Live private Jane chat applies
+only grounded values present in the homesteader's message to the ledger and
+North Star record.
 
 ## Sponsor profiles
 
@@ -127,11 +128,11 @@ records and workflows without replacing those features.
 | Reports | Chatwoot administrators use normal messaging reports; the command center provides g01 analyses |
 | Campaigns and help center | Administrators can use the normal Chatwoot workflows after configuring content and audiences |
 | Email, WhatsApp, and social inboxes | Work normally only after each external provider is added and verified |
-| North Star and ledger | Inspectable in the command center; not updated by live MS chat |
+| North Star and ledger | Grounded live Jane turns update the record; operators can inspect and correct whitelisted fields |
 | Sponsors | Operators manage standalone or homestead-linked profiles and lifecycle status; `rank` previews Jane's local recommendations |
 | Jane polls | One rotating question is sent daily in each private Jane thread. `poll mode` starts the community-action question; `poll mode: <question>` broadcasts a supplied question. Operators use `polls`, `poll`, `poll-create`, and `analyze polls` |
 | Automatic matchmaking | Discovery runs in Jane. Operators must review `matches` and confirm `match-approve` before users are contacted; both users and identity verification remain required |
-| Legacy demand polls | Existing workflows can be run explicitly with `jobs polls`; Celery scheduling remains off |
+| 24-hour demand polls | The sidecar matures and reports them automatically; operators may also use `jobs polls` |
 | Stripe and identity | Operate only when production keys and webhooks are configured |
 
 The `capabilities` command carries this boundary into the running system.
