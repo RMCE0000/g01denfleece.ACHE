@@ -18,7 +18,7 @@ locality_id, street_address, zip_code, lat, lng,
 northstar_automated_pct, outside_aid_hours_per_week, northstar_aesthetic_pct,
 northstar_material_independent, material_surplus_profitable,
 northstar_energetic_pct, northstar_energetic_profitable, northstar_contained_zero_waste,
-known_facts_ledger, sponsor_draft, kyc_verified, stripe_identity_session_id, updated_at,
+known_facts_ledger, sponsor_draft, kyc_verified, stripe_identity_session_id, stripe_identity_session_url, updated_at,
 email, display_name, username, chatwoot_inbox_id
 """
 
@@ -26,13 +26,14 @@ _SPONSOR = """
 id, property_id, locality_id, company_name, founding_city, founding_state, is_franchise_or_chain,
 sourcing_tier, service_tags, capabilities_summary, lat, lng, referrals_last_14d, last_referred_at,
 homesteader_rating, promo_boost_weight, stripe_customer_id, stripe_subscription_id,
-applied_promo_code, is_active_sponsor, created_at
+applied_promo_code, promo_consumed_at, is_active_sponsor, created_at
 """
 
 _MATCH = """
 id, locality_id, peer_a_property_id, peer_b_property_id, proposed_project_title,
 jane_synergy_rationale, operator_status, operator_review_note, operator_reviewed_at,
-peer_a_status, peer_b_status, shared_chatwoot_conversation_id, created_at
+peer_a_status, peer_b_status, shared_chatwoot_conversation_id,
+shared_conversation_opening, shared_conversation_claimed_at, created_at
 """
 
 
@@ -623,20 +624,18 @@ class PostgresStore:
             """
         )
 
-    async def complete_poll(self, poll_id: str, report: str) -> dict:
+    async def complete_poll(self, poll_id: str, report: str) -> dict | None:
         rows = await self._write(
             """
             UPDATE g01_demand_polls
             SET status = 'completed', final_synthesis_report = :report
-            WHERE id = CAST(:id AS uuid)
+            WHERE id = CAST(:id AS uuid) AND status = 'polling'
             RETURNING id, requester_property_id, locality_id, topic_slug, question_sent_to_neighbors,
                       status, mature_at, final_synthesis_report, created_at
             """,
             {"id": poll_id, "report": report},
         )
-        if not rows:
-            raise G01Error("poll not found", 404)
-        return rows[0]
+        return rows[0] if rows else None
 
     async def create_community_poll(self, fields: dict) -> tuple[dict, bool]:
         rows = await self._write(
@@ -910,8 +909,10 @@ class PostgresStore:
         rows = await self._write(
             f"""
             UPDATE g01_neighbor_matches
-            SET shared_chatwoot_conversation_id = :conversation_id
-            WHERE id = CAST(:id AS uuid)
+            SET shared_chatwoot_conversation_id = :conversation_id,
+                shared_conversation_opening = FALSE,
+                shared_conversation_claimed_at = NULL
+            WHERE id = CAST(:id AS uuid) AND shared_chatwoot_conversation_id IS NULL
             RETURNING {_MATCH}
             """,
             {"id": match_id, "conversation_id": int(conversation_id)},
@@ -919,6 +920,35 @@ class PostgresStore:
         if not rows:
             raise G01Error("match not found", 404)
         return rows[0]
+
+    async def claim_shared_conversation(self, match_id: str) -> bool:
+        rows = await self._write(
+            """
+            UPDATE g01_neighbor_matches
+            SET shared_conversation_opening = TRUE,
+                shared_conversation_claimed_at = NOW()
+            WHERE id = CAST(:id AS uuid)
+              AND shared_chatwoot_conversation_id IS NULL
+              AND (
+                    NOT shared_conversation_opening
+                    OR shared_conversation_claimed_at < NOW() - INTERVAL '5 minutes'
+              )
+            RETURNING id
+            """,
+            {"id": match_id},
+        )
+        return bool(rows)
+
+    async def release_shared_conversation_claim(self, match_id: str) -> None:
+        await self._write(
+            """
+            UPDATE g01_neighbor_matches
+            SET shared_conversation_opening = FALSE,
+                shared_conversation_claimed_at = NULL
+            WHERE id = CAST(:id AS uuid) AND shared_chatwoot_conversation_id IS NULL
+            """,
+            {"id": match_id},
+        )
 
     async def ready_matches_without_thread(self) -> list[dict]:
         rows = await self._all(
@@ -1047,15 +1077,16 @@ class PostgresStore:
             raise G01Error("property not found", 404)
         return rows[0]
 
-    async def set_identity_session(self, property_id: str, session_id: str) -> dict:
+    async def set_identity_session(self, property_id: str, session_id: str, session_url: str | None = None) -> dict:
         rows = await self._write(
             f"""
             UPDATE g01_properties
-            SET stripe_identity_session_id = :session_id
+            SET stripe_identity_session_id = :session_id,
+                stripe_identity_session_url = :session_url
             WHERE id = CAST(:id AS uuid)
             RETURNING {_PROPERTY}
             """,
-            {"id": property_id, "session_id": session_id},
+            {"id": property_id, "session_id": session_id, "session_url": session_url},
         )
         if not rows:
             raise G01Error("property not found", 404)
@@ -1084,7 +1115,7 @@ class PostgresStore:
                    s.is_franchise_or_chain, s.sourcing_tier, s.service_tags, s.capabilities_summary,
                    s.lat, s.lng, s.referrals_last_14d, s.last_referred_at, s.homesteader_rating,
                    s.promo_boost_weight, s.stripe_customer_id, s.stripe_subscription_id,
-                   s.applied_promo_code, s.is_active_sponsor, s.created_at
+                   s.applied_promo_code, s.promo_consumed_at, s.is_active_sponsor, s.created_at
             FROM g01_sponsors s
             JOIN g01_sponsor_checkouts c ON c.sponsor_id = s.id
             WHERE c.stripe_session_id = :session_id
@@ -1113,6 +1144,80 @@ class PostgresStore:
         if not rows:
             raise G01Error("sponsor not found", 404)
         return rows[0]
+
+    async def activate_sponsor_checkout(self, sponsor_id: str, customer_id: str | None, subscription_id: str | None) -> dict:
+        async with self.engine.begin() as conn:
+            locked = await conn.execute(
+                text(
+                    f"SELECT {_SPONSOR} FROM g01_sponsors "
+                    "WHERE id = CAST(:id AS uuid) FOR UPDATE"
+                ),
+                {"id": sponsor_id},
+            )
+            sponsor_row = locked.mappings().first()
+            if sponsor_row is None:
+                raise G01Error("sponsor not found", 404)
+            sponsor = _clean(dict(sponsor_row))
+            boost = None
+            consume_promo = bool(sponsor.get("applied_promo_code") and sponsor.get("promo_consumed_at") is None)
+            if consume_promo:
+                consumed = await conn.execute(
+                    text(
+                        """
+                        UPDATE g01_promo_codes
+                        SET current_uses = current_uses + 1
+                        WHERE code = :code AND active AND current_uses < max_uses
+                        RETURNING recommendation_boost
+                        """
+                    ),
+                    {"code": sponsor["applied_promo_code"]},
+                )
+                promo_row = consumed.mappings().first()
+                if promo_row is not None:
+                    boost = float(promo_row["recommendation_boost"])
+            updated = await conn.execute(
+                text(
+                    f"""
+                    UPDATE g01_sponsors
+                    SET is_active_sponsor = TRUE,
+                        stripe_customer_id = :customer_id,
+                        stripe_subscription_id = :subscription_id,
+                        promo_boost_weight = COALESCE(:boost, promo_boost_weight),
+                        promo_consumed_at = CASE
+                            WHEN :consume_promo THEN NOW()
+                            ELSE promo_consumed_at
+                        END
+                    WHERE id = CAST(:id AS uuid)
+                    RETURNING {_SPONSOR}
+                    """
+                ),
+                {
+                    "id": sponsor_id,
+                    "customer_id": customer_id,
+                    "subscription_id": subscription_id,
+                    "boost": boost,
+                    "consume_promo": consume_promo,
+                },
+            )
+            return _clean(dict(updated.mappings().one()))
+
+    async def sponsor_by_subscription(self, subscription_id: str) -> dict | None:
+        return await self._one(
+            f"SELECT {_SPONSOR} FROM g01_sponsors WHERE stripe_subscription_id = :subscription_id",
+            {"subscription_id": subscription_id},
+        )
+
+    async def set_sponsor_subscription_active(self, subscription_id: str, active: bool) -> dict | None:
+        rows = await self._write(
+            f"""
+            UPDATE g01_sponsors
+            SET is_active_sponsor = :active
+            WHERE stripe_subscription_id = :subscription_id
+            RETURNING {_SPONSOR}
+            """,
+            {"subscription_id": subscription_id, "active": bool(active)},
+        )
+        return rows[0] if rows else None
 
     async def open_polls_for_requester(self, property_id: str) -> list[dict]:
         return await self._all(

@@ -13,7 +13,7 @@ from app.community import bridge_actor, community_state, start_connection
 from app.config import get_settings
 from app.errors import G01Error
 from app.homesteaders import open_peer_conversation, provision_homesteader, register_homesteader, sync_workspace_metadata
-from app.jobs import demand_poll_scheduler
+from app.jobs import collaboration_scheduler, demand_poll_scheduler
 from app.matchmaking import matchmaking_scheduler
 from app.payments import apply_stripe_event
 from app.polling import poll_scheduler
@@ -73,6 +73,7 @@ async def lifespan(app: FastAPI):
     poll_task = None
     demand_poll_task = None
     match_task = None
+    collaboration_task = None
     if settings.database_url and override is None:
         lease = await open_checkpointer(settings.database_url)
         current_checkpointer.set(lease.saver)
@@ -102,6 +103,10 @@ async def lifespan(app: FastAPI):
         )
         if settings.automatic_matchmaking_enabled:
             match_task = asyncio.create_task(matchmaking_scheduler(store, settings), name="jane-match-scheduler")
+        collaboration_task = asyncio.create_task(
+            collaboration_scheduler(store, settings),
+            name="jane-collaboration-scheduler",
+        )
     try:
         yield
     finally:
@@ -117,6 +122,10 @@ async def lifespan(app: FastAPI):
             match_task.cancel()
             with suppress(asyncio.CancelledError):
                 await match_task
+        if collaboration_task is not None:
+            collaboration_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await collaboration_task
         if lease is not None:
             current_checkpointer.set(None)
             await lease.close()

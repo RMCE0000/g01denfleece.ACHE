@@ -74,7 +74,9 @@ async def synthesize(state: dict) -> dict:
     votes = await store.votes_for_poll(poll["id"])
     template = factual_report(poll, votes)
     report = await _phrase(poll, votes, template)
-    await store.complete_poll(poll["id"], report)
+    completed = await store.complete_poll(poll["id"], report)
+    if completed is None:
+        return {"report": ""}
     requester = await store.get_property(poll["requester_property_id"])
     if requester and requester.get("primary_conversation_id"):
         await deliver(store, requester["primary_conversation_id"], report)

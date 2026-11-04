@@ -76,7 +76,10 @@ async def open_demand_poll(store, prop: dict, topic: str, question: str) -> str:
         if neighbor["id"] != prop["id"]
     ]
     await store.add_invites(poll["id"], neighbors)
-    outbound = question.strip() + f"\n\nPoll {poll['id']}."
+    outbound = (
+        question.strip()
+        + f"\n\nReply in this exact form: DEMAND {poll['id']}: 2 units/week at $5 per unit."
+    )
     for neighbor in neighbors:
         if neighbor.get("primary_conversation_id"):
             await deliver(store, neighbor["primary_conversation_id"], outbound)
@@ -191,13 +194,18 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
         notes.append(status_reply(prop, fresh_locality))
 
     if decision.get("request_kyc"):
-        try:
-            session = await create_identity_session(prop["id"])
-        except G01Error:
-            notes.append("Stripe Identity is not configured, so I cannot verify you from this thread yet.")
+        if prop.get("kyc_verified"):
+            notes.append("Your identity is already verified.")
+        elif prop.get("stripe_identity_session_url") and not decision.get("reset_kyc"):
+            notes.append(f"Use your existing Stripe Identity link: {prop['stripe_identity_session_url']}")
         else:
-            await store.set_identity_session(prop["id"], session["id"])
-            notes.append(f"Verify with Stripe Identity: {session['url']}")
+            try:
+                session = await create_identity_session(prop["id"])
+            except G01Error:
+                notes.append("Stripe Identity is not configured, so I cannot verify you from this thread yet.")
+            else:
+                await store.set_identity_session(prop["id"], session["id"], session["url"])
+                notes.append(f"Verify with Stripe Identity: {session['url']}")
 
     if decision.get("cancel_sponsor"):
         prop = await store.save_sponsor_draft(prop["id"], None)

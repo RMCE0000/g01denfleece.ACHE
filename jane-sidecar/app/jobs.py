@@ -55,3 +55,15 @@ async def open_ready_collaborations(store) -> list[int]:
         if current and current.get("shared_chatwoot_conversation_id"):
             opened.append(int(current["shared_chatwoot_conversation_id"]))
     return opened
+
+
+async def collaboration_scheduler(store, settings: Settings | None = None) -> None:
+    settings = settings or get_settings()
+    while True:
+        try:
+            await open_ready_collaborations(store)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("collaboration retry cycle failed")
+        await asyncio.sleep(settings.collaboration_scheduler_interval_seconds)

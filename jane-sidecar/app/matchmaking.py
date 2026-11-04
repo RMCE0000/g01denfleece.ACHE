@@ -15,7 +15,7 @@ from app.graphs.matchmaking_graph import discover_neighbor_synergies
 log = logging.getLogger(__name__)
 
 _MATCH_DECISION = re.compile(
-    r"^\s*(yes|no)\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s*$",
+    r"^\s*(yes|accept|i accept|no|decline)\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s*[.!]?\s*$",
     re.I,
 )
 
@@ -82,7 +82,7 @@ async def handle_private_match_message(store, message: dict) -> str | None:
         reply = "I can't record that match response. Use the exact YES or NO line from an operator-approved proposal."
         await deliver(store, conversation_id, reply)
         return reply
-    status = "accepted" if decision.group(1).casefold() == "yes" else "declined"
+    status = "accepted" if decision.group(1).casefold() in ("yes", "accept", "i accept") else "declined"
     await store.set_match_status(match["id"], prop["id"], status)
     reply = await refresh_match_gate(store, match["id"], speaker_property_id=prop["id"])
     await deliver(store, conversation_id, reply)

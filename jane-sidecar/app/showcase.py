@@ -141,7 +141,17 @@ async def answer_with_effects(store, message: dict) -> str:
             "matches": await store.matches_for_property(prop["id"]) if prop else [],
         }
     )
-    decision["reply"] = cleaned
+    effect_keys = (
+        "ledger_patch", "outside_aid_hours_per_week", "aesthetic_pct",
+        "material_independent", "material_surplus_profitable", "energetic_pct",
+        "energetic_profitable", "contained_zero_waste", "service_tag",
+        "start_poll", "vote_poll_id", "match_id", "sponsor_active",
+        "cancel_sponsor", "report_scores", "request_kyc", "street_address",
+        "property_lat", "property_lng",
+    )
+    has_grounded_effect = any(decision.get(key) for key in effect_keys)
+    if not has_grounded_effect:
+        decision["reply"] = cleaned
     await store.append_transcript(
         conversation_id=int(message["conversation_id"]),
         message_id=str(message.get("message_id") or "") or None,

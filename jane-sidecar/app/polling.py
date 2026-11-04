@@ -44,7 +44,12 @@ def _local_day(now: datetime, settings: Settings):
 
 
 def _poll_prompt(question: str) -> str:
-    return f"Jane poll: {question}\nReply in this private thread with your answer."
+    return (
+        f"Jane poll: {question}\n"
+        "Reply naturally in this private thread with your answer. "
+        "You can also start the answer with “POLL:”. "
+        "To ask for something else and leave this poll pending, start your message with “Jane,”."
+    )
 
 
 async def _deliver_added(store, poll: dict, recipients: list[dict]) -> None:
@@ -254,6 +259,22 @@ async def handle_private_poll_message(store, message: dict) -> str | None:
     pending = await store.pending_community_polls(prop["id"])
     if not pending:
         return None
+    explicit_answer = re.match(r"^poll(?:\s+answer)?\s*:\s*(.+)$", content, re.I | re.S)
+    answer_content = explicit_answer.group(1).strip() if explicit_answer else content
+    # Sponsor applications are multi-turn forms. Keep their unlabeled next
+    # answer in that workflow; POLL: remains available to answer the poll.
+    if prop.get("sponsor_draft") and explicit_answer is None:
+        return None
+    # A daily question should not swallow an explicit product workflow. Users
+    # can also address Jane by name to leave the poll pending and ask anything.
+    if re.match(r"^jane[\s,:-]", content, re.I) or re.search(
+        r"\b(verify my identity|identity verification|start kyc|what are my scores|north star|"
+        r"become a sponsor|register as a sponsor|cancel (the |my )?sponsor|"
+        r"where can i (get|buy|find|source)|poll mode)\b",
+        content,
+        re.I,
+    ) or re.match(r"^demand\s+[0-9a-f-]{36}\s*:", content, re.I):
+        return None
     # The most recently delivered question is the one visible at the bottom of
     # the private thread, so the next reply belongs to that poll.
     poll = pending[-1]
@@ -264,7 +285,7 @@ async def handle_private_poll_message(store, message: dict) -> str | None:
         speaker=message.get("speaker") or "Homesteader",
         content=content,
     )
-    answer = await store.answer_community_poll(poll["id"], prop["id"], content)
+    answer = await store.answer_community_poll(poll["id"], prop["id"], answer_content)
     if answer is None:
         return None
     remaining = await store.pending_community_polls(prop["id"])

@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     demand_poll_scheduler_interval_seconds: int = 300
     automatic_matchmaking_enabled: bool = True
     match_scheduler_interval_seconds: int = 900
+    collaboration_scheduler_interval_seconds: int = 300
     match_similarity_threshold: float = 0.82
     full_manual_hours_per_week: float = 40.0
 

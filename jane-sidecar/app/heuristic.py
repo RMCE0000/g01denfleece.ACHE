@@ -38,6 +38,11 @@ _ASK_RECORD = re.compile(
     re.I,
 )
 _KYC = re.compile(r"\b(verify my identity|identity verification|start kyc|stripe identity)\b", re.I)
+_KYC_RESET = re.compile(r"\b(restart|reset|new)\s+(my\s+)?(identity verification|kyc)\b", re.I)
+_DEMAND_VOTE = re.compile(
+    rf"^\s*demand\s+({_UUID.pattern})\s*:\s*(.+)$",
+    re.I,
+)
 
 _TAGS = (
     ("grow_lights", ("grow light", "grow lights", "aquaponics light")),
@@ -83,6 +88,7 @@ def _blank() -> dict:
         "sponsor_fields": {},
         "report_scores": False,
         "request_kyc": False,
+        "reset_kyc": False,
         "zip_code": None,
         "property_lat": None,
         "property_lng": None,
@@ -208,12 +214,21 @@ def heuristic_decision(state: dict) -> dict:
         decision.setdefault("ledger_patch", {})
         decision["ledger_patch"]["acreage"] = acreage.group(1)
 
-    if invites and hours is None and aesthetic is None and re.search(r"\d", text):
-        units, price = extract_vote(text)
-        decision["vote_poll_id"] = invites[0]["poll_id"]
-        decision["weekly_units"] = units
-        decision["price_per_unit"] = price
-        decision["reply"] = "I logged that as your answer to the neighborhood question. I won't fold it into a demand figure until the 24 hours are up."
+    demand_vote = _DEMAND_VOTE.fullmatch(text)
+    if demand_vote:
+        poll_id = demand_vote.group(1).lower()
+        invite_ids = {str(invite["poll_id"]).lower() for invite in invites}
+        if poll_id in invite_ids:
+            units, price = extract_vote(demand_vote.group(2))
+            if units > 0 and price > 0:
+                decision["vote_poll_id"] = poll_id
+                decision["weekly_units"] = units
+                decision["price_per_unit"] = price
+                decision["reply"] = "I logged that as your answer to the neighborhood question. I won't fold it into a demand figure until the 24 hours are up."
+                return decision
+            decision["reply"] = "I need both a weekly quantity and a price, for example: DEMAND poll-id: 2 dozen/week at $5 per dozen."
+            return decision
+        decision["reply"] = "That demand poll is not open for this homestead, so I did not record a vote."
         return decision
 
     if _ASK_RECORD.search(text):
@@ -221,6 +236,7 @@ def heuristic_decision(state: dict) -> dict:
 
     if _KYC.search(text):
         decision["request_kyc"] = True
+        decision["reset_kyc"] = bool(_KYC_RESET.search(text))
         decision["reply"] = "Identity verification happens from a Stripe link I post in this thread. A shared neighbor thread still waits until both of you are verified."
 
     if _CANCEL_SPONSOR.search(text):

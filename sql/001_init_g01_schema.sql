@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS g01_properties (
 
     kyc_verified BOOLEAN DEFAULT FALSE,
     stripe_identity_session_id VARCHAR(255),
+    stripe_identity_session_url TEXT,
     -- In-progress sponsorship answers collected inside the Chatwoot thread.
     sponsor_draft JSONB,
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -77,6 +78,7 @@ ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS email VARCHAR(255);
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS display_name VARCHAR(255);
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS chatwoot_inbox_id BIGINT;
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS username VARCHAR(32);
+ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS stripe_identity_session_url TEXT;
 
 -- Existing accounts receive a stable handle. Prefer the email local-part when
 -- it is valid and unique; otherwise use an opaque property suffix.
@@ -171,11 +173,13 @@ CREATE TABLE IF NOT EXISTS g01_sponsors (
     stripe_customer_id VARCHAR(255),
     stripe_subscription_id VARCHAR(255),
     applied_promo_code VARCHAR(64) REFERENCES g01_promo_codes(code),
+    promo_consumed_at TIMESTAMPTZ,
     is_active_sponsor BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE g01_sponsors DROP CONSTRAINT IF EXISTS g01_sponsors_tier_chk;
+ALTER TABLE g01_sponsors ADD COLUMN IF NOT EXISTS promo_consumed_at TIMESTAMPTZ;
 ALTER TABLE g01_sponsors
     ADD CONSTRAINT g01_sponsors_tier_chk CHECK (
         sourcing_tier IN ('local_manufacturer', 'local_service_or_stock', 'local_logistics_proxy')
@@ -285,6 +289,8 @@ CREATE TABLE IF NOT EXISTS g01_neighbor_matches (
     peer_a_status VARCHAR(20) DEFAULT 'pitched',
     peer_b_status VARCHAR(20) DEFAULT 'pitched',
     shared_chatwoot_conversation_id BIGINT,
+    shared_conversation_opening BOOLEAN NOT NULL DEFAULT FALSE,
+    shared_conversation_claimed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (peer_a_property_id, peer_b_property_id, proposed_project_title)
 );
@@ -294,6 +300,8 @@ CREATE TABLE IF NOT EXISTS g01_neighbor_matches (
 ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS operator_status VARCHAR(20);
 ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS operator_review_note TEXT;
 ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS operator_reviewed_at TIMESTAMPTZ;
+ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS shared_conversation_opening BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS shared_conversation_claimed_at TIMESTAMPTZ;
 UPDATE g01_neighbor_matches SET operator_status = 'approved' WHERE operator_status IS NULL;
 ALTER TABLE g01_neighbor_matches ALTER COLUMN operator_status SET DEFAULT 'pending';
 ALTER TABLE g01_neighbor_matches ALTER COLUMN operator_status SET NOT NULL;

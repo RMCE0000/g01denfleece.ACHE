@@ -1,4 +1,5 @@
 from copy import deepcopy
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from app.config import get_settings
@@ -109,6 +110,68 @@ def test_plain_poll_mode_uses_the_community_action_question(client, store):
     assert started.json()["poll"] is True
     assert DEFAULT_POLL_MODE_QUESTION in started.json()["reply"]
     assert store.community_polls[0]["question"] == DEFAULT_POLL_MODE_QUESTION
+
+
+def test_pending_poll_does_not_capture_an_explicit_jane_request(client, store):
+    asyncio.run(
+        create_requested_poll(
+            store,
+            store.properties[0],
+            "What should we organize next?",
+        )
+    )
+    response = client.post(
+        "/webhooks/chatwoot",
+        json=_message(
+            "Jane, what are my scores?",
+            703,
+            user_id=DEMO_USER_ID,
+            conversation_id=DEMO_CONVERSATION_ID,
+        ),
+    )
+
+    assert response.status_code == 200
+    assert response.json().get("poll") is None
+    assert "Automated" in response.json()["reply"]
+    assert store.community_poll_answers == []
+
+    sourcing = client.post(
+        "/webhooks/chatwoot",
+        json=_message(
+            "Where can I get a rainwater cistern?",
+            704,
+            user_id=DEMO_USER_ID,
+            conversation_id=DEMO_CONVERSATION_ID,
+        ),
+    )
+    assert sourcing.status_code == 200
+    assert sourcing.json().get("poll") is None
+    assert store.community_poll_answers == []
+
+
+def test_pending_poll_does_not_interrupt_a_sponsor_application(client, store):
+    asyncio.run(
+        create_requested_poll(
+            store,
+            store.properties[0],
+            "What should we organize next?",
+        )
+    )
+    store.properties[0]["sponsor_draft"] = {"company_name": "Lake Works"}
+    response = client.post(
+        "/webhooks/chatwoot",
+        json=_message(
+            "Lake Charles",
+            705,
+            user_id=DEMO_USER_ID,
+            conversation_id=DEMO_CONVERSATION_ID,
+        ),
+    )
+
+    assert response.status_code == 200
+    assert response.json().get("poll") is None
+    assert store.community_poll_answers == []
+    assert store.properties[0]["sponsor_draft"]["founding_city"] == "Lake Charles"
 
 
 async def test_compilation_and_atomic_close_are_grounded_in_recorded_answers(store):
