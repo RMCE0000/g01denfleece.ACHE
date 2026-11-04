@@ -11,7 +11,7 @@ sidebar dialog. Messaging and the rest of the dashboard stay upstream.
 2. The first ZIP Jane hears opens one conversation with `status: open`. Turn off that inbox's auto-resolve timer so the thread stays open.
 3. Jane is a peer (`G01_JANE_USER_ID`, default user 1, or an AgentBot). Her posts set `content_attributes.g01_author = jane`, and the webhook ignores them.
 4. Chatwoot's account webhook `message_created` points at `http://jane:8000/webhooks/chatwoot`.
-5. Jane answers from a small local model. Each prompt is her constitution and the message history.
+5. Jane answers through a LangChain Gemini flow. Each prompt is her constitution and the role-preserved message history; Flash handles ordinary turns and Pro handles complex work.
 6. Signed-in homesteaders can use **g01 Community** to open their own private peer inbox by entering an exact username. It does not expose a member directory. The same-origin Rails route authenticates the dashboard user and bridges only that identity to Jane.
 7. g01 labels and custom attributes make contacts and conversations useful in normal Chatwoot filtering while sensitive homestead data remains in Jane's tables.
 

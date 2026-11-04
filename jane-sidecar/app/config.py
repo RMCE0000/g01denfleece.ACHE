@@ -22,10 +22,8 @@ class Settings(BaseSettings):
     admin_token: str = ""
     bridge_secret: str = ""
 
-    # Minimum showcase: a small local model, and no Celery beat.
+    # Focused sidecar schedulers run without the optional Celery beat.
     background_jobs: bool = False
-    ollama_base_url: str = "http://127.0.0.1:11434"
-    ollama_model: str = "qwen2.5:1.5b"
 
     gemini_api_key: str = ""
     gemini_chat_model: str = "gemini-2.5-flash"

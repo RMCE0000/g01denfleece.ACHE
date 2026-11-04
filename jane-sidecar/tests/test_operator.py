@@ -22,7 +22,8 @@ async def test_dashboard_users_and_complete_user_view(backend):
     assert dashboard["mode"] == "minimum showcase"
     assert dashboard["homesteaders"] == 2
     assert dashboard["localities"] == 2
-    assert dashboard["integrations"]["ollama_model"] == "qwen2.5:1.5b"
+    assert dashboard["integrations"]["gemini_standard_model"] == "gemini-2.5-flash"
+    assert dashboard["integrations"]["gemini_complex_model"] == "gemini-2.5-pro"
 
     users = await backend.users()
     assert users[0]["name"] == "Lake Charles Homestead"
@@ -94,7 +95,7 @@ async def test_command_dispatch_and_write_confirmation(backend, monkeypatch):
 async def test_capability_catalog_and_json_output(backend):
     output = await backend.execute(["capabilities"])
     areas = {row["area"]: row["status"] for row in output.value}
-    assert areas["Private Jane chat"] == "active"
+    assert areas["Private Jane chat"] == "active with Gemini key"
     assert areas["Contacts, labels, and custom fields"] == "active"
     assert areas["Reports"] == "administrator"
     assert areas["Jane daily and poll-mode questions"] == "active"

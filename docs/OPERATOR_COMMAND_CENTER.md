@@ -95,7 +95,7 @@ records and workflows without replacing those features.
 | --- | --- |
 | Sign-in and reset | Active through Chatwoot and configured SMTP |
 | g01 signup | Creates a Chatwoot agent, a property row, and a private Jane inbox |
-| Private Jane chat | Active; Ollama receives the constitution and visible history |
+| Private Jane chat | Active with `G01_GEMINI_API_KEY`; LangChain routes ordinary turns to Gemini Flash and complex work to Gemini Pro |
 | Homesteader connection | A user enters an exact username in **g01 Community**, or the operator uses `connect`; no member directory is published |
 | Files and private notes | Work normally inside every conversation the user may access |
 | Contacts | Normal Chatwoot CRM tools, scoped for homesteaders to contacts in their permitted inboxes; not a global member directory |

@@ -49,9 +49,6 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_DOMAIN: ${SMTP_DOMAIN:-g01denfleece.com}
 
-  ollama:
-    restart: unless-stopped
-
   jane:
     restart: unless-stopped
     ports: !override

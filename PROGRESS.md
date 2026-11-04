@@ -8,7 +8,7 @@ The four MVP behaviors are on `main`: chat scores, local ranking, 24-hour polls,
 
 1. **The legacy 24-hour demand-poll job still fails when Postgres is on.** Celery compiles that graph with the Postgres checkpointer and then runs it without a `thread_id`. Jane's daily community polls and automatic match discovery do not use that broken path.
 
-2. **Stripe and Gemini are unwired until their keys are set.** With the keys empty, Jane answers from the ledger and the phrase rules, goal embeddings are never computed, a filed sponsor stays inactive, and identity verification cannot complete. Promo codes stay closed until `G01_ADMIN_TOKEN` is set. An admin still creates the Stripe coupon; the sidecar only stores the coupon id.
+2. **Stripe remains unwired until its keys are set.** A filed sponsor stays inactive and identity verification cannot complete. Promo codes stay closed until `G01_ADMIN_TOKEN` is set. An admin still creates the Stripe coupon; the sidecar only stores the coupon id. Gemini is now required for Jane's live conversation turns.
 
 3. **Two ranking inputs never move.** `homesteader_rating` stays at 5.00, and `capabilities_embedding` is never written.
 
@@ -16,10 +16,10 @@ The four MVP behaviors are on `main`: chat scores, local ranking, 24-hour polls,
 
 ## This slice
 
-The minimum showcase (MS). Jane is a small local model. A prompt is her constitution and the message history.
+The minimum showcase (MS). Jane's LangChain flow sends her constitution and role-preserved message history to Gemini.
 
 - `jane-sidecar/CONSTITUTION.md` is what she is given. It is not the old JSON ledger prompt.
-- Ollama serves `qwen2.5:1.5b` (override with `G01_OLLAMA_MODEL`). Compose pulls it once. If it is down, she says she could not reach the local model.
+- Jane's live response is a LangChain flow. Standard turns use `G01_GEMINI_CHAT_MODEL`; complex planning, comparison, and analysis use `G01_GEMINI_DELIBERATION_MODEL`. Both use `G01_GEMINI_API_KEY`, and failure is stated explicitly.
 - `GET /api/admin/conversations` lists every Jane thread and every connection, with the people and the messages, so a connection can be opened with `POST /api/admin/conversations`.
 - `docker compose exec jane python -m app.operator` opens the private operator command center. It can inspect all homesteaders and transcripts, run engagement/North Star/network/poll analyses, create and inspect Jane polls, open connections, preview sponsor ranking, and explicitly run dormant jobs. The `capabilities` command distinguishes active Chatwoot features, administrator workflows, provider-backed channels, and g01-only operations.
 - Jane sends one rotating question per America/Chicago day to every private Jane thread. `poll mode` starts a community-action poll and `poll mode: <question>` broadcasts a supplied question. Free-text answers are captured once, compiled without invented consensus, and available through `polls`, `poll`, and `analyze polls`.
@@ -32,4 +32,4 @@ The minimum showcase (MS). Jane is a small local model. A prompt is her constitu
 - The public host is one DigitalOcean droplet in Atlanta: Ubuntu 24.04, 8 GB RAM, 4 vCPU. `docker-compose.prod.yml` publishes only ports 80 and 443. Jane's admin API stays on `127.0.0.1:8000`.
 - Launch review: images are pinned, strict bootstrap requires both Chatwoot tokens, Caddy waits for Jane's health check, the droplet installs Git, and postflight checks the public stack. Jane receives the same constitution and history with real chat roles so the small model keeps Jane and the homesteader distinct.
 
-The legacy demand-poll checkpointer bug, Stripe, Gemini, sponsor ratings, capability embeddings, blueprints, and forget are unchanged. They are not on the live turn.
+The legacy demand-poll checkpointer bug, Stripe, sponsor ratings, capability embeddings, blueprints, and forget are unchanged.

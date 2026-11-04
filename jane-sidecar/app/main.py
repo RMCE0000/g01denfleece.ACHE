@@ -124,7 +124,14 @@ def create_app(store=None) -> FastAPI:
     @app.get("/health")
     async def health():
         store_name = type(app.state.store).__name__ if getattr(app.state, "store", None) else "unopened"
-        return {"ok": True, "store": store_name, "service": "jane-sidecar", "showcase": "minimum"}
+        return {
+            "ok": True,
+            "store": store_name,
+            "service": "jane-sidecar",
+            "showcase": "minimum",
+            "llm": "gemini",
+            "gemini_configured": bool(app.state.settings.gemini_api_key),
+        }
 
     @app.post("/api/admin/promo-codes")
     async def create_promo(body: PromoIn, request: Request):

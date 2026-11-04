@@ -6,8 +6,8 @@ from app.chatwoot_client import ChatwootClient
 from app.config import get_settings
 from app.constitution import JANE_CONSTITUTION
 from app.delivery import deliver
+from app.gemini_flow import complete_text
 from app.homesteaders import conversation_url
-from app.local_model import complete_text
 from app.sanitize import sanitize_reply
 
 log = logging.getLogger(__name__)

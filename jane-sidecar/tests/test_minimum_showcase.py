@@ -1,13 +1,12 @@
-"""The live webhook is the minimum showcase: constitution, history, and a local model."""
+"""The live webhook is Jane's constitution, history, and routed Gemini flow."""
 
 from pathlib import Path
 
-import httpx
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
 from app.constitution import JANE_CONSTITUTION
-from app.local_model import UNREACHABLE, chat_messages, model_override
+from app.gemini_flow import UNREACHABLE, chat_messages, complete_text, gemini_override, task_complexity
 from app.main import create_app
 from app.seed import DEMO_CONVERSATION_ID, DEMO_PROPERTY_ID, DEMO_USER_ID
 from app.showcase import render_history
@@ -47,36 +46,65 @@ def test_a_copied_speaker_label_is_not_posted():
     )
 
 
-def test_local_model_receives_real_chat_roles():
+def test_gemini_receives_real_chat_roles():
     lines = [
         {"speaker": "Jane", "role": "jane", "content": "Tell me what the place needs."},
         {"speaker": "Ada", "role": "homesteader", "content": "The cistern is empty."},
     ]
-    assert chat_messages("constitution", render_history(lines), lines) == [
-        {"role": "system", "content": "constitution"},
-        {"role": "assistant", "content": "Jane: Tell me what the place needs."},
-        {"role": "user", "content": "Ada: The cistern is empty."},
+    messages = chat_messages("constitution", render_history(lines), lines)
+    assert [(message.type, message.content) for message in messages] == [
+        ("system", "constitution"),
+        ("ai", "Jane: Tell me what the place needs."),
+        ("human", "Ada: The cistern is empty."),
+    ]
+
+
+def test_task_complexity_routes_planning_to_pro():
+    assert task_complexity("Where do I get a liner?") == "standard"
+    assert task_complexity("Compare three water systems and design a phased implementation plan.") == "complex"
+
+
+async def test_langchain_flow_selects_the_model_for_task_complexity():
+    seen = []
+    token = gemini_override.set(
+        lambda model, _messages, complexity: seen.append((model, complexity)) or "routed"
+    )
+    try:
+        assert await complete_text("constitution", "Hello Jane.") == "routed"
+        assert await complete_text(
+            "constitution",
+            "Compare three water systems and design a phased implementation plan.",
+        ) == "routed"
+    finally:
+        gemini_override.reset(token)
+    assert seen == [
+        ("gemini-2.5-flash", "standard"),
+        ("gemini-2.5-pro", "complex"),
     ]
 
 
 def test_prompt_is_the_constitution_and_the_history(client, store):
     seen = {"prompts": []}
 
-    def fake(system, user):
-        seen["system"] = system
-        seen["prompts"].append(user)
+    def fake(model, messages, complexity):
+        seen["system"] = messages[0].content
+        seen["models"] = [*seen.get("models", []), model]
+        seen["complexities"] = [*seen.get("complexities", []), complexity]
+        seen["prompts"].append("\n".join(str(message.content) for message in messages[1:]))
         return "Make the cistern on the homestead."
 
     before = store.properties[0]["northstar_automated_pct"]
-    token = model_override.set(fake)
+    token = gemini_override.set(fake)
     try:
         first = client.post("/webhooks/chatwoot", json=_message("The cistern is empty.", 1, name="Ada"))
         second = client.post("/webhooks/chatwoot", json=_message("Where do I get a liner?", 2, name="Ada"))
     finally:
-        model_override.reset(token)
+        gemini_override.reset(token)
     assert first.status_code == 200
     assert first.json()["reply"] == "Make the cistern on the homestead."
     assert seen["system"] == JANE_CONSTITUTION
+    assert seen["models"] == ["gemini-2.5-flash", "gemini-2.5-flash"]
+    assert seen["complexities"] == ["standard", "standard"]
     assert seen["prompts"][0] == "Ada: The cistern is empty."
     assert "tier_weight" not in seen["system"]
     assert "known_facts_ledger" not in seen["system"]
@@ -91,11 +119,13 @@ def test_prompt_is_the_constitution_and_the_history(client, store):
     assert store.properties[0]["northstar_automated_pct"] == before
     assert store.properties[0]["id"] == DEMO_PROPERTY_ID
 
-    token = model_override.set(lambda _system, _user: "Buy it at https://www.amazon.com/dp/example today.")
+    token = gemini_override.set(
+        lambda _model, _messages, _complexity: "Buy it at https://www.amazon.com/dp/example today."
+    )
     try:
         retail = client.post("/webhooks/chatwoot", json=_message("A liner, please.", 4, name="Ada"))
     finally:
-        model_override.reset(token)
+        gemini_override.reset(token)
     assert "amazon" not in retail.json()["reply"].casefold()
 
     duplicate = client.post("/webhooks/chatwoot", json=_message("The cistern is empty.", 1, name="Ada"))
@@ -105,7 +135,9 @@ def test_prompt_is_the_constitution_and_the_history(client, store):
 
 def test_a_connection_stays_quiet_until_someone_says_jane(client, store):
     calls = []
-    token = model_override.set(lambda _system, user: calls.append(user) or "The homestead can make that.")
+    token = gemini_override.set(
+        lambda _model, messages, _complexity: calls.append(messages[-1].content) or "The homestead can make that."
+    )
     try:
         import asyncio
 
@@ -127,7 +159,7 @@ def test_a_connection_stays_quiet_until_someone_says_jane(client, store):
             json=_message("Jane, the cistern is full.", 11, name="Ada", conversation_id=900),
         )
     finally:
-        model_override.reset(token)
+        gemini_override.reset(token)
     assert quiet.json()["ignored"] == "peer"
     assert named.json()["reply"] == "The homestead can make that."
     assert len(calls) == 1
@@ -154,40 +186,28 @@ def test_an_approved_match_confirmation_is_handled_without_the_chat_model(client
     assert store.outbox == []
     asyncio.run(approve_match(store, match["id"], "Operator verified the recorded goals."))
     calls = []
-    token = model_override.set(lambda _system, user: calls.append(user) or "model reply")
+    token = gemini_override.set(
+        lambda _model, messages, _complexity: calls.append(messages[-1].content) or "model reply"
+    )
     try:
         response = client.post(
             "/webhooks/chatwoot",
             json=_message(f"YES {match['id']}", 12, name="Ada"),
         )
     finally:
-        model_override.reset(token)
+        gemini_override.reset(token)
     assert response.json()["match"] is True
     assert "other homestead still has to accept" in response.json()["reply"]
     assert calls == []
     assert store.matches[0]["peer_a_status"] == "accepted"
 
 
-def test_a_missing_local_model_is_said_out_loud(client, monkeypatch):
-    class Down:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *exc):
-            return False
-
-        async def post(self, *args, **kwargs):
-            raise httpx.ConnectError("down")
-
-    monkeypatch.setattr("app.local_model.httpx.AsyncClient", Down)
-    token = model_override.set(None)
+def test_a_missing_gemini_key_is_said_out_loud(client):
+    token = gemini_override.set(None)
     try:
         response = client.post("/webhooks/chatwoot", json=_message("Hello Jane.", 20, name="Ada"))
     finally:
-        model_override.reset(token)
+        gemini_override.reset(token)
     assert response.status_code == 200
     assert response.json()["reply"] == UNREACHABLE
 
@@ -236,14 +256,16 @@ def test_the_backend_lists_every_conversation(store, monkeypatch):
     assert any(line["content"] == "We should share the well." for line in connection["messages"])
     assert all(line["role"] != "jane" for line in connection["messages"])
     assert health.json()["showcase"] == "minimum"
+    assert health.json()["llm"] == "gemini"
+    assert health.json()["gemini_configured"] is False
 
 
-def test_background_jobs_stay_off():
+def test_background_jobs_stay_off_and_ollama_is_removed():
     assert celery_app.conf.beat_schedule == {}
     compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert 'profiles: ["background"]' in compose
     assert compose.count('profiles: ["background"]') == 2
-    assert "ollama/ollama@sha256:" in compose
+    assert "ollama/ollama" not in compose
     assert "G01_BACKGROUND_JOBS: \"0\"" in compose
-    assert "qwen2.5:1.5b" in compose
-    assert "qwen2.5:0.5b" not in compose
+    assert "G01_GEMINI_CHAT_MODEL: gemini-2.5-flash" in compose
+    assert "G01_GEMINI_DELIBERATION_MODEL: gemini-2.5-pro" in compose

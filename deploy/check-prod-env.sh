@@ -31,6 +31,7 @@ smtp_user=$(value SMTP_USERNAME)
 smtp_password=$(value SMTP_PASSWORD)
 sender=$(value MAILER_SENDER_EMAIL)
 seed=$(value G01_SEED_HOMESTEADERS)
+gemini=$(value G01_GEMINI_API_KEY)
 
 case "$secret" in
   ""|G01devSecretKeyBase0123456789abcdefghijklmnopqrstuvwxyzABCDEF|*replace-with*)
@@ -70,5 +71,8 @@ case "$smtp_password" in
   ""|*replace-with*) fail "SMTP_PASSWORD still has a placeholder" ;;
 esac
 [ "$seed" = "0" ] || fail "G01_SEED_HOMESTEADERS must be 0 on the public machine"
+case "$gemini" in
+  ""|*replace-with*) fail "G01_GEMINI_API_KEY needs a Google AI Studio API key" ;;
+esac
 
 echo "production env is ready"

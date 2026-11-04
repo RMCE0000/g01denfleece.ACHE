@@ -19,7 +19,7 @@ for key in G01_CHATWOOT_API_TOKEN G01_CHATWOOT_PLATFORM_TOKEN; do
   }
 done
 
-for service in postgres redis rails sidekiq ollama jane caddy; do
+for service in postgres redis rails sidekiq jane caddy; do
   id=$(dc ps -q "$service")
   [ -n "$id" ] || {
     echo "$service has no container" >&2
@@ -33,7 +33,7 @@ for service in postgres redis rails sidekiq ollama jane caddy; do
 done
 
 curl -fsS http://127.0.0.1:8000/health |
-  python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["ok"] and data["showcase"] == "minimum"'
+  python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["ok"] and data["showcase"] == "minimum" and data["llm"] == "gemini" and data["gemini_configured"]'
 curl -fsS https://g01denfleece.com/api |
   python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["queue_services"] == "ok" and data["data_services"] == "ok"'
 

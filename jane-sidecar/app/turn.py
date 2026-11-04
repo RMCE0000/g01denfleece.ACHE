@@ -1,6 +1,6 @@
 """Chatwoot message_created intake. Jane's own posts are ignored so the webhook cannot loop.
 
-The minimum showcase prompts a local model with the constitution and the history.
+The minimum showcase routes the constitution and history through LangChain to Gemini.
 """
 
 import re

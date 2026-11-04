@@ -1,6 +1,9 @@
 # g01denfleece ACHE
 
-Jane is a peer inside an ordinary Chatwoot thread. This is the minimum showcase: a small, free, local model. Each time she is prompted she receives her constitution (`jane-sidecar/CONSTITUTION.md`) and the message history, and nothing else. Background jobs are off.
+Jane is a peer inside an ordinary Chatwoot thread. Each live turn runs through
+a LangChain flow that sends her constitution (`jane-sidecar/CONSTITUTION.md`)
+and role-preserved message history to Gemini. Ordinary chat uses Gemini Flash;
+complex planning, comparison, and analysis use Gemini Pro.
 
 The work she is written to care about is the five-part North Star, and the only shops she will name are in the homesteader's own locality.
 
@@ -28,15 +31,19 @@ Ties break toward fewer referrals in the last 14 days, then sponsor id.
 ## Layout
 
 - `chatwoot-fork/` — notes and optional proxy controllers. Compose runs upstream Chatwoot, not a rewritten Rails app.
-- `jane-sidecar/` — FastAPI. The live turn calls Ollama. It has no homesteader page.
+- `jane-sidecar/` — FastAPI. The live turn calls Gemini through LangChain. It has no homesteader page.
 - `sql/001_init_g01_schema.sql` — g01 tables, pgvector, and the ranking functions. Apply after Chatwoot prepares the database. The sidecar also applies this file on boot.
 
-Live turns call Ollama (`qwen2.5:1.5b` unless `G01_OLLAMA_MODEL` is set) at `G01_OLLAMA_BASE_URL`. The system text is the constitution. The user text is the thread, one line per message. If Ollama is down, Jane says she could not reach the local model. Celery beat and the worker are not started; `docker compose --profile background up` is what would start them.
+Set `G01_GEMINI_API_KEY` before starting Jane. The flow routes standard turns to
+`G01_GEMINI_CHAT_MODEL` and complex work to `G01_GEMINI_DELIBERATION_MODEL`.
+If Gemini is unavailable, Jane says so explicitly. Celery beat and its worker
+remain optional; Jane's polling and matchmaking schedulers run in the sidecar.
 
 ## Run
 
 ```bash
 cp .env.example .env
+# set G01_GEMINI_API_KEY in .env
 docker compose up --build
 ```
 
@@ -112,7 +119,7 @@ python -m venv .venv
 cd jane-sidecar && ../.venv/bin/uvicorn app.main:app --port 8000
 ```
 
-The seeded Lake Charles thread is conversation 501, contact 101. Rogers is conversation 502. A `message_created` webhook is answered by the local model from the constitution and that thread's history.
+The seeded Lake Charles thread is conversation 501, contact 101. Rogers is conversation 502. A `message_created` webhook is answered by the routed Gemini flow from the constitution and that thread's history.
 
 Turn off the Chatwoot inbox auto-resolve timer. Jane's user id defaults to 1. Point a `message_created` webhook at `http://jane:8000/webhooks/chatwoot`. Do not add a Dashboard App.
 
