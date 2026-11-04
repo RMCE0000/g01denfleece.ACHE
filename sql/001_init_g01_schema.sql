@@ -181,6 +181,13 @@ ALTER TABLE g01_sponsors
         sourcing_tier IN ('local_manufacturer', 'local_service_or_stock', 'local_logistics_proxy')
     );
 
+-- A sponsor profile exists independently. Linking it to a homestead is
+-- optional, and deleting a homestead must not delete the sponsor registry.
+ALTER TABLE g01_sponsors DROP CONSTRAINT IF EXISTS g01_sponsors_property_id_fkey;
+ALTER TABLE g01_sponsors
+    ADD CONSTRAINT g01_sponsors_property_id_fkey
+    FOREIGN KEY (property_id) REFERENCES g01_properties(id) ON DELETE SET NULL;
+
 -- 5. NEIGHBORHOOD DEMAND POLLING
 CREATE TABLE IF NOT EXISTS g01_demand_polls (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -510,7 +517,31 @@ CREATE OR REPLACE FUNCTION g01_rank_local_sponsors(
     JOIN g01_localities l ON l.id = p.locality_id
     WHERE s.locality_id = p.locality_id
       AND s.is_active_sponsor
-      AND lower(p_service_tag) = ANY (SELECT lower(t) FROM unnest(s.service_tags) AS u(t))
+      AND (
+          lower(p_service_tag) = ANY (SELECT lower(t) FROM unnest(s.service_tags) AS u(t))
+          OR EXISTS (
+              SELECT 1
+              FROM regexp_split_to_table(
+                  lower(replace(p_service_tag, '_', ' ')),
+                  '[^a-z0-9]+'
+              ) AS query_term
+              JOIN regexp_split_to_table(
+                  lower(array_to_string(s.service_tags, ' ') || ' ' || s.capabilities_summary),
+                  '[^a-z0-9]+'
+              ) AS profile_term
+                ON (
+                    length(query_term) >= 5
+                    AND left(query_term, 5) = left(profile_term, 5)
+                ) OR (
+                    length(query_term) BETWEEN 2 AND 4
+                    AND query_term = profile_term
+                )
+              WHERE query_term NOT IN (
+                  'and', 'for', 'from', 'get', 'help', 'local', 'need',
+                  'some', 'that', 'the', 'their', 'this', 'with'
+              )
+          )
+      )
       AND (
           NOT s.is_franchise_or_chain
           OR (

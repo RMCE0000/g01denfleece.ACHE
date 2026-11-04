@@ -232,6 +232,12 @@ class MemoryStore:
         locality = await self.get_locality(fields["locality_id"])
         if not locality:
             raise G01Error("locality not found", 404)
+        if fields.get("property_id"):
+            prop = await self.get_property(fields["property_id"])
+            if not prop:
+                raise G01Error("linked homesteader not found", 404)
+            if str(prop["locality_id"]) != str(fields["locality_id"]):
+                raise G01Error("linked homesteader and sponsor must share a locality", 422)
         reason = sponsor_rejection_reason(
             company_name=fields["company_name"],
             is_franchise_or_chain=bool(fields.get("is_franchise_or_chain")),
@@ -277,6 +283,49 @@ class MemoryStore:
             if sponsor["id"] == sponsor_id:
                 return deepcopy(sponsor)
         return None
+
+    async def list_sponsors(self, status: str | None = None, limit: int = 100) -> list[dict]:
+        rows = self.sponsors
+        if status == "active":
+            rows = [row for row in rows if row.get("is_active_sponsor")]
+        elif status == "inactive":
+            rows = [row for row in rows if not row.get("is_active_sponsor")]
+        return deepcopy(rows[: max(limit, 1)])
+
+    async def update_sponsor(self, sponsor_id: str, patch: dict) -> dict:
+        for index, sponsor in enumerate(self.sponsors):
+            if sponsor["id"] != sponsor_id:
+                continue
+            merged = {**sponsor, **patch}
+            locality = await self.get_locality(merged["locality_id"])
+            if not locality:
+                raise G01Error("locality not found", 404)
+            if merged.get("property_id"):
+                prop = await self.get_property(merged["property_id"])
+                if not prop:
+                    raise G01Error("linked homesteader not found", 404)
+                if str(prop["locality_id"]) != str(merged["locality_id"]):
+                    raise G01Error("linked homesteader and sponsor must share a locality", 422)
+            reason = sponsor_rejection_reason(
+                company_name=merged["company_name"],
+                is_franchise_or_chain=bool(merged.get("is_franchise_or_chain")),
+                locality_city=locality["primary_city"],
+                locality_state=locality["state_code"],
+                founding_city=merged["founding_city"],
+                founding_state=merged["founding_state"],
+                capabilities_summary=merged.get("capabilities_summary", ""),
+            )
+            if reason:
+                raise G01Error(reason, 422)
+            if merged["sourcing_tier"] not in (
+                "local_manufacturer",
+                "local_service_or_stock",
+                "local_logistics_proxy",
+            ):
+                raise G01Error("invalid sponsor sourcing tier", 422)
+            self.sponsors[index] = merged
+            return deepcopy(merged)
+        raise G01Error("sponsor not found", 404)
 
     async def rank_sponsors(self, property_id: str, service_tag: str, limit: int = 5) -> list[dict]:
         prop = await self.get_property(property_id)

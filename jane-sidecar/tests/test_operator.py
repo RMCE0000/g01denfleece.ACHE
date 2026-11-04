@@ -175,6 +175,45 @@ async def test_operator_must_confirm_match_approval_before_users_are_pitched(bac
     assert len(store.outbox) == 2
 
 
+async def test_operator_manages_standalone_and_homestead_linked_sponsor_profiles(backend):
+    command = [
+        "sponsor-add",
+        "Lake Charles & Calcasieu Suburbs",
+        "Bayou Makers",
+        "local_manufacturer",
+        "tomato,3d_printing",
+        "Grows tomatoes and prints custom 3D widgets.",
+        "30.2266",
+        "-93.2174",
+        "active",
+        "-",
+    ]
+    with pytest.raises(WriteConfirmationRequired):
+        await backend.execute(command)
+
+    created = await backend.execute(command, allow_write=True)
+    sponsor_id = created.value["id"]
+    assert created.value["homestead_linked"] is False
+    assert created.value["linked_homestead"] is None
+
+    tomato_rank = await backend.execute(["rank", "lake@example.com", "tomatoes"])
+    widget_rank = await backend.execute(["rank", "lake@example.com", "3d_printed_widgets"])
+    assert tomato_rank.value["results"][0]["company_name"] == "Bayou Makers"
+    assert widget_rank.value["results"][0]["company_name"] == "Bayou Makers"
+
+    linked = await backend.execute(
+        ["sponsor-edit", sponsor_id, "homesteader", "lake@example.com"],
+        allow_write=True,
+    )
+    assert linked.value["homestead_linked"] is True
+    assert linked.value["linked_homestead"]["username"] == "lake-homestead"
+
+    disabled = await backend.execute(["sponsor-disable", sponsor_id], allow_write=True)
+    assert disabled.value["is_active_sponsor"] is False
+    listed = await backend.execute(["sponsors", "inactive"])
+    assert any(row["id"] == sponsor_id for row in listed.value)
+
+
 def test_bootstrap_environment_is_loaded_without_overriding_explicit_values(tmp_path, monkeypatch):
     env_file = tmp_path / "chatwoot.env"
     env_file.write_text(

@@ -5,9 +5,10 @@ import pytest
 from pydantic import ValidationError
 
 from app.constitution import JANE_CONSTITUTION, JANE_SYSTEM_PROMPT
+from app.heuristic import detect_service_tag
 from app.northstar import NorthStar, automated_pct_from_hours
 from app.sanitize import sanitize_reply
-from app.sourcing import rank_sponsor_rows, recommendation_score, sponsor_rejection_reason
+from app.sourcing import rank_sponsor_rows, recommendation_score, sponsor_matches_tag, sponsor_rejection_reason
 
 ROOT = Path(__file__).resolve().parents[2]
 SQL = (ROOT / "sql" / "001_init_g01_schema.sql").read_text(encoding="utf-8")
@@ -67,6 +68,19 @@ def test_recommendation_score_matches_the_published_weights():
         homesteader_rating=5,
         promo_boost_weight=1,
     ) == Decimal("0.5000")
+
+
+def test_arbitrary_goods_and_services_are_detected_and_matched():
+    profile = {
+        "service_tags": ["tomato", "3d_printing"],
+        "capabilities_summary": "Grows produce and prints custom widgets.",
+    }
+
+    assert detect_service_tag("Where can I get tomatoes?") == "tomatoes"
+    assert detect_service_tag("I need 3D printed widgets locally.") == "3d_printed_widgets"
+    assert sponsor_matches_tag(profile, "tomatoes")
+    assert sponsor_matches_tag(profile, "3d_printed_widgets")
+    assert not sponsor_matches_tag(profile, "pressure_washing")
 
 
 def test_fair_rotation_and_franchise_filter():

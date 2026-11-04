@@ -348,6 +348,12 @@ class PostgresStore:
         locality = await self.get_locality(fields["locality_id"])
         if not locality:
             raise G01Error("locality not found", 404)
+        if fields.get("property_id"):
+            prop = await self.get_property(fields["property_id"])
+            if not prop:
+                raise G01Error("linked homesteader not found", 404)
+            if str(prop["locality_id"]) != str(fields["locality_id"]):
+                raise G01Error("linked homesteader and sponsor must share a locality", 422)
         reason = sponsor_rejection_reason(
             company_name=fields["company_name"],
             is_franchise_or_chain=bool(fields.get("is_franchise_or_chain")),
@@ -398,6 +404,80 @@ class PostgresStore:
             f"SELECT {_SPONSOR} FROM g01_sponsors WHERE id = CAST(:id AS uuid)",
             {"id": sponsor_id},
         )
+
+    async def list_sponsors(self, status: str | None = None, limit: int = 100) -> list[dict]:
+        condition = ""
+        if status == "active":
+            condition = "WHERE is_active_sponsor"
+        elif status == "inactive":
+            condition = "WHERE NOT is_active_sponsor"
+        return await self._all(
+            f"SELECT {_SPONSOR} FROM g01_sponsors {condition} ORDER BY created_at DESC LIMIT :limit",
+            {"limit": max(limit, 1)},
+        )
+
+    async def update_sponsor(self, sponsor_id: str, patch: dict) -> dict:
+        from app.sourcing import SPONSOR_TIERS, sponsor_rejection_reason
+
+        current = await self.get_sponsor(sponsor_id)
+        if not current:
+            raise G01Error("sponsor not found", 404)
+        merged = {**current, **patch}
+        locality = await self.get_locality(merged["locality_id"])
+        if not locality:
+            raise G01Error("locality not found", 404)
+        if merged.get("property_id"):
+            prop = await self.get_property(merged["property_id"])
+            if not prop:
+                raise G01Error("linked homesteader not found", 404)
+            if str(prop["locality_id"]) != str(merged["locality_id"]):
+                raise G01Error("linked homesteader and sponsor must share a locality", 422)
+        reason = sponsor_rejection_reason(
+            company_name=merged["company_name"],
+            is_franchise_or_chain=bool(merged.get("is_franchise_or_chain")),
+            locality_city=locality["primary_city"],
+            locality_state=locality["state_code"],
+            founding_city=merged["founding_city"],
+            founding_state=merged["founding_state"],
+            capabilities_summary=merged.get("capabilities_summary", ""),
+        )
+        if reason:
+            raise G01Error(reason, 422)
+        if merged["sourcing_tier"] not in SPONSOR_TIERS:
+            raise G01Error("invalid sponsor sourcing tier", 422)
+        rows = await self._write(
+            f"""
+            UPDATE g01_sponsors
+            SET property_id = CAST(:property_id AS uuid),
+                company_name = :company_name,
+                founding_city = :founding_city,
+                founding_state = :founding_state,
+                is_franchise_or_chain = :franchise,
+                sourcing_tier = :tier,
+                service_tags = string_to_array(:tags, ','),
+                capabilities_summary = :summary,
+                lat = :lat,
+                lng = :lng,
+                is_active_sponsor = :active
+            WHERE id = CAST(:id AS uuid)
+            RETURNING {_SPONSOR}
+            """,
+            {
+                "id": sponsor_id,
+                "property_id": merged.get("property_id"),
+                "company_name": merged["company_name"].strip(),
+                "founding_city": merged["founding_city"].strip(),
+                "founding_state": merged["founding_state"].strip(),
+                "franchise": bool(merged.get("is_franchise_or_chain")),
+                "tier": merged["sourcing_tier"],
+                "tags": ",".join(merged["service_tags"]),
+                "summary": merged["capabilities_summary"].strip(),
+                "lat": float(merged["lat"]),
+                "lng": float(merged["lng"]),
+                "active": bool(merged.get("is_active_sponsor")),
+            },
+        )
+        return rows[0]
 
     async def rank_sponsors(self, property_id: str, service_tag: str, limit: int = 5) -> list[dict]:
         return await self._all(

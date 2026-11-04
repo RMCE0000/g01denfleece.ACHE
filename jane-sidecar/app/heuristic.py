@@ -21,6 +21,7 @@ from app.epistemic import (
 )
 from app.northstar import view_from_property
 from app.sponsor_chat import absorb_next_answer, missing_fields, parse_labeled_sponsor_fields
+from app.sourcing import normalize_service_tag
 
 _UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 _YES = re.compile(r"\b(yes|accept|i accept)\b", re.I)
@@ -95,6 +96,19 @@ def detect_service_tag(text: str) -> str | None:
         if any(phrase in lowered for phrase in phrases):
             if _NEED.search(text) or any(len(phrase.split()) > 1 and phrase in lowered for phrase in phrases):
                 return tag
+    patterns = (
+        r"\bwhere can i (?:get|buy|find|source)\s+(.+)",
+        r"\b(?:looking for|need|buy|source|find)\s+(.+)",
+    )
+    for pattern in patterns:
+        found = re.search(pattern, text, re.I)
+        if not found:
+            continue
+        product = re.sub(r"[?.!,;:]+$", "", found.group(1).strip())
+        product = re.sub(r"^(?:a|an|some|the)\s+", "", product, flags=re.I)
+        product = re.split(r"\b(?:near me|locally|around here|please)\b", product, maxsplit=1, flags=re.I)[0].strip()
+        if product:
+            return normalize_service_tag(product)
     return None
 
 

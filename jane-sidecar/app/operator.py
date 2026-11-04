@@ -29,6 +29,7 @@ from app.northstar import view_from_property
 from app.polling import close_due_community_polls, compile_community_poll, create_operator_poll
 from app.runtime import open_store
 from app.showcase import list_conversations
+from app.sourcing import SPONSOR_TIERS, normalize_service_tag
 
 
 HELP = """Commands
@@ -50,6 +51,13 @@ HELP = """Commands
                                     Deterministic analyses over all users and chats
   set <user> <field> <value>        Update a whitelisted North Star/profile field
   connect <left> <right> [topic]    Open a private homesteader conversation
+  sponsors [active|inactive|all]    Sponsor profiles, including standalone companies
+  sponsor <sponsor-id>              Complete sponsor profile
+  sponsor-add <locality> <name> <tier> <tags> <summary> <lat> <lng> <active|inactive> [homesteader|-]
+                                    Add a company profile; homestead link is optional
+  sponsor-edit <id> <field> <value> Edit name, tier, tags, summary, location, or link
+  sponsor-activate <id>             Include a sponsor in Jane's recommendations
+  sponsor-disable <id>              Remove a sponsor from recommendations
   rank <user> <service-tag>         Preview local sponsor ranking
   jobs <polls|matches|referrals|connections|all>
                                     Run one disabled background workflow now
@@ -61,6 +69,9 @@ HELP = """Commands
 Quote names or topics containing spaces. Mutating commands ask for confirmation.
 Set fields: aesthetic, labor-hours, material, material-surplus, energetic,
 energetic-profitable, contained, street-address, latitude, longitude.
+Sponsor tiers: local_manufacturer, local_service_or_stock, local_logistics_proxy.
+Sponsor edit fields: name, tier, tags, summary, latitude, longitude,
+founding-city, founding-state, franchise, homesteader.
 """
 
 
@@ -126,6 +137,7 @@ class OperatorBackend:
         localities = await self.store.list_localities()
         community_polls = await self.store.list_community_polls()
         pending_matches = await self.store.list_matches("pending", 1000)
+        sponsors = await self.store.list_sponsors(None, 1000)
         return {
             "mode": "minimum showcase",
             "store": type(self.store).__name__,
@@ -137,6 +149,8 @@ class OperatorBackend:
             "community_polls": len(community_polls),
             "open_community_polls": sum(row["status"] == "open" for row in community_polls),
             "matches_waiting_for_operator": len(pending_matches),
+            "sponsor_profiles": len(sponsors),
+            "active_sponsors": sum(bool(row.get("is_active_sponsor")) for row in sponsors),
             "integrations": {
                 "chatwoot_account_api": bool(self.settings.chatwoot_api_token),
                 "chatwoot_platform_api": bool(self.settings.chatwoot_platform_token),
@@ -483,6 +497,167 @@ class OperatorBackend:
             "northstar": view_from_property(updated),
         }
 
+    async def _resolve_locality(self, token: str) -> dict:
+        wanted = token.strip().casefold()
+        matches = [
+            row
+            for row in await self.store.list_localities()
+            if wanted
+            in {
+                str(row.get("id") or "").casefold(),
+                str(row.get("name") or "").casefold(),
+                str(row.get("primary_city") or "").casefold(),
+            }
+        ]
+        if not matches:
+            raise G01Error("locality not found; use `localities` for valid names and ids", 404)
+        if len(matches) > 1:
+            raise G01Error("locality is ambiguous; use its id", 422)
+        return matches[0]
+
+    async def _sponsor_view(self, sponsor: dict) -> dict:
+        locality = await self.store.get_locality(sponsor["locality_id"])
+        linked = None
+        if sponsor.get("property_id"):
+            prop = await self.store.get_property(sponsor["property_id"])
+            if prop:
+                linked = {
+                    "property_id": prop["id"],
+                    "name": _name(prop),
+                    "username": prop.get("username"),
+                }
+        return {
+            **sponsor,
+            "locality": (locality or {}).get("name"),
+            "linked_homestead": linked,
+            "homestead_linked": bool(linked),
+        }
+
+    async def sponsors(self, status: str = "all") -> list[dict]:
+        if status not in {"active", "inactive", "all"}:
+            raise G01Error("sponsor status must be active, inactive, or all", 422)
+        rows = await self.store.list_sponsors(None if status == "all" else status)
+        return [await self._sponsor_view(row) for row in rows]
+
+    async def sponsor(self, sponsor_id: str) -> dict:
+        row = await self.store.get_sponsor(sponsor_id)
+        if not row:
+            raise G01Error("sponsor not found", 404)
+        return await self._sponsor_view(row)
+
+    async def add_sponsor(
+        self,
+        locality_token: str,
+        company_name: str,
+        tier: str,
+        tags_csv: str,
+        summary: str,
+        latitude: str,
+        longitude: str,
+        status: str,
+        homesteader: str | None,
+        *,
+        allow_write: bool,
+    ) -> dict:
+        if not allow_write:
+            raise WriteConfirmationRequired
+        if tier not in SPONSOR_TIERS:
+            raise G01Error("invalid sponsor tier; enter `help` for valid tiers", 422)
+        if status not in {"active", "inactive"}:
+            raise G01Error("sponsor status must be active or inactive", 422)
+        tags = [
+            tag
+            for raw in tags_csv.split(",")
+            if (tag := normalize_service_tag(raw))
+        ]
+        if not tags:
+            raise G01Error("provide at least one product or service tag", 422)
+        locality = await self._resolve_locality(locality_token)
+        prop = None
+        if homesteader and homesteader not in {"-", "none"}:
+            prop = await resolve_homesteader(self.store, homesteader)
+        created = await self.store.create_sponsor(
+            {
+                "property_id": prop["id"] if prop else None,
+                "locality_id": locality["id"],
+                "company_name": company_name,
+                "founding_city": locality["primary_city"],
+                "founding_state": locality["state_code"],
+                "is_franchise_or_chain": False,
+                "sourcing_tier": tier,
+                "service_tags": tags,
+                "capabilities_summary": summary,
+                "lat": float(latitude),
+                "lng": float(longitude),
+                "is_active_sponsor": status == "active",
+            }
+        )
+        return await self._sponsor_view(created)
+
+    async def edit_sponsor(
+        self,
+        sponsor_id: str,
+        field: str,
+        raw_value: str,
+        *,
+        allow_write: bool,
+    ) -> dict:
+        if not allow_write:
+            raise WriteConfirmationRequired
+        if field == "name":
+            patch: dict[str, Any] = {"company_name": raw_value}
+        elif field == "tier":
+            if raw_value not in SPONSOR_TIERS:
+                raise G01Error("invalid sponsor tier; enter `help` for valid tiers", 422)
+            patch = {"sourcing_tier": raw_value}
+        elif field == "tags":
+            tags = [
+                tag
+                for raw in raw_value.split(",")
+                if (tag := normalize_service_tag(raw))
+            ]
+            if not tags:
+                raise G01Error("provide at least one product or service tag", 422)
+            patch = {"service_tags": tags}
+        elif field == "summary":
+            patch = {"capabilities_summary": raw_value}
+        elif field in {"latitude", "longitude"}:
+            patch = {"lat" if field == "latitude" else "lng": float(raw_value)}
+        elif field in {"founding-city", "founding-state"}:
+            patch = {
+                "founding_city" if field == "founding-city" else "founding_state":
+                raw_value.upper() if field == "founding-state" else raw_value
+            }
+        elif field == "franchise":
+            lowered = raw_value.casefold()
+            if lowered not in {"true", "false", "yes", "no", "1", "0"}:
+                raise G01Error("franchise must be true or false", 422)
+            patch = {"is_franchise_or_chain": lowered in {"true", "yes", "1"}}
+        elif field == "homesteader":
+            if raw_value.casefold() in {"-", "none", "unlink"}:
+                patch = {"property_id": None}
+            else:
+                prop = await resolve_homesteader(self.store, raw_value)
+                patch = {"property_id": prop["id"]}
+        else:
+            raise G01Error("sponsor field is not editable; enter `help` for the allowlist", 422)
+        return await self._sponsor_view(await self.store.update_sponsor(sponsor_id, patch))
+
+    async def set_sponsor_status(
+        self,
+        sponsor_id: str,
+        active: bool,
+        *,
+        allow_write: bool,
+    ) -> dict:
+        if not allow_write:
+            raise WriteConfirmationRequired
+        updated = await self.store.update_sponsor(
+            sponsor_id,
+            {"is_active_sponsor": active},
+        )
+        return await self._sponsor_view(updated)
+
     async def rank(self, token: str, service_tag: str) -> dict:
         prop = await resolve_homesteader(self.store, token)
         return {
@@ -532,7 +707,7 @@ class OperatorBackend:
             {"area": "Jane daily and poll-mode questions", "status": "active", "operator_action": "Use `polls`, `poll`, `poll-create`, or `analyze polls`; Jane schedules and captures answers."},
             {"area": "Automatic matchmaking", "status": "active with approval", "operator_action": "Discovery is automatic. Use `matches`, then `match-approve` or `match-reject`; pending matches never contact users."},
             {"area": "Legacy demand polling", "status": "manual", "operator_action": "Use `jobs polls`; the Celery scheduler remains off in MS."},
-            {"area": "Sponsor ranking", "status": "inspectable", "operator_action": "Use `rank <user> <service-tag>`."},
+            {"area": "Sponsor profiles and ranking", "status": "active", "operator_action": "Use `sponsor-add`, `sponsors`, lifecycle commands, and `rank`; a homestead link is optional."},
             {"area": "Stripe and identity", "status": "configured only with keys", "operator_action": "Dashboard shows readiness; payment webhooks remain supported."},
         ]
 
@@ -582,6 +757,36 @@ class OperatorBackend:
         if command == "connect" and len(args) >= 2:
             topic = " ".join(args[2:]).strip() or None
             return CommandOutput("Connection", await self.connect(args[0], args[1], topic, allow_write=allow_write))
+        if command == "sponsors" and len(args) <= 1:
+            status = args[0] if args else "all"
+            return CommandOutput(f"Sponsors: {status}", await self.sponsors(status))
+        if command == "sponsor" and len(args) == 1:
+            return CommandOutput(f"Sponsor: {args[0]}", await self.sponsor(args[0]))
+        if command == "sponsor-add" and len(args) in {8, 9}:
+            return CommandOutput(
+                "Sponsor created",
+                await self.add_sponsor(
+                    *args[:8],
+                    args[8] if len(args) == 9 else None,
+                    allow_write=allow_write,
+                ),
+            )
+        if command == "sponsor-edit" and len(args) >= 3:
+            return CommandOutput(
+                "Sponsor updated",
+                await self.edit_sponsor(
+                    args[0],
+                    args[1],
+                    " ".join(args[2:]),
+                    allow_write=allow_write,
+                ),
+            )
+        if command in {"sponsor-activate", "sponsor-disable"} and len(args) == 1:
+            active = command == "sponsor-activate"
+            return CommandOutput(
+                "Sponsor activated" if active else "Sponsor disabled",
+                await self.set_sponsor_status(args[0], active, allow_write=allow_write),
+            )
         if command == "rank" and len(args) == 2:
             return CommandOutput("Sponsor ranking", await self.rank(args[0], args[1]))
         if command in {"job", "jobs"} and len(args) == 1:
