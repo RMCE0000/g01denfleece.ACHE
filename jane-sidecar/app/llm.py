@@ -46,9 +46,14 @@ async def embed_text(text: str) -> list[float] | None:
 
     def _call() -> list[float]:
         from google import genai
+        from google.genai import types
 
         client = genai.Client(api_key=settings.gemini_api_key)
-        response = client.models.embed_content(model=settings.gemini_embedding_model, contents=text)
+        response = client.models.embed_content(
+            model=settings.gemini_embedding_model,
+            contents=text,
+            config=types.EmbedContentConfig(output_dimensionality=768),
+        )
         values = list(response.embeddings[0].values)
         if len(values) != 768:
             raise RuntimeError(f"expected 768 embedding dimensions, got {len(values)}")

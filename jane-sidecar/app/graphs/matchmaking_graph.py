@@ -29,9 +29,10 @@ def _goals(prop: dict) -> list[str]:
 
 
 _MATCH_STOP_WORDS = {
-    "about", "after", "again", "could", "first", "from", "have", "homestead",
-    "local", "need", "project", "should", "that", "their", "there", "these",
-    "thing", "this", "want", "what", "with", "would",
+    "about", "after", "again", "could", "first", "from", "have", "help",
+    "homestead", "local", "need", "project", "shared", "should", "that",
+    "their", "there", "these", "thing", "this", "want", "what", "with",
+    "would",
 }
 
 

@@ -66,12 +66,19 @@ def task_complexity(user: str, history: list[dict] | None = None) -> str:
     return "standard"
 
 
-def _model(settings: Settings, model_name: str) -> ChatGoogleGenerativeAI:
+def _model(
+    settings: Settings,
+    model_name: str,
+    *,
+    max_tokens: int,
+    thinking_level: str,
+) -> ChatGoogleGenerativeAI:
     return ChatGoogleGenerativeAI(
         model=model_name,
         api_key=settings.gemini_api_key,
         temperature=0.2,
-        max_tokens=500,
+        max_tokens=max_tokens,
+        thinking_level=thinking_level,
         retries=2,
         request_timeout=90,
     )
@@ -80,8 +87,18 @@ def _model(settings: Settings, model_name: str) -> ChatGoogleGenerativeAI:
 def build_gemini_chain(settings: Settings):
     """Route one shared LangChain message flow to Flash or Pro."""
     messages = RunnableLambda(lambda state: state["messages"])
-    flash = messages | _model(settings, settings.gemini_chat_model) | StrOutputParser()
-    pro = messages | _model(settings, settings.gemini_deliberation_model) | StrOutputParser()
+    flash = messages | _model(
+        settings,
+        settings.gemini_chat_model,
+        max_tokens=1000,
+        thinking_level="minimal",
+    ) | StrOutputParser()
+    pro = messages | _model(
+        settings,
+        settings.gemini_deliberation_model,
+        max_tokens=3000,
+        thinking_level="high",
+    ) | StrOutputParser()
     return RunnableBranch(
         (lambda state: state["complexity"] == "complex", pro),
         flash,

@@ -2,7 +2,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
 from app.config import get_settings
-from app.graphs.matchmaking_graph import discover_neighbor_synergies
+from app.graphs.matchmaking_graph import _overlap, discover_neighbor_synergies
 from app.polling import (
     DEFAULT_POLL_MODE_QUESTION,
     close_due_community_polls,
@@ -171,3 +171,13 @@ async def test_poll_answers_feed_automatic_match_discovery_without_contacting_us
     assert store.matches[0]["operator_status"] == "pending"
     assert "cedar" in store.matches[0]["proposed_project_title"]
     assert len(store.outbox) == outbox_before
+
+
+def test_match_overlap_ignores_generic_cooperation_words():
+    generic_left = {"known_facts_ledger": {"active_goals": ["Shared neighborhood help"]}}
+    generic_right = {"known_facts_ledger": {"active_goals": ["Help with a shared project"]}}
+    rain_left = {"known_facts_ledger": {"active_goals": ["Run a rain barrel pump workshop"]}}
+    rain_right = {"known_facts_ledger": {"active_goals": ["Organize a rain barrel workshop"]}}
+
+    assert _overlap(generic_left, generic_right) == []
+    assert _overlap(rain_left, rain_right) == ["barrel", "rain", "workshop"]

@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_chat_model: str = "gemini-3.5-flash"
     gemini_deliberation_model: str = "gemini-3.1-pro-preview"
-    gemini_embedding_model: str = "text-embedding-004"
+    gemini_embedding_model: str = "gemini-embedding-2"
 
     chatwoot_base_url: str = "http://localhost:3000"
     chatwoot_public_url: str = "http://localhost:3000"
@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     poll_scheduler_interval_seconds: int = 300
     automatic_matchmaking_enabled: bool = True
     match_scheduler_interval_seconds: int = 900
-    match_similarity_threshold: float = 0.72
+    match_similarity_threshold: float = 0.82
     full_manual_hours_per_week: float = 40.0
 
 

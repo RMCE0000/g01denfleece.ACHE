@@ -269,3 +269,5 @@ def test_background_jobs_stay_off_and_ollama_is_removed():
     assert "G01_BACKGROUND_JOBS: \"0\"" in compose
     assert "G01_GEMINI_CHAT_MODEL: gemini-3.5-flash" in compose
     assert "G01_GEMINI_DELIBERATION_MODEL: gemini-3.1-pro-preview" in compose
+    assert "G01_GEMINI_EMBEDDING_MODEL: gemini-embedding-2" in compose
+    assert "G01_MATCH_SIMILARITY_THRESHOLD: ${G01_MATCH_SIMILARITY_THRESHOLD:-0.82}" in compose
