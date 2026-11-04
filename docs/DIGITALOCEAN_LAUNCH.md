@@ -20,6 +20,10 @@ Have these ready before creating `.env`:
 - A Stripe webhook destination:
   `https://g01denfleece.com/webhooks/stripe`, subscribed to:
   - `checkout.session.completed`
+  - `customer.subscription.updated`
+  - `customer.subscription.deleted`
+  - `invoice.payment_failed`
+  - `invoice.paid`
   - `identity.verification_session.verified`
 
 Record that endpoint's `whsec_...` signing secret. Stripe test and live modes

@@ -1,4 +1,5 @@
 import asyncio
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
 from langgraph.checkpoint.memory import MemorySaver
@@ -161,7 +162,16 @@ def test_demand_poll_waits_twenty_four_hours(client, store):
     poll = store.polls[0]
     assert poll["mature_at"] - datetime.now(timezone.utc) > timedelta(hours=23)
     assert "70601" not in store.outbox[-1]["content"]
-    neighbor = ledger_reply(store, _message("2 dozen at $5", 21, sender_id=301, conversation_id=601, contact_id=301))
+    neighbor = ledger_reply(
+        store,
+        _message(
+            f"DEMAND {poll['id']}: 2 dozen/week at $5 per dozen",
+            21,
+            sender_id=301,
+            conversation_id=601,
+            contact_id=301,
+        ),
+    )
     assert neighbor.status_code == 200
     assert store.votes[0]["weekly_units_demanded"] == 2
     assert store.votes[0]["willing_price_per_unit_usd"] == 5
@@ -226,6 +236,27 @@ def test_collaboration_requires_two_yeses_and_kyc(store, monkeypatch):
     assert opened == [77]
     match = asyncio.run(store.get_match(match_id))
     assert match["shared_chatwoot_conversation_id"] == 77
+
+
+def test_only_one_worker_can_claim_a_shared_conversation(store):
+    left, right = store.properties[:2]
+    right["locality_id"] = left["locality_id"]
+    match = asyncio.run(
+        store.create_match(
+            {
+                "locality_id": left["locality_id"],
+                "peer_a_property_id": left["id"],
+                "peer_b_property_id": right["id"],
+                "proposed_project_title": "Shared tool shed",
+                "jane_synergy_rationale": "Both recorded the same project.",
+            }
+        )
+    )
+
+    assert asyncio.run(store.claim_shared_conversation(match["id"])) is True
+    assert asyncio.run(store.claim_shared_conversation(match["id"])) is False
+    asyncio.run(store.release_shared_conversation_claim(match["id"]))
+    assert asyncio.run(store.claim_shared_conversation(match["id"])) is True
 
 
 def test_sponsor_registry_is_a_conversation(client, store):
@@ -313,6 +344,101 @@ def test_stripe_event_retries_are_idempotent(store):
     assert first["active"] is True
     assert second == {"ok": True, "duplicate": True}
     assert store.sponsors[0]["stripe_subscription_id"] == "sub_launch"
+
+
+def test_stripe_checkout_recovers_mapping_and_consumes_promo_once(store):
+    sponsor = store.sponsors[0]
+    sponsor.update(
+        {
+            "is_active_sponsor": False,
+            "applied_promo_code": "FOUNDER100",
+            "promo_consumed_at": None,
+        }
+    )
+    event = {
+        "id": "evt_metadata",
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "id": "cs_metadata",
+                "payment_status": "paid",
+                "customer": "cus_metadata",
+                "subscription": "sub_metadata",
+                "metadata": {"sponsor_id": sponsor["id"]},
+            }
+        },
+    }
+    recovered = asyncio.run(apply_stripe_event(store, event))
+    replay = deepcopy(event)
+    replay["id"] = "evt_metadata_replay"
+    asyncio.run(apply_stripe_event(store, replay))
+
+    assert recovered["active"] is True
+    assert store.checkouts["cs_metadata"] == sponsor["id"]
+    assert store.promos[0]["current_uses"] == 1
+    assert sponsor["promo_boost_weight"] == 1.25
+
+
+def test_subscription_lifecycle_removes_inactive_sponsors(store):
+    sponsor = store.sponsors[0]
+    sponsor["stripe_subscription_id"] = "sub_lifecycle"
+    sponsor["is_active_sponsor"] = True
+
+    failed = asyncio.run(
+        apply_stripe_event(
+            store,
+            {
+                "id": "evt_failed",
+                "type": "invoice.payment_failed",
+                "data": {"object": {"subscription": "sub_lifecycle"}},
+            },
+        )
+    )
+    assert failed["active"] is False
+    assert sponsor["is_active_sponsor"] is False
+
+    restored = asyncio.run(
+        apply_stripe_event(
+            store,
+            {
+                "id": "evt_restored",
+                "type": "invoice.paid",
+                "data": {"object": {"subscription": "sub_lifecycle"}},
+            },
+        )
+    )
+    assert restored["active"] is True
+    assert sponsor["is_active_sponsor"] is True
+
+    deleted = asyncio.run(
+        apply_stripe_event(
+            store,
+            {
+                "id": "evt_deleted",
+                "type": "customer.subscription.deleted",
+                "data": {"object": {"id": "sub_lifecycle", "status": "canceled"}},
+            },
+        )
+    )
+    assert deleted["active"] is False
+    assert sponsor["is_active_sponsor"] is False
+
+
+def test_identity_request_reuses_the_existing_session(store, monkeypatch):
+    calls = []
+
+    async def _identity(property_id):
+        calls.append(property_id)
+        return {"id": "vs_existing", "url": "https://verify.example/session"}
+
+    monkeypatch.setattr("app.effects.create_identity_session", _identity)
+    first = ledger_reply(store, _message("Start KYC", 60))
+    second = ledger_reply(store, _message("Verify my identity", 61))
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert calls == [store.properties[0]["id"]]
+    assert "existing Stripe Identity link" in second.json()["reply"]
 
 
 def test_zip_attaches_the_thread_and_hides_the_street(client, store):
