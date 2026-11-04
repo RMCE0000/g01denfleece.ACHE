@@ -5,14 +5,16 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_brand_assets_are_gold_and_white():
     css = (ROOT / "branding" / "g01-brand.css").read_text(encoding="utf-8")
-    logo = (ROOT / "branding" / "g01-logo.svg").read_text(encoding="utf-8")
+    logo = (ROOT / "branding" / "g01-logo.png").read_bytes()
     mark = (ROOT / "branding" / "g01-mark.svg").read_text(encoding="utf-8")
     script = (ROOT / "branding" / "g01-brand.js").read_text(encoding="utf-8")
     assert "#7a5e24" in css
-    assert "#ffffff" in css
-    assert "#7A5E24" in logo and "g01" in logo
+    assert "#f7f5f0" in css
+    assert logo.startswith(b"\x89PNG\r\n\x1a\n") and len(logo) > 10_000
     assert "#7A5E24" in mark
-    assert "/g01-logo.svg" in script
+    assert "/g01-logo.png" in script
+    assert "g01-login-page" in script
+    assert "g01-login-page img" in css
     assert (ROOT / "branding" / "g01-mark.png").stat().st_size > 500
     initializer = (ROOT / "ops" / "g01_branding.rb").read_text(encoding="utf-8")
     assert "g01-brand.css" in initializer
@@ -31,7 +33,7 @@ def test_brand_assets_are_gold_and_white():
     assert 'SITE_NAME = "g01denfleece.com"' in bootstrap
     assert 'SITE_URL = "https://g01denfleece.com"' in bootstrap
     assert "website_url: SITE_URL" in bootstrap
-    assert "/g01-logo.svg" in bootstrap
+    assert "/g01-logo.png" in bootstrap
     assert "platform.access_token" in bootstrap
     assert 'raise "g01 bridge secret is empty"' in bootstrap
     assert "CHATWOOT_INSTALLATION_ONBOARDING" in bootstrap
@@ -47,7 +49,7 @@ def test_brand_assets_are_gold_and_white():
     compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert "\n  RAILS_SERVE_STATIC_FILES: \"true\"" in compose
     assert "\n      RAILS_SERVE_STATIC_FILES:" not in compose
-    assert "/app/public/g01-logo.svg" in compose
+    assert "/app/public/g01-logo.png" in compose
     assert "g01_branding.rb" in compose
     assert "g01_community_controller.rb" in compose
     assert "g01_contacts_scope.rb" in compose

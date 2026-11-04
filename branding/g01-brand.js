@@ -1,5 +1,5 @@
 (function () {
-  var LOGO = "/g01-logo.svg";
+  var LOGO = "/g01-logo.png";
   var MARK = "/g01-mark.svg";
 
   function light() {
@@ -92,10 +92,12 @@
   function ensureSignup() {
     if (!onLoginPage()) {
       document.body.classList.remove("g01-signup-open");
+      document.body.classList.remove("g01-login-page");
       var stale = document.getElementById("g01-signup");
       if (stale) stale.remove();
       return;
     }
+    document.body.classList.add("g01-login-page");
     if (document.getElementById("g01-signup")) return;
     var heading = document.querySelector("h2");
     if (!heading || !heading.parentNode) return;

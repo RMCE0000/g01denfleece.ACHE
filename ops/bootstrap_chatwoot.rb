@@ -125,8 +125,8 @@ channel.update!(
 {
   "INSTALLATION_NAME" => SITE_NAME,
   "BRAND_NAME" => SITE_NAME,
-  "LOGO" => "/g01-logo.svg",
-  "LOGO_DARK" => "/g01-logo.svg",
+  "LOGO" => "/g01-logo.png",
+  "LOGO_DARK" => "/g01-logo.png",
   "LOGO_THUMBNAIL" => "/g01-mark.svg",
   "BRAND_URL" => SITE_URL,
   "WIDGET_BRAND_URL" => SITE_URL,

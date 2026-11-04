@@ -18,18 +18,18 @@
   --border-blue-strong: 122 94 36;
   --solid-blue: 244 232 204;
   --solid-blue-2: 255 252 246;
-  --background-color: 255 255 255;
-  --slate-1: 255 255 255;
-  --slate-2: 255 252 246;
+  --background-color: 247 245 240;
+  --slate-1: 250 248 244;
+  --slate-2: 247 244 237;
   --slate-3: 247 242 230;
   --slate-12: 42 36 24;
-  --surface-1: 255 255 255;
-  --surface-2: 255 255 255;
+  --surface-1: 250 248 244;
+  --surface-2: 247 244 237;
   --surface-active: 255 252 246;
   --card-color: 255 255 255;
-  --solid-1: 255 255 255;
-  --solid-2: 255 252 246;
-  --solid-3: 255 252 246;
+  --solid-1: 250 248 244;
+  --solid-2: 247 244 237;
+  --solid-3: 247 244 237;
   --solid-active: 247 242 230;
   --border-weak: 231 215 177;
   --border-strong: 212 184 122;
@@ -42,7 +42,7 @@ html,
 body,
 #app,
 .v3-app {
-  background: #ffffff !important;
+  background: #f7f5f0 !important;
   color: #2a2418;
 }
 
@@ -162,9 +162,34 @@ body.g01-signup-open section.bg-white.shadow:not(#g01-signup-card) {
 
 img[src*="g01-logo"],
 img[src*="g01-mark"] {
-  max-height: 48px;
+  max-height: 56px;
   width: auto;
   background: transparent;
+}
+
+body.g01-login-page,
+body.g01-login-page #app,
+body.g01-login-page .v3-app {
+  background:
+    radial-gradient(circle at 50% 9%, rgb(184 146 74 / 16%), transparent 34rem),
+    linear-gradient(145deg, #fbfaf7 0%, #f5f2eb 52%, #eee8dc 100%) !important;
+}
+
+body.g01-login-page img[src*="g01-logo"] {
+  width: min(34rem, 88vw) !important;
+  height: auto !important;
+  max-width: none !important;
+  max-height: 17rem !important;
+  object-fit: contain;
+  filter: drop-shadow(0 14px 28px rgb(90 68 20 / 12%));
+}
+
+body.g01-login-page section.bg-white.shadow,
+body.g01-login-page .g01-signup-card {
+  border: 1px solid rgb(184 146 74 / 24%);
+  background: rgb(255 254 251 / 88%) !important;
+  box-shadow: 0 24px 70px rgb(74 56 16 / 13%) !important;
+  backdrop-filter: blur(12px);
 }
 
 .chat-bubble.outgoing .message-content,
