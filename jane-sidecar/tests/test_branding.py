@@ -21,6 +21,9 @@ def test_brand_assets_are_gold_and_white():
     assert "thread with Jane" not in script
     assert "/g01/signup" in script
     assert "g01 Community" in script
+    assert "Username" in script
+    assert "There is no public member directory" in script
+    assert "member_id" not in script
     assert "window.axios" in script
     assert "X-G01-Requested-With" in script
     bootstrap = (ROOT / "ops" / "bootstrap_chatwoot.rb").read_text(encoding="utf-8")
@@ -38,12 +41,16 @@ def test_brand_assets_are_gold_and_white():
     assert "Api::V1::Accounts::BaseController" in controller
     assert "dashboard authentication required" in controller
     assert "G01_BRIDGE_SECRET" in controller
+    contacts_scope = (ROOT / "ops" / "g01_contacts_scope.rb").read_text(encoding="utf-8")
+    assert "g01_visible_contacts" in contacts_scope
+    assert "InboxMember.where(user_id: Current.user.id)" in contacts_scope
     compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert "\n  RAILS_SERVE_STATIC_FILES: \"true\"" in compose
     assert "\n      RAILS_SERVE_STATIC_FILES:" not in compose
     assert "/app/public/g01-logo.svg" in compose
     assert "g01_branding.rb" in compose
     assert "g01_community_controller.rb" in compose
+    assert "g01_contacts_scope.rb" in compose
     assert "G01_BRIDGE_SECRET:" in compose
     assert "chatwoot_storage:/app/storage" in compose
     assert "axllent/mailpit@sha256:" in compose

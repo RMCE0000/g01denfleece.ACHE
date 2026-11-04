@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS g01_properties (
     chatwoot_user_id BIGINT UNIQUE,
     chatwoot_contact_id BIGINT UNIQUE NOT NULL,
     primary_conversation_id BIGINT UNIQUE,
+    username VARCHAR(32),
     locality_id UUID REFERENCES g01_localities(id) NOT NULL,
     street_address TEXT,
     zip_code VARCHAR(20) NOT NULL,
@@ -75,9 +76,40 @@ ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS sponsor_draft JSONB;
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS email VARCHAR(255);
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS display_name VARCHAR(255);
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS chatwoot_inbox_id BIGINT;
+ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS username VARCHAR(32);
+
+-- Existing accounts receive a stable handle. Prefer the email local-part when
+-- it is valid and unique; otherwise use an opaque property suffix.
+WITH candidates AS (
+    SELECT
+        id,
+        regexp_replace(lower(split_part(COALESCE(email, ''), '@', 1)), '[^a-z0-9._-]', '', 'g') AS candidate
+    FROM g01_properties
+    WHERE username IS NULL
+),
+counted AS (
+    SELECT id, candidate, COUNT(*) OVER (PARTITION BY candidate) AS candidate_count
+    FROM candidates
+)
+UPDATE g01_properties AS property
+SET username = CASE
+    WHEN counted.candidate ~ '^[a-z][a-z0-9._-]{2,31}$' AND counted.candidate_count = 1
+        THEN counted.candidate
+    ELSE 'homesteader-' || substr(property.id::text, 1, 8)
+END
+FROM counted
+WHERE property.id = counted.id;
+
+ALTER TABLE g01_properties ALTER COLUMN username SET NOT NULL;
+ALTER TABLE g01_properties DROP CONSTRAINT IF EXISTS g01_properties_username_format;
+ALTER TABLE g01_properties
+    ADD CONSTRAINT g01_properties_username_format
+    CHECK (username ~ '^[a-z][a-z0-9._-]{2,31}$');
 
 CREATE UNIQUE INDEX IF NOT EXISTS g01_properties_email_idx
     ON g01_properties (lower(email)) WHERE email IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS g01_properties_username_idx
+    ON g01_properties (lower(username));
 
 -- A private Chatwoot inbox shared by two signed-in homesteaders. Jane stays quiet
 -- on these conversation ids unless the message says her name.

@@ -32,7 +32,8 @@ from app.showcase import list_conversations
 HELP = """Commands
   dashboard                         Counts and integration readiness
   users                             All homesteaders
-  user <email|user-id|property-id>  Complete profile, ledger, scores, polls, and matches
+  user <username|email|user-id|property-id>
+                                    Complete profile, ledger, scores, polls, and matches
   chats                             Every Jane and homesteader connection thread
   chat <conversation-id>            Full transcript and participants
   analyze [all|engagement|northstar|network]
@@ -139,6 +140,7 @@ class OperatorBackend:
             rows.append(
                 {
                     "name": _name(prop),
+                    "username": prop.get("username"),
                     "email": prop.get("email"),
                     "property_id": prop["id"],
                     "chatwoot_user_id": prop.get("chatwoot_user_id"),
@@ -163,6 +165,7 @@ class OperatorBackend:
         return {
             "identity": {
                 "name": prop.get("display_name"),
+                "username": prop.get("username"),
                 "email": prop.get("email"),
                 "property_id": prop["id"],
                 "chatwoot_user_id": prop.get("chatwoot_user_id"),
@@ -387,7 +390,7 @@ class OperatorBackend:
             {"area": "Private Jane chat", "status": "active", "operator_action": "Ollama receives Jane's constitution and visible history."},
             {"area": "Homesteader connections", "status": "active", "operator_action": "Users open Community in Chatwoot, or the operator uses `connect`."},
             {"area": "Messages, files, and private notes", "status": "active", "operator_action": "Stock Chatwoot behavior remains available in every permitted inbox."},
-            {"area": "Contacts, labels, and custom fields", "status": "active", "operator_action": "Chatwoot CRM works normally; g01 mirrors non-sensitive locality and thread metadata."},
+            {"area": "Contacts, labels, and custom fields", "status": "active", "operator_action": "Chatwoot CRM works normally; homesteaders see contacts only in permitted inboxes."},
             {"area": "Assignment, status, snooze, priority", "status": "active", "operator_action": "Stock Chatwoot controls remain available without changing g01 records."},
             {"area": "Reports", "status": "administrator", "operator_action": "Use Chatwoot reports for messaging operations and this console for g01 analyses."},
             {"area": "Campaigns and help center", "status": "administrator", "operator_action": "Use their normal Chatwoot workflows when content and audiences are configured."},

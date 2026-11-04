@@ -79,8 +79,14 @@ class FakeChatwoot:
         return f"http://localhost:3000/auth/sso?user={int(user_id)}"
 
 
-def _person(name, email, zip_code):
-    return {"name": name, "email": email, "password": "Pasture-70601", "zip_code": zip_code}
+def _person(name, email, zip_code, username=None):
+    return {
+        "name": name,
+        "username": username or email.split("@", 1)[0],
+        "email": email,
+        "password": "Pasture-70601",
+        "zip_code": zip_code,
+    }
 
 
 def test_admin_opens_sign_in_and_a_private_conversation(store, monkeypatch):
@@ -106,6 +112,7 @@ def test_admin_opens_sign_in_and_a_private_conversation(store, monkeypatch):
         ada = created.json()
         assert ada["existing"] is False
         assert ada["email"] == "ada.yard@example.com"
+        assert ada["username"] == "ada.yard"
         assert ada["name"] == "Ada Yard"
         assert ada["login_url"] == "http://localhost:3000/app/login"
         assert ada["conversation_url"].startswith("http://localhost:3000/app/accounts/1/conversations/")
@@ -209,6 +216,7 @@ def test_login_page_signup_opens_a_sign_in(store, monkeypatch):
         assert created.status_code == 200
         body = created.json()
         assert body["email"] == "cara.north@example.com"
+        assert body["username"] == "cara.north"
         assert body["sso_url"].startswith("http://localhost:3000/auth/sso?user=")
         assert "api_access_token" not in body
         assert any(call[0] == "inbox" and call[1] == "Jane — Cara North" for call in FakeChatwoot.calls)
@@ -216,6 +224,13 @@ def test_login_page_signup_opens_a_sign_in(store, monkeypatch):
         again = client.post("/api/signup", json=_person("Cara North", "cara.north@example.com", "70607"))
         assert again.status_code == 409
         assert "sso_url" not in again.json()
+
+        username_taken = client.post(
+            "/api/signup",
+            json=_person("Other Cara", "other.cara@example.com", "70601", username="cara.north"),
+        )
+        assert username_taken.status_code == 409
+        assert "username" in username_taken.json()["detail"].lower()
 
         FakeChatwoot.preexisting["drew.existing@example.com"] = 77
         taken = client.post("/api/signup", json=_person("Drew Existing", "drew.existing@example.com", "70601"))
@@ -226,7 +241,7 @@ def test_login_page_signup_opens_a_sign_in(store, monkeypatch):
         assert outside.status_code == 422
 
 
-def test_chatwoot_bridge_lists_members_and_starts_own_connection(store, monkeypatch):
+def test_chatwoot_bridge_dials_exact_username_without_member_directory(store, monkeypatch):
     FakeChatwoot.reset()
     monkeypatch.setenv("G01_CHATWOOT_API_TOKEN", "api-token")
     monkeypatch.setenv("G01_CHATWOOT_PLATFORM_TOKEN", "platform-token")
@@ -250,20 +265,24 @@ def test_chatwoot_bridge_lists_members_and_starts_own_connection(store, monkeypa
         assert client.get("/api/internal/community", headers={**headers, "x-g01-bridge-secret": "wrong"}).status_code == 401
         directory = client.get("/api/internal/community", headers=headers)
         assert directory.status_code == 200
-        member = next(row for row in directory.json()["members"] if row["id"] == bea["id"])
-        assert member == {
-            "id": bea["id"],
-            "name": "Bea Chenier",
-            "locality": "Lake Charles & Calcasieu Suburbs",
-            "connected": False,
-        }
+        assert directory.json()["connections"] == []
+        assert directory.json()["self"]["username"] == "ada.community"
+        assert "Bea Chenier" not in directory.text
+        assert "bea.community" not in directory.text
         assert "email" not in directory.text
         assert "zip" not in directory.text
+
+        missing = client.post(
+            "/api/internal/community/connections",
+            headers=headers,
+            json={"username": "unknown.person", "topic": "seed exchange"},
+        )
+        assert missing.status_code == 404
 
         opened = client.post(
             "/api/internal/community/connections",
             headers=headers,
-            json={"member_id": bea["id"], "topic": "seed exchange"},
+            json={"username": "@bea.community", "topic": "seed exchange"},
         )
         assert opened.status_code == 201
         assert opened.json()["conversation_path"].startswith("/app/accounts/1/conversations/")
@@ -272,11 +291,14 @@ def test_chatwoot_bridge_lists_members_and_starts_own_connection(store, monkeypa
         repeated = client.post(
             "/api/internal/community/connections",
             headers=headers,
-            json={"member_id": bea["id"], "topic": "ignored duplicate topic"},
+            json={"username": "bea.community", "topic": "ignored duplicate topic"},
         )
         assert repeated.status_code == 200
         assert repeated.json()["conversation_id"] == opened.json()["conversation_id"]
         assert repeated.json()["existing"] is True
+        connected = client.get("/api/internal/community", headers=headers).json()["connections"]
+        assert connected[0]["username"] == "bea.community"
+        assert connected[0]["name"] == "Bea Chenier"
 
 
 def test_homesteader_routes_need_chatwoot(store, monkeypatch):

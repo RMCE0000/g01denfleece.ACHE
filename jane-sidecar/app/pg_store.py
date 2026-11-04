@@ -19,7 +19,7 @@ northstar_automated_pct, outside_aid_hours_per_week, northstar_aesthetic_pct,
 northstar_material_independent, material_surplus_profitable,
 northstar_energetic_pct, northstar_energetic_profitable, northstar_contained_zero_waste,
 known_facts_ledger, sponsor_draft, kyc_verified, stripe_identity_session_id, updated_at,
-email, display_name, chatwoot_inbox_id
+email, display_name, username, chatwoot_inbox_id
 """
 
 _SPONSOR = """
@@ -108,11 +108,11 @@ class PostgresStore:
                 f"""
                 INSERT INTO g01_properties (
                     chatwoot_account_id, chatwoot_user_id, chatwoot_contact_id, primary_conversation_id,
-                    chatwoot_inbox_id, email, display_name,
+                    chatwoot_inbox_id, email, display_name, username,
                     locality_id, street_address, zip_code, lat, lng, known_facts_ledger
                 ) VALUES (
                     :account_id, :user_id, :contact_id, :conversation_id,
-                    :inbox_id, :email, :display_name,
+                    :inbox_id, :email, :display_name, :username,
                     CAST(:locality_id AS uuid), :street, :zip, :lat, :lng, CAST(:ledger AS jsonb)
                 )
                 RETURNING {_PROPERTY}
@@ -125,6 +125,7 @@ class PostgresStore:
                     "inbox_id": fields.get("chatwoot_inbox_id"),
                     "email": fields.get("email"),
                     "display_name": fields.get("display_name"),
+                    "username": fields["username"],
                     "locality_id": fields["locality_id"],
                     "street": fields.get("street_address"),
                     "zip": fields["zip_code"],
@@ -171,6 +172,15 @@ class PostgresStore:
         return await self._one(
             f"SELECT {_PROPERTY} FROM g01_properties WHERE lower(email) = lower(:email)",
             {"email": wanted},
+        )
+
+    async def get_property_by_username(self, username: str) -> dict | None:
+        wanted = (username or "").strip().casefold().removeprefix("@")
+        if not wanted:
+            return None
+        return await self._one(
+            f"SELECT {_PROPERTY} FROM g01_properties WHERE lower(username) = :username",
+            {"username": wanted},
         )
 
     async def update_aesthetic(self, property_id: str, aesthetic: float) -> dict:

@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import re
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from app.chatwoot_client import ChatwootClient
 from app.config import get_settings
@@ -12,6 +12,7 @@ from app.errors import G01Error
 log = logging.getLogger(__name__)
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_USERNAME = re.compile(r"^[a-z][a-z0-9._-]{2,31}$")
 _PEER_LOCKS: dict[tuple[str, str], asyncio.Lock] = {}
 
 
@@ -37,6 +38,15 @@ def _zip(value: str) -> str:
     if len(digits) < 5:
         raise G01Error("ZIP code is not one of the seeded localities", 422)
     return digits[:5]
+
+
+def _username(value: str | None, email: str) -> str:
+    username = (value or "").strip().casefold().removeprefix("@")
+    if not username:
+        username = re.sub(r"[^a-z0-9._-]", "-", email.split("@", 1)[0].casefold())
+    if not _USERNAME.fullmatch(username):
+        raise G01Error("username must start with a letter and use 3–32 lowercase letters, numbers, dots, dashes, or underscores", 422)
+    return username
 
 
 def _require_api(client: ChatwootClient) -> None:
@@ -138,6 +148,7 @@ def _public_homesteader(prop: dict, *, existing: bool) -> dict:
     return {
         "name": prop.get("display_name"),
         "email": prop.get("email"),
+        "username": prop.get("username"),
         "property_id": prop["id"],
         "chatwoot_user_id": prop.get("chatwoot_user_id"),
         "chatwoot_contact_id": prop.get("chatwoot_contact_id"),
@@ -158,6 +169,7 @@ async def register_homesteader(store, fields: dict) -> dict:
     return {
         "name": created["name"],
         "email": created["email"],
+        "username": created["username"],
         "login_url": created["login_url"],
         "conversation_url": created["conversation_url"],
         "sso_url": created.get("sso_url"),
@@ -170,6 +182,7 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
     if not name:
         raise G01Error("name is required", 422)
     email = _email(fields.get("email") or "")
+    username = _username(fields.get("username"), email)
     password = str(fields.get("password") or "")
     if len(password) < 8:
         raise G01Error("password must be at least 8 characters", 422)
@@ -185,6 +198,8 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
         if client.platform_configured() and existing.get("chatwoot_user_id"):
             result["sso_url"] = await client.sso_link(int(existing["chatwoot_user_id"]))
         return result
+    if await store.get_property_by_username(username):
+        raise G01Error("That username is already in use.", 409)
 
     client = ChatwootClient(get_settings())
     _require_platform(client)
@@ -220,6 +235,7 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
             "lng": locality["center_lng"],
             "email": email,
             "display_name": name,
+            "username": username,
         }
     )
     await _sync_homesteader_metadata(client, prop, locality)
@@ -233,11 +249,18 @@ async def resolve_homesteader(store, token: str) -> dict:
     if not raw:
         raise G01Error("name the homesteader by email, Chatwoot user id, or property id", 422)
     if "@" in raw:
-        found = await store.get_property_by_email(_email(raw))
+        found = await store.get_property_by_username(raw) if raw.startswith("@") else await store.get_property_by_email(_email(raw))
     elif raw.isdigit():
         found = await store.get_property_by_user(int(raw))
     else:
-        found = await store.get_property(raw)
+        found = await store.get_property_by_username(raw)
+        if found is None:
+            try:
+                UUID(raw)
+            except ValueError:
+                found = None
+            else:
+                found = await store.get_property(raw)
     if found is None:
         raise G01Error("no homesteader matches that email, user id, or property id", 404)
     if not found.get("chatwoot_user_id"):

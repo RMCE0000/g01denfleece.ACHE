@@ -3,13 +3,11 @@
 import logging
 import secrets
 from contextlib import asynccontextmanager
-from uuid import UUID
-
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from app.community import bridge_actor, list_members, start_connection
+from app.community import bridge_actor, community_state, start_connection
 from app.config import get_settings
 from app.errors import G01Error
 from app.homesteaders import open_peer_conversation, provision_homesteader, register_homesteader, sync_workspace_metadata
@@ -32,6 +30,7 @@ def _admin(request: Request) -> None:
 
 class HomesteaderIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
+    username: str | None = Field(default=None, min_length=3, max_length=32)
     email: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=8, max_length=128)
     zip_code: str = Field(min_length=5, max_length=12)
@@ -53,7 +52,7 @@ class PromoIn(BaseModel):
 
 
 class CommunityConnectionIn(BaseModel):
-    member_id: UUID
+    username: str = Field(min_length=3, max_length=33)
     topic: str | None = Field(default=None, max_length=255)
 
 
@@ -136,12 +135,12 @@ def create_app(store=None) -> FastAPI:
     @app.get("/api/internal/community")
     async def community_members(request: Request):
         actor = await bridge_actor(app.state.store, request, get_settings().bridge_secret)
-        return await list_members(app.state.store, actor)
+        return await community_state(app.state.store, actor)
 
     @app.post("/api/internal/community/connections")
     async def community_connection(body: CommunityConnectionIn, request: Request, response: Response):
         actor = await bridge_actor(app.state.store, request, get_settings().bridge_secret)
-        opened = await start_connection(app.state.store, actor, str(body.member_id), body.topic)
+        opened = await start_connection(app.state.store, actor, body.username, body.topic)
         response.status_code = 200 if opened["existing"] else 201
         return opened
 

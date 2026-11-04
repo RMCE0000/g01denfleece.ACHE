@@ -76,6 +76,13 @@
     input.autocomplete = type === "password" ? "new-password" : name;
     if (placeholder) input.placeholder = placeholder;
     if (name === "password") input.minLength = 8;
+    if (name === "username") {
+      input.minLength = 3;
+      input.maxLength = 32;
+      input.pattern = "[a-z][a-z0-9._-]{2,31}";
+      input.autocapitalize = "none";
+      input.spellcheck = false;
+    }
     if (name === "zip_code") input.inputMode = "numeric";
     label.appendChild(caption);
     label.appendChild(input);
@@ -121,6 +128,7 @@
 
     var form = document.createElement("form");
     form.appendChild(field("Full name", "name", "text", "Ada Yard"));
+    form.appendChild(field("Username", "username", "text", "ada.yard"));
     form.appendChild(field("Email", "email", "email", "ada@example.com"));
     form.appendChild(field("Password", "password", "password", "At least 8 characters"));
     form.appendChild(field("ZIP code", "zip_code", "text", "70601"));
@@ -172,6 +180,7 @@
       }
       var payload = {
         name: value("name"),
+        username: value("username"),
         email: value("email"),
         password: value("password"),
         zip_code: value("zip_code"),
@@ -248,53 +257,25 @@
     error.hidden = false;
   }
 
-  function renderCommunityMembers(panel, accountId, payload) {
+  function renderCommunityState(panel, payload) {
+    var identity = panel.querySelector(".g01-community-identity");
+    var self = payload && payload.self;
+    identity.textContent = self && self.username ? "Your username: @" + self.username : "";
     var list = panel.querySelector(".g01-community-list");
     list.replaceChildren();
-    var members = payload && Array.isArray(payload.members) ? payload.members : [];
-    if (!members.length) {
-      list.appendChild(communityElement("p", "g01-community-empty", "No other homesteaders are available yet."));
+    var connections = payload && Array.isArray(payload.connections) ? payload.connections : [];
+    if (!connections.length) {
+      list.appendChild(communityElement("p", "g01-community-empty", "You have no existing homesteader conversations."));
       return;
     }
-    members.forEach(function (member) {
+    connections.forEach(function (connection) {
       var card = communityElement("article", "g01-community-member");
-      card.appendChild(communityElement("h3", "", member.name || "Homesteader"));
-      card.appendChild(communityElement("p", "g01-community-locality", member.locality || "Locality not recorded"));
-      if (member.connected && member.conversation_path) {
-        var open = communityElement("a", "g01-community-primary", "Open conversation");
-        open.href = member.conversation_path;
-        card.appendChild(open);
-      } else {
-        var topic = communityElement("input", "g01-community-topic");
-        topic.type = "text";
-        topic.maxLength = 255;
-        topic.placeholder = "Optional topic";
-        topic.setAttribute("aria-label", "Topic for conversation with " + (member.name || "homesteader"));
-        var start = communityElement("button", "g01-community-primary", "Start conversation");
-        start.type = "button";
-        start.addEventListener("click", function () {
-          start.disabled = true;
-          panel.querySelector(".g01-community-error").hidden = true;
-          window.axios
-            .post(
-              "/api/v1/accounts/" + accountId + "/g01/community",
-              { member_id: member.id, topic: topic.value.trim() || null },
-              { headers: communityHeaders() }
-            )
-            .then(function (response) {
-              var data = response && response.data;
-              if (!data || !data.conversation_path) throw new Error("Conversation path missing");
-              window.location.assign(data.conversation_path);
-            })
-            .catch(function (error) {
-              var detail = error && error.response && error.response.data;
-              showCommunityError(panel, (detail && (detail.detail || detail.error)) || "Conversation was not started.");
-              start.disabled = false;
-            });
-        });
-        card.appendChild(topic);
-        card.appendChild(start);
-      }
+      card.appendChild(communityElement("h3", "", connection.name || "Homesteader"));
+      var details = "@" + (connection.username || "unknown") + " · " + (connection.locality || "Locality not recorded");
+      card.appendChild(communityElement("p", "g01-community-locality", details));
+      var open = communityElement("a", "g01-community-primary", "Open conversation");
+      open.href = connection.conversation_path;
+      card.appendChild(open);
       list.appendChild(card);
     });
   }
@@ -324,13 +305,57 @@
       communityElement(
         "p",
         "g01-community-intro",
-        "Start a private Chatwoot conversation with another homesteader. Jane joins but stays quiet unless named."
+        "Enter a homesteader's exact username to start a private Chatwoot conversation. There is no public member directory."
       )
     );
+    panel.appendChild(communityElement("p", "g01-community-identity"));
+    var form = communityElement("form", "g01-community-dial");
+    var username = communityElement("input", "g01-community-username");
+    username.type = "text";
+    username.required = true;
+    username.minLength = 3;
+    username.maxLength = 33;
+    username.placeholder = "@username";
+    username.autocapitalize = "none";
+    username.spellcheck = false;
+    username.setAttribute("aria-label", "Homesteader username");
+    var topic = communityElement("input", "g01-community-topic");
+    topic.type = "text";
+    topic.maxLength = 255;
+    topic.placeholder = "Optional topic";
+    topic.setAttribute("aria-label", "Conversation topic");
+    var start = communityElement("button", "g01-community-primary", "Start conversation");
+    start.type = "submit";
+    form.appendChild(username);
+    form.appendChild(topic);
+    form.appendChild(start);
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      start.disabled = true;
+      panel.querySelector(".g01-community-error").hidden = true;
+      window.axios
+        .post(
+          "/api/v1/accounts/" + accountId + "/g01/community",
+          { username: username.value.trim(), topic: topic.value.trim() || null },
+          { headers: communityHeaders() }
+        )
+        .then(function (response) {
+          var data = response && response.data;
+          if (!data || !data.conversation_path) throw new Error("Conversation path missing");
+          window.location.assign(data.conversation_path);
+        })
+        .catch(function (requestError) {
+          var detail = requestError && requestError.response && requestError.response.data;
+          showCommunityError(panel, (detail && (detail.detail || detail.error)) || "Conversation was not started.");
+          start.disabled = false;
+        });
+    });
+    panel.appendChild(form);
     var error = communityElement("p", "g01-community-error");
     error.hidden = true;
     panel.appendChild(error);
-    panel.appendChild(communityElement("div", "g01-community-list", "Loading homesteaders…"));
+    panel.appendChild(communityElement("h3", "g01-community-existing-title", "Existing conversations"));
+    panel.appendChild(communityElement("div", "g01-community-list", "Loading conversations…"));
     backdrop.appendChild(panel);
     backdrop.addEventListener("click", function (event) {
       if (event.target === backdrop) closeCommunity();
@@ -341,7 +366,7 @@
     window.axios
       .get("/api/v1/accounts/" + accountId + "/g01/community", { headers: communityHeaders() })
       .then(function (response) {
-        renderCommunityMembers(panel, accountId, response.data);
+        renderCommunityState(panel, response.data);
       })
       .catch(function (requestError) {
         if (requestError && requestError.response && requestError.response.status === 403) {
@@ -351,7 +376,7 @@
           return;
         }
         var detail = requestError && requestError.response && requestError.response.data;
-        showCommunityError(panel, (detail && (detail.detail || detail.error)) || "Community directory is unavailable.");
+        showCommunityError(panel, (detail && (detail.detail || detail.error)) || "Community service is unavailable.");
         panel.querySelector(".g01-community-list").replaceChildren();
       });
   }

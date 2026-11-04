@@ -42,7 +42,7 @@ docker compose up --build
 
 The website is [g01denfleece.com](https://g01denfleece.com). Login, the widget header, and the reset email use that name. On this machine the app is still `http://localhost:3000`. The public host is a DigitalOcean droplet; see below.
 
-The homesteader signs in at Chatwoot: `http://localhost:3000/app/login`. The screen is white with gold accents and the g01 logo. **Forgot your password?** emails a reset link. Locally that mail is in Mailpit at `http://localhost:8025`. A public launch points `SMTP_ADDRESS` at a real mailbox. **Create an account** on the login page asks for a name, email, password, and a ZIP already on the record (such as 70601). That creates the sign-in and a private thread with Jane, then opens it. Chatwoot's own account signup stays off, because that form would open a separate empty account. After bootstrap, `.chatwoot-bootstrap/operator.txt` has Jane's agent login and the admin token. When Jane finishes starting, `.chatwoot-bootstrap/homesteaders.txt` has two local demo people:
+The homesteader signs in at Chatwoot: `http://localhost:3000/app/login`. The screen is white with gold accents and the g01 logo. **Forgot your password?** emails a reset link. Locally that mail is in Mailpit at `http://localhost:8025`. A public launch points `SMTP_ADDRESS` at a real mailbox. **Create an account** on the login page asks for a name, unique username, email, password, and a ZIP already on the record (such as 70601). That creates the sign-in and a private thread with Jane, then opens it. Chatwoot's own account signup stays off, because that form would open a separate empty account. After bootstrap, `.chatwoot-bootstrap/operator.txt` has Jane's agent login and the admin token. When Jane finishes starting, `.chatwoot-bootstrap/homesteaders.txt` has two local demo people:
 
 - Ada Yard, `ada.yard@example.com`, password `G01seed-Ada-70601`
 - Bea Chenier, `bea.chenier@example.com`, password `G01seed-Bea-70605`
@@ -51,9 +51,12 @@ Each has a private inbox named `Jane — {name}` for talking with Jane, and a sh
 
 Signed-in homesteaders use Chatwoot normally: messages, attachments, private
 notes, contacts, labels, assignment, status, snooze, and priority remain stock
-Chatwoot behavior. The sidebar adds **g01 Community**, a private directory that
-lets a homesteader open their own shared inbox with another registered
-homesteader. g01 labels and custom fields make Jane and connection threads
+Chatwoot behavior. The sidebar adds **g01 Community**. It does not list the
+membership: a homesteader starts a thread by entering another person's exact
+username, like dialing a known phone number. Existing connections remain
+available there. A homesteader's stock Contacts view is likewise limited to
+contacts attached to inboxes they can already access; it is not an alternate
+member directory. g01 labels and custom fields make Jane and connection threads
 filterable without exposing the ledger, KYC data, coordinates, or other private
 property records in Chatwoot's account-wide contacts.
 
@@ -63,7 +66,7 @@ Create another sign-in, then a conversation between two of them:
 curl -s -X POST http://localhost:8000/api/admin/homesteaders \
   -H "X-G01-Admin-Token: g01-local-admin-token" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Cara North","email":"cara.north@example.com","password":"Pasture-70607","zip_code":"70607"}'
+  -d '{"name":"Cara North","username":"cara.north","email":"cara.north@example.com","password":"Pasture-70607","zip_code":"70607"}'
 
 curl -s -X POST http://localhost:8000/api/admin/conversations \
   -H "X-G01-Admin-Token: g01-local-admin-token" \
@@ -71,7 +74,7 @@ curl -s -X POST http://localhost:8000/api/admin/conversations \
   -d '{"left":"ada.yard@example.com","right":"cara.north@example.com","topic":"the well"}'
 ```
 
-`left` and `right` take an email, a Chatwoot user id, or a property id. Read every thread before opening one:
+`left` and `right` take a username (with or without `@`), email, Chatwoot user id, or property id. Read every thread before opening one:
 
 ```bash
 curl -s http://localhost:8000/api/admin/conversations \

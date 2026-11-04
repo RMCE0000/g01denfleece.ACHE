@@ -15,7 +15,7 @@ class Api::V1::Accounts::G01CommunityController < Api::V1::Accounts::BaseControl
   end
 
   def create
-    payload = params.permit(:member_id, :topic).to_h
+    payload = params.permit(:username, :topic).to_h
     relay(:post, "/api/internal/community/connections", payload)
   end
 

@@ -1,4 +1,4 @@
-"""Authenticated homesteader directory behind the Chatwoot Rails bridge."""
+"""Private username dialing behind the authenticated Chatwoot Rails bridge."""
 
 import secrets
 from urllib.parse import urlsplit
@@ -28,42 +28,49 @@ async def bridge_actor(store, request: Request, bridge_secret: str) -> dict:
     return actor
 
 
-async def list_members(store, actor: dict) -> dict:
+async def community_state(store, actor: dict) -> dict:
     localities = {str(row["id"]): row for row in await store.list_localities()}
-    members = []
-    for prop in await store.list_properties():
-        if str(prop["id"]) == str(actor["id"]) or not prop.get("chatwoot_user_id"):
+    properties = {str(row["id"]): row for row in await store.list_properties()}
+    connections = []
+    for peer in await store.list_peer_conversations():
+        actor_id = str(actor["id"])
+        pair = {str(peer.get("property_a_id")), str(peer.get("property_b_id"))}
+        if actor_id not in pair:
             continue
-        peer = await store.find_peer_between(actor["id"], prop["id"])
-        locality = localities.get(str(prop.get("locality_id")), {})
-        row = {
-            "id": str(prop["id"]),
-            "name": prop.get("display_name") or "Homesteader",
-            "locality": locality.get("name") or "Locality not recorded",
-            "connected": peer is not None,
-        }
-        if peer:
-            conversation_id = int(peer["chatwoot_conversation_id"])
-            row["conversation_id"] = conversation_id
-            row["conversation_path"] = urlsplit(conversation_url(conversation_id)).path
-            row["topic"] = peer.get("topic")
-        members.append(row)
-    members.sort(key=lambda row: (row["name"].casefold(), row["id"]))
+        other_id = next((property_id for property_id in pair if property_id != actor_id), None)
+        other = properties.get(other_id or "")
+        if other is None:
+            continue
+        locality = localities.get(str(other.get("locality_id")), {})
+        conversation_id = int(peer["chatwoot_conversation_id"])
+        connections.append(
+            {
+                "username": other.get("username"),
+                "name": other.get("display_name") or "Homesteader",
+                "locality": locality.get("name") or "Locality not recorded",
+                "conversation_id": conversation_id,
+                "conversation_path": urlsplit(conversation_url(conversation_id)).path,
+                "topic": peer.get("topic"),
+            }
+        )
+    connections.sort(key=lambda row: ((row.get("name") or "").casefold(), row.get("username") or ""))
     actor_locality = localities.get(str(actor.get("locality_id")), {})
     return {
         "self": {
+            "username": actor.get("username"),
             "name": actor.get("display_name") or "Homesteader",
             "locality": actor_locality.get("name") or "Locality not recorded",
         },
-        "members": members,
+        "connections": connections,
     }
 
 
-async def start_connection(store, actor: dict, member_id: str, topic: str | None) -> dict:
-    target = await store.get_property(member_id)
+async def start_connection(store, actor: dict, username: str, topic: str | None) -> dict:
+    target = await store.get_property_by_username(username)
     if target is None or not target.get("chatwoot_user_id") or str(target["id"]) == str(actor["id"]):
-        # Do not let the directory endpoint enumerate private property identifiers.
-        raise G01Error("community member not found", 404)
+        # A generic answer prevents username probing from distinguishing missing,
+        # inactive, and self records.
+        raise G01Error("No available homesteader has that username.", 404)
     opened = await open_peer_conversation(store, str(actor["id"]), str(target["id"]), topic)
     return {
         "conversation_id": opened["conversation_id"],

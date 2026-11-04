@@ -73,6 +73,7 @@ class MemoryStore:
             "chatwoot_inbox_id": fields.get("chatwoot_inbox_id"),
             "email": fields.get("email"),
             "display_name": fields.get("display_name"),
+            "username": fields["username"],
             "locality_id": fields["locality_id"],
             "street_address": fields.get("street_address"),
             "zip_code": fields["zip_code"],
@@ -121,6 +122,12 @@ class MemoryStore:
         if not wanted:
             return None
         return self._find_property(lambda row: (row.get("email") or "").casefold() == wanted)
+
+    async def get_property_by_username(self, username: str) -> dict | None:
+        wanted = (username or "").strip().casefold().removeprefix("@")
+        if not wanted:
+            return None
+        return self._find_property(lambda row: (row.get("username") or "").casefold() == wanted)
 
     def _mutate(self, property_id: str) -> dict:
         for prop in self.properties:

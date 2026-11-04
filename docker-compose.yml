@@ -121,6 +121,7 @@ services:
       - ./branding/g01-brand.css:/app/public/g01-brand.css:ro
       - ./branding/g01-brand.js:/app/public/g01-brand.js:ro
       - ./ops/g01_branding.rb:/app/config/initializers/g01_branding.rb:ro
+      - ./ops/g01_contacts_scope.rb:/app/config/initializers/g01_contacts_scope.rb:ro
       - ./ops/g01_community_controller.rb:/app/app/controllers/api/v1/accounts/g01_community_controller.rb:ro
     healthcheck:
       test: ["CMD-SHELL", "ruby -e \"require 'net/http'; code = Net::HTTP.get_response(URI('http://127.0.0.1:3000/api')).code.to_i; exit(code < 500 ? 0 : 1)\""]

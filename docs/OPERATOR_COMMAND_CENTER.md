@@ -78,9 +78,9 @@ records and workflows without replacing those features.
 | Sign-in and reset | Active through Chatwoot and configured SMTP |
 | g01 signup | Creates a Chatwoot agent, a property row, and a private Jane inbox |
 | Private Jane chat | Active; Ollama receives the constitution and visible history |
-| Homesteader connection | A user opens **g01 Community** in Chatwoot, or the operator uses `connect` |
+| Homesteader connection | A user enters an exact username in **g01 Community**, or the operator uses `connect`; no member directory is published |
 | Files and private notes | Work normally inside every conversation the user may access |
-| Contacts | Normal Chatwoot CRM; g01 mirrors only non-sensitive member/locality data because contacts are account-wide |
+| Contacts | Normal Chatwoot CRM tools, scoped for homesteaders to contacts in their permitted inboxes; not a global member directory |
 | Labels and custom fields | g01 thread types and public locality metadata are filterable in Chatwoot |
 | Assignment, status, snooze, priority | Normal Chatwoot behavior remains available |
 | Reports | Chatwoot administrators use normal messaging reports; the command center provides g01 analyses |
