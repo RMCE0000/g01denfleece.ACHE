@@ -24,6 +24,9 @@ class MemoryStore:
         self.polls: list[dict] = []
         self.invites: list[dict] = []
         self.votes: list[dict] = []
+        self.community_polls: list[dict] = []
+        self.community_poll_recipients: list[dict] = []
+        self.community_poll_answers: list[dict] = []
         self.matches: list[dict] = []
         self.peers: list[dict] = []
         self.referrals: list[dict] = []
@@ -406,6 +409,135 @@ class MemoryStore:
                 poll["final_synthesis_report"] = report
                 return deepcopy(poll)
         raise G01Error("poll not found", 404)
+
+    async def create_community_poll(self, fields: dict) -> tuple[dict, bool]:
+        for poll in self.community_polls:
+            if poll["poll_key"] == fields["poll_key"]:
+                return deepcopy(poll), False
+        poll = {
+            "id": str(uuid4()),
+            "poll_key": fields["poll_key"],
+            "poll_kind": fields["poll_kind"],
+            "requester_property_id": fields.get("requester_property_id"),
+            "question": fields["question"],
+            "status": "open",
+            "opens_at": fields["opens_at"],
+            "closes_at": fields["closes_at"],
+            "compiled_report": None,
+            "compiled_analysis": None,
+            "created_at": self._clock(),
+        }
+        self.community_polls.append(poll)
+        return deepcopy(poll), True
+
+    async def add_community_poll_recipients(self, poll_id: str, properties: list[dict]) -> list[dict]:
+        added = []
+        for prop in properties:
+            if any(
+                row["poll_id"] == poll_id and row["property_id"] == prop["id"]
+                for row in self.community_poll_recipients
+            ):
+                continue
+            row = {
+                "id": str(uuid4()),
+                "poll_id": poll_id,
+                "property_id": prop["id"],
+                "conversation_id": prop.get("primary_conversation_id"),
+                "created_at": self._clock(),
+            }
+            self.community_poll_recipients.append(row)
+            added.append(deepcopy(row))
+        return added
+
+    async def community_poll_recipients_for(self, poll_id: str) -> list[dict]:
+        return [
+            deepcopy(row)
+            for row in self.community_poll_recipients
+            if row["poll_id"] == poll_id
+        ]
+
+    async def pending_community_polls(self, property_id: str) -> list[dict]:
+        answered = {
+            row["poll_id"]
+            for row in self.community_poll_answers
+            if row["property_id"] == property_id
+        }
+        polls = {row["id"]: row for row in self.community_polls if row["status"] == "open"}
+        found = []
+        for recipient in self.community_poll_recipients:
+            if recipient["property_id"] != property_id or recipient["poll_id"] in answered:
+                continue
+            poll = polls.get(recipient["poll_id"])
+            if poll:
+                found.append({**deepcopy(poll), "recipient_id": recipient["id"]})
+        return sorted(found, key=lambda row: (row["opens_at"], row["id"]))
+
+    async def answer_community_poll(self, poll_id: str, property_id: str, answer: str) -> dict | None:
+        for row in self.community_poll_answers:
+            if row["poll_id"] == poll_id and row["property_id"] == property_id:
+                return deepcopy(row)
+        poll = next(
+            (row for row in self.community_polls if row["id"] == poll_id and row["status"] == "open"),
+            None,
+        )
+        recipient = any(
+            row["poll_id"] == poll_id and row["property_id"] == property_id
+            for row in self.community_poll_recipients
+        )
+        if poll is None or not recipient:
+            return None
+        row = {
+            "id": str(uuid4()),
+            "poll_id": poll_id,
+            "property_id": property_id,
+            "answer": answer,
+            "created_at": self._clock(),
+        }
+        self.community_poll_answers.append(row)
+        return deepcopy(row)
+
+    async def community_poll_answers_for(self, poll_id: str) -> list[dict]:
+        properties = {row["id"]: row for row in self.properties}
+        found = []
+        for answer in self.community_poll_answers:
+            if answer["poll_id"] != poll_id:
+                continue
+            prop = properties.get(answer["property_id"], {})
+            found.append(
+                {
+                    **deepcopy(answer),
+                    "username": prop.get("username"),
+                    "display_name": prop.get("display_name"),
+                }
+            )
+        return found
+
+    async def get_community_poll(self, poll_id: str) -> dict | None:
+        for poll in self.community_polls:
+            if poll["id"] == poll_id:
+                return deepcopy(poll)
+        return None
+
+    async def list_community_polls(self, limit: int = 50) -> list[dict]:
+        rows = sorted(self.community_polls, key=lambda row: (row["created_at"], row["id"]), reverse=True)
+        return [deepcopy(row) for row in rows[:limit]]
+
+    async def due_community_polls(self) -> list[dict]:
+        now = self._clock()
+        return [
+            deepcopy(row)
+            for row in self.community_polls
+            if row["status"] == "open" and row["closes_at"] <= now
+        ]
+
+    async def close_community_poll(self, poll_id: str, report: str, analysis: dict) -> dict | None:
+        for poll in self.community_polls:
+            if poll["id"] == poll_id and poll["status"] == "open":
+                poll["status"] = "closed"
+                poll["compiled_report"] = report
+                poll["compiled_analysis"] = deepcopy(analysis)
+                return deepcopy(poll)
+        return None
 
     async def create_match(self, fields: dict) -> dict | None:
         peer_a, peer_b = sorted([fields["peer_a_property_id"], fields["peer_b_property_id"]])

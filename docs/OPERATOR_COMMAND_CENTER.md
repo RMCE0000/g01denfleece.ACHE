@@ -22,6 +22,10 @@ analyze all
 analyze engagement
 analyze northstar
 analyze network
+analyze polls
+polls
+poll <poll-id>
+poll-create "What project should the community organize next?"
 set ada.yard@example.com aesthetic 82
 set ada.yard@example.com labor-hours 12
 connect ada.yard@example.com bea.chenier@example.com "shared greenhouse"
@@ -31,7 +35,7 @@ localities
 capabilities
 ```
 
-`set`, `connect`, and `jobs` can change data or send Chatwoot messages. The
+`set`, `connect`, `poll-create`, and `jobs` can change data or send Chatwoot messages. The
 interactive console asks before running them. `set` is limited to the fields
 listed by `help`; arbitrary database columns cannot be changed.
 
@@ -49,6 +53,8 @@ Mutating one-shot commands require `--yes`:
 ```bash
 docker compose exec jane python -m app.operator --yes \
   connect ada.yard@example.com bea.chenier@example.com "shared greenhouse"
+docker compose exec jane python -m app.operator --yes \
+  poll-create "What project should the community organize next?"
 ```
 
 This makes shell scripts fail closed instead of opening a connection by
@@ -62,6 +68,8 @@ accident.
   does not ask a language model to infer a score.
 - `network` counts provisioned homesteader connections and identifies people
   with no connection.
+- `polls` compiles response rates, recurring terms, action candidates, and the
+  attributed source answers. It never asks a model to invent a consensus.
 
 These are deterministic operational analyses. The minimum-showcase live chat
 does not update the old MVP ledger or North Star values.
@@ -88,7 +96,8 @@ records and workflows without replacing those features.
 | Email, WhatsApp, and social inboxes | Work normally only after each external provider is added and verified |
 | North Star and ledger | Inspectable in the command center; not updated by live MS chat |
 | Sponsors | Ranking can be previewed with `rank` |
-| Polls and matchmaking | Existing workflows can be run explicitly with `jobs`; scheduling remains off |
+| Jane polls | One rotating question is sent daily in each private Jane thread. `poll mode` starts the community-action question; `poll mode: <question>` broadcasts a supplied question. Operators use `polls`, `poll`, `poll-create`, and `analyze polls` |
+| Legacy demand polls and matchmaking | Existing workflows can be run explicitly with `jobs`; their Celery scheduling remains off |
 | Stripe and identity | Operate only when production keys and webhooks are configured |
 
 The `capabilities` command carries this boundary into the running system.

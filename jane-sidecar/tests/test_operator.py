@@ -97,9 +97,37 @@ async def test_capability_catalog_and_json_output(backend):
     assert areas["Private Jane chat"] == "active"
     assert areas["Contacts, labels, and custom fields"] == "active"
     assert areas["Reports"] == "administrator"
+    assert areas["Jane daily and poll-mode questions"] == "active"
 
     payload = json.loads(render(CommandOutput("Test", {"at": None, "ok": True}), as_json=True))
     assert payload == {"title": "Test", "data": {"at": None, "ok": True}}
+
+
+async def test_operator_can_create_inspect_and_analyze_polls(backend):
+    with pytest.raises(WriteConfirmationRequired):
+        await backend.execute(["poll-create", "What", "should", "we", "build?"])
+
+    created = await backend.execute(
+        ["poll-create", "What", "should", "we", "build?"],
+        allow_write=True,
+    )
+    poll_id = created.value["poll"]["id"]
+    assert created.value["recipients_added"] == 2
+
+    listed = await backend.execute(["polls"])
+    assert listed.value[0]["id"] == poll_id
+    assert listed.value[0]["responses"] == "0/2"
+
+    await backend.store.answer_community_poll(
+        poll_id,
+        backend.store.properties[0]["id"],
+        "Build a seed library.",
+    )
+    inspected = await backend.execute(["poll", poll_id])
+    assert inspected.value["analysis"]["response_count"] == 1
+    analysis = await backend.execute(["analyze", "polls"])
+    assert analysis.value["summary"]["responses"] == 1
+    assert analysis.value["polls"][0]["action_candidates"][0]["answer"] == "Build a seed library."
 
 
 def test_bootstrap_environment_is_loaded_without_overriding_explicit_values(tmp_path, monkeypatch):

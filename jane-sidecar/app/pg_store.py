@@ -552,6 +552,174 @@ class PostgresStore:
             raise G01Error("poll not found", 404)
         return rows[0]
 
+    async def create_community_poll(self, fields: dict) -> tuple[dict, bool]:
+        rows = await self._write(
+            """
+            INSERT INTO g01_community_polls (
+                poll_key, poll_kind, requester_property_id, question, opens_at, closes_at
+            ) VALUES (
+                :poll_key, :poll_kind, CAST(:requester AS uuid), :question, :opens_at, :closes_at
+            )
+            ON CONFLICT (poll_key) DO NOTHING
+            RETURNING id, poll_key, poll_kind, requester_property_id, question, status,
+                      opens_at, closes_at, compiled_report, compiled_analysis, created_at
+            """,
+            {
+                "poll_key": fields["poll_key"],
+                "poll_kind": fields["poll_kind"],
+                "requester": fields.get("requester_property_id"),
+                "question": fields["question"],
+                "opens_at": fields["opens_at"],
+                "closes_at": fields["closes_at"],
+            },
+        )
+        if rows:
+            return rows[0], True
+        found = await self._one(
+            """
+            SELECT id, poll_key, poll_kind, requester_property_id, question, status,
+                   opens_at, closes_at, compiled_report, compiled_analysis, created_at
+            FROM g01_community_polls WHERE poll_key = :poll_key
+            """,
+            {"poll_key": fields["poll_key"]},
+        )
+        return found, False
+
+    async def add_community_poll_recipients(self, poll_id: str, properties: list[dict]) -> list[dict]:
+        added = []
+        for prop in properties:
+            rows = await self._write(
+                """
+                INSERT INTO g01_community_poll_recipients (poll_id, property_id, conversation_id)
+                VALUES (CAST(:poll_id AS uuid), CAST(:property_id AS uuid), :conversation_id)
+                ON CONFLICT (poll_id, property_id) DO NOTHING
+                RETURNING id, poll_id, property_id, conversation_id, created_at
+                """,
+                {
+                    "poll_id": poll_id,
+                    "property_id": prop["id"],
+                    "conversation_id": prop.get("primary_conversation_id"),
+                },
+            )
+            added.extend(rows)
+        return added
+
+    async def community_poll_recipients_for(self, poll_id: str) -> list[dict]:
+        return await self._all(
+            """
+            SELECT id, poll_id, property_id, conversation_id, created_at
+            FROM g01_community_poll_recipients
+            WHERE poll_id = CAST(:poll_id AS uuid)
+            ORDER BY created_at, id
+            """,
+            {"poll_id": poll_id},
+        )
+
+    async def pending_community_polls(self, property_id: str) -> list[dict]:
+        return await self._all(
+            """
+            SELECT p.id, p.poll_key, p.poll_kind, p.requester_property_id, p.question,
+                   p.status, p.opens_at, p.closes_at, p.compiled_report,
+                   p.compiled_analysis, p.created_at, r.id AS recipient_id
+            FROM g01_community_poll_recipients r
+            JOIN g01_community_polls p ON p.id = r.poll_id
+            WHERE r.property_id = CAST(:property_id AS uuid)
+              AND p.status = 'open'
+              AND NOT EXISTS (
+                  SELECT 1 FROM g01_community_poll_answers a
+                  WHERE a.poll_id = p.id AND a.property_id = r.property_id
+              )
+            ORDER BY p.opens_at, p.id
+            """,
+            {"property_id": property_id},
+        )
+
+    async def answer_community_poll(self, poll_id: str, property_id: str, answer: str) -> dict | None:
+        rows = await self._write(
+            """
+            INSERT INTO g01_community_poll_answers (poll_id, property_id, answer)
+            SELECT p.id, r.property_id, :answer
+            FROM g01_community_polls p
+            JOIN g01_community_poll_recipients r
+              ON r.poll_id = p.id AND r.property_id = CAST(:property_id AS uuid)
+            WHERE p.id = CAST(:poll_id AS uuid) AND p.status = 'open'
+            ON CONFLICT (poll_id, property_id) DO NOTHING
+            RETURNING id, poll_id, property_id, answer, created_at
+            """,
+            {"poll_id": poll_id, "property_id": property_id, "answer": answer},
+        )
+        if rows:
+            return rows[0]
+        return await self._one(
+            """
+            SELECT id, poll_id, property_id, answer, created_at
+            FROM g01_community_poll_answers
+            WHERE poll_id = CAST(:poll_id AS uuid) AND property_id = CAST(:property_id AS uuid)
+            """,
+            {"poll_id": poll_id, "property_id": property_id},
+        )
+
+    async def community_poll_answers_for(self, poll_id: str) -> list[dict]:
+        return await self._all(
+            """
+            SELECT a.id, a.poll_id, a.property_id, a.answer, a.created_at,
+                   p.username, p.display_name
+            FROM g01_community_poll_answers a
+            JOIN g01_properties p ON p.id = a.property_id
+            WHERE a.poll_id = CAST(:poll_id AS uuid)
+            ORDER BY a.created_at, a.id
+            """,
+            {"poll_id": poll_id},
+        )
+
+    async def get_community_poll(self, poll_id: str) -> dict | None:
+        return await self._one(
+            """
+            SELECT id, poll_key, poll_kind, requester_property_id, question, status,
+                   opens_at, closes_at, compiled_report, compiled_analysis, created_at
+            FROM g01_community_polls WHERE id = CAST(:poll_id AS uuid)
+            """,
+            {"poll_id": poll_id},
+        )
+
+    async def list_community_polls(self, limit: int = 50) -> list[dict]:
+        return await self._all(
+            """
+            SELECT id, poll_key, poll_kind, requester_property_id, question, status,
+                   opens_at, closes_at, compiled_report, compiled_analysis, created_at
+            FROM g01_community_polls
+            ORDER BY created_at DESC, id DESC
+            LIMIT :limit
+            """,
+            {"limit": int(limit)},
+        )
+
+    async def due_community_polls(self) -> list[dict]:
+        return await self._all(
+            """
+            SELECT id, poll_key, poll_kind, requester_property_id, question, status,
+                   opens_at, closes_at, compiled_report, compiled_analysis, created_at
+            FROM g01_community_polls
+            WHERE status = 'open' AND closes_at <= NOW()
+            ORDER BY closes_at, id
+            """
+        )
+
+    async def close_community_poll(self, poll_id: str, report: str, analysis: dict) -> dict | None:
+        rows = await self._write(
+            """
+            UPDATE g01_community_polls
+            SET status = 'closed',
+                compiled_report = :report,
+                compiled_analysis = CAST(:analysis AS jsonb)
+            WHERE id = CAST(:poll_id AS uuid) AND status = 'open'
+            RETURNING id, poll_key, poll_kind, requester_property_id, question, status,
+                      opens_at, closes_at, compiled_report, compiled_analysis, created_at
+            """,
+            {"poll_id": poll_id, "report": report, "analysis": json.dumps(analysis)},
+        )
+        return rows[0] if rows else None
+
     async def create_match(self, fields: dict) -> dict | None:
         peer_a, peer_b = sorted([fields["peer_a_property_id"], fields["peer_b_property_id"]])
         rows = await self._write(

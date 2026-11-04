@@ -25,6 +25,7 @@ from app.errors import G01Error
 from app.homesteaders import open_peer_conversation, resolve_homesteader
 from app.jobs import mature_demand_polls, open_ready_collaborations, recount_referral_windows, scan_neighbor_synergies
 from app.northstar import view_from_property
+from app.polling import close_due_community_polls, compile_community_poll, create_operator_poll
 from app.runtime import open_store
 from app.showcase import list_conversations
 
@@ -36,7 +37,10 @@ HELP = """Commands
                                     Complete profile, ledger, scores, polls, and matches
   chats                             Every Jane and homesteader connection thread
   chat <conversation-id>            Full transcript and participants
-  analyze [all|engagement|northstar|network]
+  polls [limit]                     Daily, requested, and operator polls
+  poll <poll-id>                    Question, response metrics, themes, and answers
+  poll-create "<question>"          Ask every homesteader in their private Jane thread
+  analyze [all|engagement|northstar|network|polls]
                                     Deterministic analyses over all users and chats
   set <user> <field> <value>        Update a whitelisted North Star/profile field
   connect <left> <right> [topic]    Open a private homesteader conversation
@@ -114,6 +118,7 @@ class OperatorBackend:
         users = await self.store.list_properties()
         chats = (await list_conversations(self.store))["conversations"]
         localities = await self.store.list_localities()
+        community_polls = await self.store.list_community_polls()
         return {
             "mode": "minimum showcase",
             "store": type(self.store).__name__,
@@ -122,6 +127,8 @@ class OperatorBackend:
             "peer_connections": sum(row["kind"] == "connection" for row in chats),
             "messages_visible": sum(len(row["messages"]) for row in chats),
             "localities": len(localities),
+            "community_polls": len(community_polls),
+            "open_community_polls": sum(row["status"] == "open" for row in community_polls),
             "integrations": {
                 "chatwoot_account_api": bool(self.settings.chatwoot_api_token),
                 "chatwoot_platform_api": bool(self.settings.chatwoot_platform_token),
@@ -156,6 +163,7 @@ class OperatorBackend:
         prop = await resolve_homesteader(self.store, token)
         locality = await self.store.get_locality(prop["locality_id"])
         polls = await self.store.open_polls_for_requester(prop["id"])
+        community_polls = await self.store.pending_community_polls(prop["id"])
         matches = await self.store.matches_for_property(prop["id"])
         connections = [
             row
@@ -188,6 +196,7 @@ class OperatorBackend:
                 "stripe_identity_session_id": prop.get("stripe_identity_session_id"),
             },
             "open_polls": polls,
+            "pending_community_polls": community_polls,
             "open_matches": matches,
             "connections": connections,
             "updated_at": prop.get("updated_at"),
@@ -215,16 +224,79 @@ class OperatorBackend:
         raise G01Error("conversation not found", 404)
 
     async def analyze(self, kind: str = "all") -> dict:
-        if kind not in {"all", "engagement", "northstar", "network"}:
-            raise G01Error("analysis must be all, engagement, northstar, or network", 422)
+        if kind not in {"all", "engagement", "northstar", "network", "polls"}:
+            raise G01Error("analysis must be all, engagement, northstar, network, or polls", 422)
         users = await self.store.list_properties()
         chats = (await list_conversations(self.store))["conversations"]
         analyses = {
             "engagement": self._engagement(users, chats),
             "northstar": self._northstar(users),
             "network": self._network(users, chats),
+            "polls": await self.poll_analysis(),
         }
         return analyses if kind == "all" else analyses[kind]
+
+    async def polls(self, limit: int = 50) -> list[dict]:
+        rows = []
+        for poll in await self.store.list_community_polls(limit):
+            compiled = await compile_community_poll(self.store, poll)
+            analysis = compiled["analysis"]
+            rows.append(
+                {
+                    "id": poll["id"],
+                    "kind": poll["poll_kind"],
+                    "status": poll["status"],
+                    "question": poll["question"],
+                    "responses": f"{analysis['response_count']}/{analysis['recipient_count']}",
+                    "response_rate_pct": analysis["response_rate_pct"],
+                    "closes_at": poll["closes_at"],
+                }
+            )
+        return rows
+
+    async def poll(self, poll_id: str) -> dict:
+        poll = await self.store.get_community_poll(poll_id)
+        if poll is None:
+            raise G01Error("poll not found", 404)
+        return await compile_community_poll(self.store, poll)
+
+    async def create_poll(self, question: str, *, allow_write: bool) -> dict:
+        if not allow_write:
+            raise WriteConfirmationRequired
+        return await create_operator_poll(self.store, question, self.settings)
+
+    async def poll_analysis(self) -> dict:
+        polls = await self.store.list_community_polls(1000)
+        compiled = [await compile_community_poll(self.store, poll) for poll in polls]
+        themes: Counter[str] = Counter()
+        for row in compiled:
+            themes.update(
+                {theme["theme"]: theme["mentions"] for theme in row["analysis"]["themes"]}
+            )
+        return {
+            "summary": {
+                "polls": len(polls),
+                "open": sum(row["status"] == "open" for row in polls),
+                "recipients": sum(row["analysis"]["recipient_count"] for row in compiled),
+                "responses": sum(row["analysis"]["response_count"] for row in compiled),
+            },
+            "themes": [
+                {"theme": theme, "mentions": mentions}
+                for theme, mentions in themes.most_common(12)
+            ],
+            "polls": [
+                {
+                    "id": row["poll"]["id"],
+                    "question": row["poll"]["question"],
+                    "status": row["poll"]["status"],
+                    **{
+                        key: row["analysis"][key]
+                        for key in ("recipient_count", "response_count", "response_rate_pct", "action_candidates")
+                    },
+                }
+                for row in compiled
+            ],
+        }
 
     def _engagement(self, users: list[dict], chats: list[dict]) -> dict:
         private = {int(row["conversation_id"]): row for row in chats if row["kind"] == "jane"}
@@ -363,14 +435,18 @@ class OperatorBackend:
         }
 
     async def run_jobs(self, name: str, *, allow_write: bool) -> dict:
-        valid = {"polls", "matches", "referrals", "connections", "all"}
+        valid = {"polls", "community-polls", "matches", "referrals", "connections", "all"}
         if name not in valid:
-            raise G01Error("job must be polls, matches, referrals, connections, or all", 422)
+            raise G01Error("job must be polls, community-polls, matches, referrals, connections, or all", 422)
         if not allow_write:
             raise WriteConfirmationRequired
         result: dict[str, Any] = {}
         if name in {"polls", "all"}:
             result["poll_reports"] = await mature_demand_polls(self.store)
+        if name in {"community-polls", "all"}:
+            result["closed_community_poll_ids"] = [
+                row["id"] for row in await close_due_community_polls(self.store)
+            ]
         if name in {"matches", "all"}:
             result["new_match_ids"] = await scan_neighbor_synergies(self.store)
         if name in {"referrals", "all"}:
@@ -396,7 +472,8 @@ class OperatorBackend:
             {"area": "Campaigns and help center", "status": "administrator", "operator_action": "Use their normal Chatwoot workflows when content and audiences are configured."},
             {"area": "Email, WhatsApp, social channels", "status": "provider required", "operator_action": "Add and verify each external provider before using its inbox."},
             {"area": "North Star and ledger", "status": "inspectable", "operator_action": "Use `user` or `analyze northstar`; live MS chat does not update it."},
-            {"area": "Poll and match workflows", "status": "manual", "operator_action": "Use `jobs`; the scheduler remains off in MS."},
+            {"area": "Jane daily and poll-mode questions", "status": "active", "operator_action": "Use `polls`, `poll`, `poll-create`, or `analyze polls`; Jane schedules and captures answers."},
+            {"area": "Legacy demand and match workflows", "status": "manual", "operator_action": "Use `jobs`; the Celery scheduler remains off in MS."},
             {"area": "Sponsor ranking", "status": "inspectable", "operator_action": "Use `rank <user> <service-tag>`."},
             {"area": "Stripe and identity", "status": "configured only with keys", "operator_action": "Dashboard shows readiness; payment webhooks remain supported."},
         ]
@@ -415,6 +492,14 @@ class OperatorBackend:
             return CommandOutput("Conversations", await self.chats())
         if command in {"chat", "conversation"} and len(args) == 1 and args[0].isdigit():
             return CommandOutput(f"Conversation {args[0]}", await self.chat(int(args[0])))
+        if command == "polls" and len(args) <= 1 and (not args or args[0].isdigit()):
+            limit = int(args[0]) if args else 50
+            return CommandOutput("Jane polls", await self.polls(limit))
+        if command == "poll" and len(args) == 1:
+            return CommandOutput(f"Jane poll: {args[0]}", await self.poll(args[0]))
+        if command == "poll-create" and args:
+            question = " ".join(args)
+            return CommandOutput("Jane poll created", await self.create_poll(question, allow_write=allow_write))
         if command == "analyze" and len(args) <= 1:
             kind = args[0] if args else "all"
             return CommandOutput(f"Analysis: {kind}", await self.analyze(kind))

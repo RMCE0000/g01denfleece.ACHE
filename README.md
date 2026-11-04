@@ -90,9 +90,11 @@ docker compose exec jane python -m app.operator
 ```
 
 It lists and inspects all homesteaders and conversations, shows complete
-property records, runs deterministic engagement/North Star/network analyses,
-opens peer conversations, previews sponsor ranking, and can explicitly run the
-dormant poll, match, referral, and connection jobs. Mutating commands require
+property records, runs deterministic engagement/North Star/network/poll analyses,
+opens peer conversations, previews sponsor ranking, creates community polls,
+and can explicitly run the dormant demand-poll, match, referral, and connection jobs. Jane also sends one rotating daily question to every private Jane thread;
+`poll mode` starts the community-action question and `poll mode: <question>`
+broadcasts a supplied question. Mutating commands require
 confirmation. `python -m app.operator --json analyze all` provides scriptable
 output. See [`docs/OPERATOR_COMMAND_CENTER.md`](docs/OPERATOR_COMMAND_CENTER.md)
 for the command list and the supported Chatwoot capability boundary.

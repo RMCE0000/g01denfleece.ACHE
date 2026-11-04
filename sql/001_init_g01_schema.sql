@@ -229,6 +229,40 @@ CREATE TABLE IF NOT EXISTS g01_poll_invites (
     UNIQUE (poll_id, neighbor_property_id)
 );
 
+-- General Jane polls: one curated daily question, plus explicit user/operator
+-- questions. These keep free-text answers separate from demand units/prices.
+CREATE TABLE IF NOT EXISTS g01_community_polls (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    poll_key VARCHAR(255) NOT NULL UNIQUE,
+    poll_kind VARCHAR(24) NOT NULL CHECK (poll_kind IN ('daily', 'requested', 'operator')),
+    requester_property_id UUID REFERENCES g01_properties(id) ON DELETE SET NULL,
+    question TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+    opens_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    closes_at TIMESTAMPTZ NOT NULL,
+    compiled_report TEXT,
+    compiled_analysis JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS g01_community_poll_recipients (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    poll_id UUID NOT NULL REFERENCES g01_community_polls(id) ON DELETE CASCADE,
+    property_id UUID NOT NULL REFERENCES g01_properties(id) ON DELETE CASCADE,
+    conversation_id BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (poll_id, property_id)
+);
+
+CREATE TABLE IF NOT EXISTS g01_community_poll_answers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    poll_id UUID NOT NULL REFERENCES g01_community_polls(id) ON DELETE CASCADE,
+    property_id UUID NOT NULL REFERENCES g01_properties(id) ON DELETE CASCADE,
+    answer TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (poll_id, property_id)
+);
+
 -- 6. NEIGHBOR COLLABORATION MATCHES
 CREATE TABLE IF NOT EXISTS g01_neighbor_matches (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -294,6 +328,9 @@ CREATE INDEX IF NOT EXISTS g01_sponsors_locality_idx ON g01_sponsors (locality_i
 CREATE INDEX IF NOT EXISTS g01_sponsors_tags_idx ON g01_sponsors USING GIN (service_tags);
 CREATE INDEX IF NOT EXISTS g01_properties_locality_idx ON g01_properties (locality_id);
 CREATE INDEX IF NOT EXISTS g01_demand_polls_status_idx ON g01_demand_polls (status, mature_at);
+CREATE INDEX IF NOT EXISTS g01_community_polls_status_idx ON g01_community_polls (status, closes_at);
+CREATE INDEX IF NOT EXISTS g01_community_poll_recipients_property_idx
+    ON g01_community_poll_recipients (property_id, poll_id);
 CREATE INDEX IF NOT EXISTS g01_properties_goals_hnsw
     ON g01_properties USING hnsw (goals_embedding vector_cosine_ops);
 

@@ -1,8 +1,10 @@
 """FastAPI entrypoint. Homesteaders use the Chatwoot thread. This process is webhooks and admin only."""
 
+import asyncio
 import logging
 import secrets
 from contextlib import asynccontextmanager
+from contextlib import suppress
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -12,6 +14,7 @@ from app.config import get_settings
 from app.errors import G01Error
 from app.homesteaders import open_peer_conversation, provision_homesteader, register_homesteader, sync_workspace_metadata
 from app.payments import apply_stripe_event
+from app.polling import poll_scheduler
 from app.runtime import current_checkpointer, open_checkpointer, open_store, set_store
 from app.stripe_service import construct_event
 from app.showcase import list_conversations
@@ -65,6 +68,7 @@ async def lifespan(app: FastAPI):
     app.state.store = store
     set_store(store)
     lease = None
+    poll_task = None
     if settings.database_url and override is None:
         lease = await open_checkpointer(settings.database_url)
         current_checkpointer.set(lease.saver)
@@ -86,9 +90,15 @@ async def lifespan(app: FastAPI):
                 await seed_signed_in_homesteaders(store)
             except Exception:
                 log.exception("signed-in homesteader seed did not finish")
+    if override is None:
+        poll_task = asyncio.create_task(poll_scheduler(store, settings), name="jane-poll-scheduler")
     try:
         yield
     finally:
+        if poll_task is not None:
+            poll_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await poll_task
         if lease is not None:
             current_checkpointer.set(None)
             await lease.close()
