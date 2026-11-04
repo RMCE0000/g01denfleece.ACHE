@@ -47,7 +47,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-The website is [g01denfleece.com](https://g01denfleece.com). Login, the widget header, and the reset email use that name. On this machine the app is still `http://localhost:3000`. The public host is a DigitalOcean droplet; see below.
+The website is [g01denfleece.com](https://g01denfleece.com). Login, the widget header, and the reset email use that name. On this machine the app is still `http://localhost:3000`. The public host is a Google Compute Engine VM; see below.
 
 The homesteader signs in at Chatwoot: `http://localhost:3000/app/login`. The screen is white with gold accents and the g01 logo. **Forgot your password?** emails a reset link. Locally that mail is in Mailpit at `http://localhost:8025`. A public launch points `SMTP_ADDRESS` at a real mailbox. **Create an account** on the login page asks for a name, unique username, email, password, and a ZIP already on the record (such as 70601). That creates the sign-in and a private thread with Jane, then opens it. Chatwoot's own account signup stays off, because that form would open a separate empty account. After bootstrap, `.chatwoot-bootstrap/operator.txt` has Jane's agent login and the admin token. When Jane finishes starting, `.chatwoot-bootstrap/homesteaders.txt` has two local demo people:
 
@@ -123,14 +123,22 @@ The seeded Lake Charles thread is conversation 501, contact 101. Rogers is conve
 
 Turn off the Chatwoot inbox auto-resolve timer. Jane's user id defaults to 1. Point a `message_created` webhook at `http://jane:8000/webhooks/chatwoot`. Do not add a Dashboard App.
 
-## DigitalOcean
+## Google Cloud
 
 The complete production procedure is
-[`docs/DIGITALOCEAN_LAUNCH.md`](docs/DIGITALOCEAN_LAUNCH.md). It covers the
-droplet, cloud firewall, DNS, SMTP, Gemini, Stripe Checkout and Identity,
-first boot, smoke tests, backups, updates, and rollback.
+[`docs/GOOGLE_CLOUD_LAUNCH.md`](docs/GOOGLE_CLOUD_LAUNCH.md). It covers the
+Compute Engine VM, VPC firewall, DNS, SMTP, Gemini, Stripe Checkout and
+Identity, first boot, smoke tests, backups, updates, and rollback.
 
-After DNS and provider accounts are ready, the droplet-side path is:
+Create the US VM after `gcloud` is authenticated:
+
+```bash
+export GCP_PROJECT=YOUR_PROJECT_ID
+export SSH_SOURCE_IP='YOUR.PUBLIC.IP/32'
+bash deploy/google-cloud/create-vm.sh
+```
+
+After DNS and provider accounts are ready, the VM-side path is:
 
 ```bash
 git clone https://github.com/RMCE0000/g01denfleece.ACHE.git
@@ -141,8 +149,10 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 sh deploy/check-running.sh
 ```
 
-Caddy serves Chatwoot and exposes only Jane's signature-verified Stripe webhook.
-Jane's admin API remains on droplet loopback at `http://127.0.0.1:8000`.
+Create the Stripe webhook only after
+`https://g01denfleece.com/webhooks/stripe` returns HTTP 400 for an unsigned
+POST. Caddy serves Chatwoot and exposes only Jane's signature-verified Stripe
+webhook. Jane's admin API remains on VM loopback at `http://127.0.0.1:8000`.
 
 Tests:
 

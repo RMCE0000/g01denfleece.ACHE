@@ -1,6 +1,6 @@
-# DigitalOcean host. Use with the local file:
+# Production VM host. Use with the local file:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-# Ports 3000 and 8025 are not published. Jane's admin API stays on the droplet loopback.
+# Ports 3000 and 8025 are not published. Jane's admin API stays on the VM loopback.
 
 services:
   caddy:

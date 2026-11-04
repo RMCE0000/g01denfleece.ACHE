@@ -1,0 +1,18 @@
+#cloud-config
+# Paste this as GCE user-data, or pass it with:
+#   --metadata-from-file user-data=deploy/google-cloud/cloud-init.yaml
+# It installs Docker and allows SSH, HTTP, and HTTPS on the machine itself.
+# A VPC firewall is still required, because Docker can bypass ufw.
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - ufw
+runcmd:
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable --now docker
+  - ufw allow OpenSSH
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable

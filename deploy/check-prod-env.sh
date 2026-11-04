@@ -39,22 +39,22 @@ stripe_price=$(value G01_STRIPE_SPONSOR_PRICE_ID)
 
 case "$secret" in
   ""|G01devSecretKeyBase0123456789abcdefghijklmnopqrstuvwxyzABCDEF|*replace-with*)
-    fail "SECRET_KEY_BASE still has a placeholder. On the droplet: openssl rand -hex 64"
+    fail "SECRET_KEY_BASE still has a placeholder. On the VM: openssl rand -hex 64"
     ;;
 esac
 case "$postgres" in
   ""|g01|*replace-with*)
-    fail "POSTGRES_PASSWORD still has a placeholder. On the droplet: openssl rand -hex 24"
+    fail "POSTGRES_PASSWORD still has a placeholder. On the VM: openssl rand -hex 24"
     ;;
 esac
 case "$admin" in
   ""|g01-local-admin-token|*replace-with*)
-    fail "G01_ADMIN_TOKEN still has a placeholder. On the droplet: openssl rand -hex 32"
+    fail "G01_ADMIN_TOKEN still has a placeholder. On the VM: openssl rand -hex 32"
     ;;
 esac
 case "$bridge" in
   ""|g01-local-bridge-token|*replace-with*)
-    fail "G01_BRIDGE_SECRET still has a placeholder. On the droplet: openssl rand -hex 32"
+    fail "G01_BRIDGE_SECRET still has a placeholder. On the VM: openssl rand -hex 32"
     ;;
 esac
 [ "$bridge" != "$admin" ] || fail "G01_BRIDGE_SECRET must differ from G01_ADMIN_TOKEN"

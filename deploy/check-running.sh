@@ -1,5 +1,5 @@
 #!/bin/sh
-# Run on the droplet after the production Compose stack is up and DNS points at it.
+# Run on the VM after the production Compose stack is up and DNS points at it.
 set -eu
 
 dc() {

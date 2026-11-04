@@ -34,8 +34,12 @@ def test_production_compose_publishes_only_the_website():
     ).read_text(encoding="utf-8")
     assert "condition: service_healthy" in compose
     assert "git" in (
-        ROOT / "deploy" / "digitalocean" / "cloud-init.yaml"
+        ROOT / "deploy" / "google-cloud" / "cloud-init.yaml"
     ).read_text(encoding="utf-8")
+    launch = (ROOT / "docs" / "GOOGLE_CLOUD_LAUNCH.md").read_text(encoding="utf-8")
+    assert "us-central1" in launch
+    assert "webhooks/stripe" in launch
+    assert "create-vm.sh" in launch
     bootstrap = (ROOT / "ops" / "bootstrap_chatwoot.rb").read_text(encoding="utf-8")
     assert 'raise "g01 platform token is empty"' in bootstrap
     assert 'raise "g01 Chatwoot API token is empty"' in bootstrap

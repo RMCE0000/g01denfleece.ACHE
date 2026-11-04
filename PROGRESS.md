@@ -27,8 +27,8 @@ The minimum showcase (MS). Jane's LangChain flow sends her constitution and role
 - Sign-in, the gold and white g01 chat, **Create an account**, and the private pair inbox are unchanged. Jane stays quiet in a connection unless someone says her name.
 - **Forgot your password?** sends a reset link. Compose delivers that mail to Mailpit (`http://localhost:8025`) until `SMTP_ADDRESS` is a real mailbox.
 - The website name is **g01denfleece.com** (`https://g01denfleece.com`). Login, the widget, and reset mail use that name. This machine still serves the app at `localhost` until the public host points here.
-- The public host is one DigitalOcean droplet in Atlanta: Ubuntu 24.04, 8 GB RAM, 4 vCPU. `docker-compose.prod.yml` publishes only ports 80 and 443. Jane's admin API stays on `127.0.0.1:8000`.
-- Launch review: images are pinned, strict bootstrap requires both Chatwoot tokens, Caddy waits for Jane's health check, the droplet installs Git, and postflight checks the public stack. Jane receives the same constitution and history with real chat roles so the small model keeps Jane and the homesteader distinct.
+- The public host is one Google Compute Engine VM in `us-central1`: Ubuntu 24.04, `e2-standard-4`. `docker-compose.prod.yml` publishes only ports 80 and 443. Jane's admin API stays on `127.0.0.1:8000`.
+- Launch review: images are pinned, strict bootstrap requires both Chatwoot tokens, Caddy waits for Jane's health check, the VM installs Git, and postflight checks the public stack. Jane receives the same constitution and history with real chat roles so the small model keeps Jane and the homesteader distinct.
 
 The demand-poll checkpointer path and automatic maturity are fixed. Remaining
 product work is sponsor ratings, capability embeddings, blueprint reading, and
