@@ -1,10 +1,14 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 
+from langgraph.checkpoint.memory import MemorySaver
+
 from app.chatwoot_client import ChatwootClient
 from app.jobs import mature_demand_polls, open_ready_collaborations, scan_neighbor_synergies
 from app.llm import llm_override
 from app.matchmaking import approve_match
+from app.payments import apply_stripe_event
+from app.runtime import current_checkpointer
 from app.seed import DEMO_CONTACT_ID, DEMO_CONVERSATION_ID, DEMO_PROPERTY_ID, DEMO_USER_ID
 from tests.ledger_turn import ledger_reply, run_ledger_turn
 
@@ -166,7 +170,11 @@ def test_demand_poll_waits_twenty_four_hours(client, store):
     early = asyncio.run(mature_demand_polls(store))
     assert early == []
     poll["mature_at"] = datetime.now(timezone.utc) - timedelta(minutes=1)
-    reports = asyncio.run(mature_demand_polls(store))
+    checkpointer = current_checkpointer.set(MemorySaver())
+    try:
+        reports = asyncio.run(mature_demand_polls(store))
+    finally:
+        current_checkpointer.reset(checkpointer)
     assert reports and "2.00" in reports[0]
     assert "$5.00" in reports[0]
     assert store.polls[0]["status"] == "completed"
@@ -280,6 +288,31 @@ def test_sponsor_registry_is_a_conversation(client, store):
     )
     assert "Walmart" in rogers.json()["reply"]
     assert "ui/hud" not in rogers.json()["reply"]
+
+
+def test_stripe_event_retries_are_idempotent(store):
+    sponsor = store.sponsors[0]
+    sponsor["is_active_sponsor"] = False
+    asyncio.run(store.attach_checkout("cs_launch", sponsor["id"]))
+    event = {
+        "id": "evt_launch",
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "id": "cs_launch",
+                "payment_status": "paid",
+                "customer": "cus_launch",
+                "subscription": "sub_launch",
+            }
+        },
+    }
+
+    first = asyncio.run(apply_stripe_event(store, event))
+    second = asyncio.run(apply_stripe_event(store, event))
+
+    assert first["active"] is True
+    assert second == {"ok": True, "duplicate": True}
+    assert store.sponsors[0]["stripe_subscription_id"] == "sub_launch"
 
 
 def test_zip_attaches_the_thread_and_hides_the_street(client, store):

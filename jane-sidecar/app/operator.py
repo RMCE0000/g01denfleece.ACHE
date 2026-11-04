@@ -703,10 +703,10 @@ class OperatorBackend:
             {"area": "Reports", "status": "administrator", "operator_action": "Use Chatwoot reports for messaging operations and this console for g01 analyses."},
             {"area": "Campaigns and help center", "status": "administrator", "operator_action": "Use their normal Chatwoot workflows when content and audiences are configured."},
             {"area": "Email, WhatsApp, social channels", "status": "provider required", "operator_action": "Add and verify each external provider before using its inbox."},
-            {"area": "North Star and ledger", "status": "inspectable", "operator_action": "Use `user` or `analyze northstar`; live MS chat does not update it."},
+            {"area": "North Star and ledger", "status": "active", "operator_action": "Jane applies grounded user statements in live private chat; use `user` or `analyze northstar` to inspect them."},
             {"area": "Jane daily and poll-mode questions", "status": "active", "operator_action": "Use `polls`, `poll`, `poll-create`, or `analyze polls`; Jane schedules and captures answers."},
             {"area": "Automatic matchmaking", "status": "active with approval", "operator_action": "Discovery is automatic. Use `matches`, then `match-approve` or `match-reject`; pending matches never contact users."},
-            {"area": "Legacy demand polling", "status": "manual", "operator_action": "Use `jobs polls`; the Celery scheduler remains off in MS."},
+            {"area": "24-hour demand polling", "status": "active", "operator_action": "Jane schedules grounded demand synthesis in the sidecar; `jobs polls` remains available for operators."},
             {"area": "Sponsor profiles and ranking", "status": "active", "operator_action": "Use `sponsor-add`, `sponsors`, lifecycle commands, and `rank`; a homestead link is optional."},
             {"area": "Stripe and identity", "status": "configured only with keys", "operator_action": "Dashboard shows readiness; payment webhooks remain supported."},
         ]

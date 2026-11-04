@@ -8,6 +8,19 @@ log = logging.getLogger(__name__)
 
 
 async def apply_stripe_event(store, event: dict) -> dict:
+    event_id = str(event.get("id") or "").strip()
+    dedupe_id = f"stripe:{event_id}" if event_id else ""
+    if dedupe_id and not await store.mark_event(dedupe_id):
+        return {"ok": True, "duplicate": True}
+    try:
+        return await _apply_stripe_event(store, event)
+    except Exception:
+        if dedupe_id:
+            await store.unmark_event(dedupe_id)
+        raise
+
+
+async def _apply_stripe_event(store, event: dict) -> dict:
     kind = event.get("type")
     data = (event.get("data") or {}).get("object") or {}
     if kind == "checkout.session.completed":

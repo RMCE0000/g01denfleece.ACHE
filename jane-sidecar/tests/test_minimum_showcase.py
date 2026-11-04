@@ -133,6 +133,54 @@ def test_prompt_is_the_constitution_and_the_history(client, store):
     assert len([row for row in store.transcript if row["message_id"] == "1"]) == 1
 
 
+def test_live_private_chat_applies_scores_and_grounded_sponsor_ranking(client, store):
+    token = gemini_override.set(
+        lambda _model, _messages, _complexity: "I will use your recorded information."
+    )
+    try:
+        response = client.post(
+            "/webhooks/chatwoot",
+            json=_message(
+                "I work 10 hours a week. Where can I get grow lights?",
+                801,
+                name="Ada",
+            ),
+        )
+    finally:
+        gemini_override.reset(token)
+
+    assert response.status_code == 200
+    assert "Calcasieu Glass & Lamp" in response.json()["reply"]
+    assert store.properties[0]["outside_aid_hours_per_week"] == 10
+    assert store.properties[0]["northstar_automated_pct"] == 75
+    assert store.sponsors[0]["referrals_last_14d"] == 1
+
+
+def test_live_private_chat_files_a_homestead_sponsor_profile(client, store):
+    application = "\n".join(
+        [
+            "Register as a sponsor.",
+            "Company: Ada Tomatoes",
+            "Founding city: Lake Charles",
+            "Founding state: LA",
+            "Tier: local_manufacturer",
+            "Tags: tomato, produce",
+            "Summary: Grows tomatoes for nearby homesteads.",
+            "Franchise: no",
+        ]
+    )
+    response = client.post(
+        "/webhooks/chatwoot",
+        json=_message(application, 802, name="Ada"),
+    )
+
+    assert response.status_code == 200
+    assert "inactive sponsor" in response.json()["reply"]
+    filed = next(row for row in store.sponsors if row["company_name"] == "Ada Tomatoes")
+    assert filed["property_id"] == DEMO_PROPERTY_ID
+    assert filed["is_active_sponsor"] is False
+
+
 def test_a_connection_stays_quiet_until_someone_says_jane(client, store):
     calls = []
     token = gemini_override.set(

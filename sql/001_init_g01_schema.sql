@@ -583,15 +583,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Origin registry shipped with the two localities. These rows are already active.
--- A homesteader who files a new sponsor in the thread still stays inactive until Stripe pays.
+-- Illustrative profiles ship inactive. Operators must verify and activate real
+-- businesses; Jane must never recommend a fictional seed profile at launch.
 INSERT INTO g01_sponsors (
     id, locality_id, company_name, founding_city, founding_state, is_franchise_or_chain,
     sourcing_tier, service_tags, capabilities_summary, lat, lng, is_active_sponsor
 )
 SELECT
     seed.id, loc.id, seed.company_name, seed.founding_city, seed.founding_state, seed.is_franchise,
-    seed.sourcing_tier, seed.service_tags, seed.summary, seed.lat, seed.lng, TRUE
+    seed.sourcing_tier, seed.service_tags, seed.summary, seed.lat, seed.lng, FALSE
 FROM (
     VALUES
         ('cccccccc-cccc-cccc-cccc-ccccccccccc1'::uuid, 'Lake Charles', 'LA', 'Calcasieu Glass & Lamp', 'Lake Charles', 'LA', FALSE, 'local_manufacturer', ARRAY['grow_lights'], 'Blows and wires small greenhouse lamps in Lake Charles.', 30.2400::float8, -93.2200::float8),
@@ -603,4 +603,13 @@ JOIN g01_localities loc ON loc.primary_city = seed.city AND loc.state_code = see
 WHERE NOT EXISTS (
     SELECT 1 FROM g01_sponsors existing
     WHERE existing.locality_id = loc.id AND existing.company_name = seed.company_name
+);
+
+UPDATE g01_sponsors
+SET is_active_sponsor = FALSE
+WHERE id IN (
+    'cccccccc-cccc-cccc-cccc-ccccccccccc1',
+    'cccccccc-cccc-cccc-cccc-ccccccccccc2',
+    'cccccccc-cccc-cccc-cccc-ccccccccccc3',
+    'cccccccc-cccc-cccc-cccc-ccccccccccc4'
 );

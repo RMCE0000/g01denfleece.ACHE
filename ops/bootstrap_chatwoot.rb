@@ -11,7 +11,9 @@ INBOX_NAME = "Homestead"
 SITE_NAME = "g01denfleece.com"
 SITE_URL = "https://g01denfleece.com"
 OUT_DIR = "/bootstrap/out"
-WEBHOOK_URL = ENV.fetch("JANE_WEBHOOK_URL", "http://jane:8000/webhooks/chatwoot")
+WEBHOOK_BASE_URL = ENV.fetch("JANE_WEBHOOK_URL", "http://jane:8000/webhooks/chatwoot")
+WEBHOOK_SECRET = ENV.fetch("G01_CHATWOOT_WEBHOOK_SECRET", "")
+WEBHOOK_URL = WEBHOOK_SECRET.empty? ? WEBHOOK_BASE_URL : "#{WEBHOOK_BASE_URL}?token=#{WEBHOOK_SECRET}"
 FRONTEND = ENV.fetch("FRONTEND_URL", "http://localhost:3000")
 
 FileUtils.mkdir_p(OUT_DIR)
@@ -169,6 +171,9 @@ rescue StandardError => e
   puts "g01 sign-in was left on the installation screen: #{e.message}"
 end
 
+# Remove an older unsigned/tokenized g01 hook before saving the canonical URL.
+# Otherwise Chatwoot delivers each message twice and one delivery may 401.
+Webhook.where(account: account).where("url LIKE ?", "#{WEBHOOK_BASE_URL}%").where.not(url: WEBHOOK_URL).destroy_all
 hook = Webhook.find_by(account: account, url: WEBHOOK_URL) || Webhook.new(account: account, url: WEBHOOK_URL)
 hook.subscriptions = ["message_created"]
 hook.webhook_type = :account_type

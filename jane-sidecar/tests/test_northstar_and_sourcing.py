@@ -222,4 +222,6 @@ def test_constitution_and_sql_keep_the_rules():
         "vector(768)",
     ):
         assert phrase in SQL
+    assert "seed.lng, FALSE" in SQL
+    assert "SET is_active_sponsor = FALSE" in SQL
     assert "amazon.com" not in SQL.lower()

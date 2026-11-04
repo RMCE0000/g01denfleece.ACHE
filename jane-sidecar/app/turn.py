@@ -9,7 +9,7 @@ from app.config import get_settings
 from app.matchmaking import handle_private_match_message
 from app.polling import handle_private_poll_message
 from app.runtime import set_store
-from app.showcase import answer
+from app.showcase import answer, answer_with_effects
 
 
 def extract_message(payload: dict) -> dict:
@@ -101,7 +101,8 @@ async def run_turn(store, payload: dict) -> dict:
     message["speaker"] = await _speaker_name(store, message)
     conversation_id = int(message["conversation_id"])
     try:
-        if await store.is_peer_conversation(conversation_id) and not _MENTIONS_JANE.search(message.get("content") or ""):
+        is_peer = await store.is_peer_conversation(conversation_id)
+        if is_peer and not _MENTIONS_JANE.search(message.get("content") or ""):
             await _remember_incoming(store, message)
             return {"ok": True, "ignored": "peer"}
         match_reply = await handle_private_match_message(store, message)
@@ -110,7 +111,7 @@ async def run_turn(store, payload: dict) -> dict:
         poll_reply = await handle_private_poll_message(store, message)
         if poll_reply is not None:
             return {"ok": True, "reply": poll_reply, "poll": True}
-        reply = await answer(store, message)
+        reply = await answer(store, message) if is_peer else await answer_with_effects(store, message)
     except Exception:
         await store.unmark_event(event_id)
         raise

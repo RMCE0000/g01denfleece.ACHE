@@ -32,6 +32,10 @@ smtp_password=$(value SMTP_PASSWORD)
 sender=$(value MAILER_SENDER_EMAIL)
 seed=$(value G01_SEED_HOMESTEADERS)
 gemini=$(value G01_GEMINI_API_KEY)
+chatwoot_webhook=$(value G01_CHATWOOT_WEBHOOK_SECRET)
+stripe_secret=$(value G01_STRIPE_SECRET_KEY)
+stripe_webhook=$(value G01_STRIPE_WEBHOOK_SECRET)
+stripe_price=$(value G01_STRIPE_SPONSOR_PRICE_ID)
 
 case "$secret" in
   ""|G01devSecretKeyBase0123456789abcdefghijklmnopqrstuvwxyzABCDEF|*replace-with*)
@@ -54,6 +58,11 @@ case "$bridge" in
     ;;
 esac
 [ "$bridge" != "$admin" ] || fail "G01_BRIDGE_SECRET must differ from G01_ADMIN_TOKEN"
+case "$chatwoot_webhook" in
+  ""|*replace-with*) fail "G01_CHATWOOT_WEBHOOK_SECRET needs a dedicated openssl rand -hex 32 value" ;;
+esac
+[ "$chatwoot_webhook" != "$admin" ] || fail "G01_CHATWOOT_WEBHOOK_SECRET must differ from G01_ADMIN_TOKEN"
+[ "$chatwoot_webhook" != "$bridge" ] || fail "G01_CHATWOOT_WEBHOOK_SECRET must differ from G01_BRIDGE_SECRET"
 printf '%s' "$database_url" | grep -F -q "$postgres" || fail "G01_DATABASE_URL must contain the same POSTGRES_PASSWORD"
 [ "$frontend" = "https://g01denfleece.com" ] || fail "FRONTEND_URL must be https://g01denfleece.com"
 [ "$public_url" = "https://g01denfleece.com" ] || fail "G01_CHATWOOT_PUBLIC_URL must be https://g01denfleece.com"
@@ -73,6 +82,18 @@ esac
 [ "$seed" = "0" ] || fail "G01_SEED_HOMESTEADERS must be 0 on the public machine"
 case "$gemini" in
   ""|*replace-with*) fail "G01_GEMINI_API_KEY needs a Google AI Studio API key" ;;
+esac
+case "$stripe_secret" in
+  sk_live_*|sk_test_*) ;;
+  *) fail "G01_STRIPE_SECRET_KEY must be a Stripe sk_live_ or sk_test_ key" ;;
+esac
+case "$stripe_webhook" in
+  whsec_*) ;;
+  *) fail "G01_STRIPE_WEBHOOK_SECRET must be the endpoint's whsec_ signing secret" ;;
+esac
+case "$stripe_price" in
+  price_*) ;;
+  *) fail "G01_STRIPE_SPONSOR_PRICE_ID must be a Stripe price_ id" ;;
 esac
 
 echo "production env is ready"

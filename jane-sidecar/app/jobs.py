@@ -1,7 +1,9 @@
 """Scheduled work shared by Celery and tests."""
 
+import asyncio
 import logging
 
+from app.config import Settings, get_settings
 from app.collaboration import refresh_match_gate
 from app.graphs.demand_poll_graph import build_demand_poll_graph
 from app.graphs.matchmaking_graph import discover_neighbor_synergies
@@ -15,10 +17,25 @@ async def mature_demand_polls(store) -> list[str]:
     graph = build_demand_poll_graph()
     reports = []
     for poll in await store.mature_polls():
-        result = await graph.ainvoke({"poll_id": poll["id"]})
+        result = await graph.ainvoke(
+            {"poll_id": poll["id"]},
+            config={"configurable": {"thread_id": f"demand-poll:{poll['id']}"}},
+        )
         if result.get("report"):
             reports.append(result["report"])
     return reports
+
+
+async def demand_poll_scheduler(store, settings: Settings | None = None) -> None:
+    settings = settings or get_settings()
+    while True:
+        try:
+            await mature_demand_polls(store)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("demand poll cycle failed")
+        await asyncio.sleep(settings.demand_poll_scheduler_interval_seconds)
 
 
 async def scan_neighbor_synergies(store) -> list[str]:

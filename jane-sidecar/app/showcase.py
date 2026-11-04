@@ -6,8 +6,10 @@ from app.chatwoot_client import ChatwootClient
 from app.config import get_settings
 from app.constitution import JANE_CONSTITUTION
 from app.delivery import deliver
+from app.effects import commit_decision
 from app.gemini_flow import complete_text
 from app.homesteaders import conversation_url
+from app.heuristic import heuristic_decision
 from app.sanitize import sanitize_reply
 
 log = logging.getLogger(__name__)
@@ -117,6 +119,37 @@ async def answer(store, message: dict) -> str:
     )
     await deliver(store, int(message["conversation_id"]), cleaned)
     return cleaned
+
+
+async def answer_with_effects(store, message: dict) -> str:
+    """Keep the history-aware Gemini reply while applying grounded product workflows."""
+    lines = await history_for(store, message)
+    reply = reply_as_jane(await complete_text(JANE_CONSTITUTION, render_history(lines), lines), lines)
+    cleaned = sanitize_reply(reply).strip() or _BLOCKED
+    prop = await store.get_property_by_conversation(int(message["conversation_id"]))
+    if prop is None and message.get("contact_id") is not None:
+        prop = await store.get_property_by_contact(int(message["contact_id"]))
+    if prop is None and message.get("user_id") is not None:
+        prop = await store.get_property_by_user(int(message["user_id"]))
+    locality = await store.get_locality(prop["locality_id"]) if prop else None
+    decision = heuristic_decision(
+        {
+            "message": message,
+            "property": prop,
+            "locality": locality,
+            "invites": await store.open_invites_for_property(prop["id"]) if prop else [],
+            "matches": await store.matches_for_property(prop["id"]) if prop else [],
+        }
+    )
+    decision["reply"] = cleaned
+    await store.append_transcript(
+        conversation_id=int(message["conversation_id"]),
+        message_id=str(message.get("message_id") or "") or None,
+        role="homesteader",
+        speaker=message.get("speaker") or "Homesteader",
+        content=str(message.get("content") or ""),
+    )
+    return await commit_decision(store, message, decision, prop, locality)
 
 
 def _person(prop: dict) -> dict:

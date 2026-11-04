@@ -36,6 +36,7 @@ services:
     restart: unless-stopped
     ports: !override []
     environment:
+      FORCE_SSL: "true"
       SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-login}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
@@ -44,6 +45,7 @@ services:
   sidekiq:
     restart: unless-stopped
     environment:
+      FORCE_SSL: "true"
       SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-login}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
