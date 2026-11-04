@@ -84,8 +84,8 @@ case "$gemini" in
   ""|*replace-with*) fail "G01_GEMINI_API_KEY needs a Google AI Studio API key" ;;
 esac
 case "$stripe_secret" in
-  sk_live_*|sk_test_*) ;;
-  *) fail "G01_STRIPE_SECRET_KEY must be a Stripe sk_live_ or sk_test_ key" ;;
+  sk_live_*|sk_test_*|rk_live_*|rk_test_*) ;;
+  *) fail "G01_STRIPE_SECRET_KEY must be a Stripe sk_ or rk_ secret key" ;;
 esac
 case "$stripe_webhook" in
   whsec_*) ;;

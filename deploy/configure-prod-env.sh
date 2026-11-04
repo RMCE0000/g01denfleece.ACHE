@@ -31,7 +31,7 @@ read -r -p "SMTP domain [g01denfleece.com]: " SMTP_DOMAIN
 SMTP_DOMAIN=${SMTP_DOMAIN:-g01denfleece.com}
 read -r -s -p "Gemini API key: " G01_GEMINI_API_KEY
 printf '\n'
-read -r -s -p "Stripe secret key (sk_live_... or sk_test_...): " G01_STRIPE_SECRET_KEY
+read -r -s -p "Stripe secret key (sk_test_/sk_live_ or rk_test_/rk_live_): " G01_STRIPE_SECRET_KEY
 printf '\n'
 read -r -s -p "Stripe webhook signing secret (whsec_...): " G01_STRIPE_WEBHOOK_SECRET
 printf '\n'
