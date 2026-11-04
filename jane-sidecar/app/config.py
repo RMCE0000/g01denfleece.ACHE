@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     poll_timezone: str = "America/Chicago"
     community_poll_hours: int = 24
     poll_scheduler_interval_seconds: int = 300
+    automatic_matchmaking_enabled: bool = True
+    match_scheduler_interval_seconds: int = 900
     match_similarity_threshold: float = 0.72
     full_manual_hours_per_week: float = 40.0
 

@@ -271,12 +271,34 @@ CREATE TABLE IF NOT EXISTS g01_neighbor_matches (
     peer_b_property_id UUID REFERENCES g01_properties(id) NOT NULL,
     proposed_project_title VARCHAR(255) NOT NULL,
     jane_synergy_rationale TEXT NOT NULL,
+    operator_status VARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK (operator_status IN ('pending', 'approved', 'rejected')),
+    operator_review_note TEXT,
+    operator_reviewed_at TIMESTAMPTZ,
     peer_a_status VARCHAR(20) DEFAULT 'pitched',
     peer_b_status VARCHAR(20) DEFAULT 'pitched',
     shared_chatwoot_conversation_id BIGINT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (peer_a_property_id, peer_b_property_id, proposed_project_title)
 );
+
+-- Existing installations pitched matches before operator review existed. Keep
+-- those actionable while making every newly discovered match pending.
+ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS operator_status VARCHAR(20);
+ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS operator_review_note TEXT;
+ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS operator_reviewed_at TIMESTAMPTZ;
+UPDATE g01_neighbor_matches SET operator_status = 'approved' WHERE operator_status IS NULL;
+ALTER TABLE g01_neighbor_matches ALTER COLUMN operator_status SET DEFAULT 'pending';
+ALTER TABLE g01_neighbor_matches ALTER COLUMN operator_status SET NOT NULL;
+DO $$
+BEGIN
+    ALTER TABLE g01_neighbor_matches
+        ADD CONSTRAINT g01_neighbor_matches_operator_status_check
+        CHECK (operator_status IN ('pending', 'approved', 'rejected'));
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END
+$$;
 
 CREATE TABLE IF NOT EXISTS g01_referral_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

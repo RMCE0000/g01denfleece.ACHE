@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from app.chatwoot_client import ChatwootClient
 from app.jobs import mature_demand_polls, open_ready_collaborations, scan_neighbor_synergies
 from app.llm import llm_override
+from app.matchmaking import approve_match
 from app.seed import DEMO_CONTACT_ID, DEMO_CONVERSATION_ID, DEMO_PROPERTY_ID, DEMO_USER_ID
 from tests.ledger_turn import ledger_reply, run_ledger_turn
 
@@ -192,6 +193,12 @@ def test_collaboration_requires_two_yeses_and_kyc(store, monkeypatch):
     assert created
     match_id = created[0]
     assert store.matches[0]["shared_chatwoot_conversation_id"] is None
+    assert store.matches[0]["operator_status"] == "pending"
+    assert not any(match_id in row["content"] for row in store.outbox)
+
+    approved = asyncio.run(approve_match(store, match_id, "Goals are grounded."))
+    assert approved["match"]["operator_status"] == "approved"
+    assert len(approved["pitched_property_ids"]) == 2
     assert any(match_id in row["content"] for row in store.outbox)
 
     asyncio.run(run_ledger_turn(store, _message(f"YES {match_id}", 30)))

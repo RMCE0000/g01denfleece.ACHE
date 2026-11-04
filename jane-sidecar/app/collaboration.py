@@ -24,6 +24,8 @@ async def refresh_match_gate(store, match_id: str, speaker_property_id: str | No
     match = await store.get_match(match_id)
     if not match:
         return "I don't have that collaboration on the record."
+    if match.get("operator_status") != "approved":
+        return "That collaboration is waiting for operator approval. I will not contact or connect anyone yet."
     if match.get("shared_chatwoot_conversation_id"):
         return f"The shared thread is already open as Chatwoot conversation {match['shared_chatwoot_conversation_id']}."
     if match["peer_a_status"] == "declined" or match["peer_b_status"] == "declined":

@@ -130,6 +130,50 @@ async def test_operator_can_create_inspect_and_analyze_polls(backend):
     assert analysis.value["polls"][0]["action_candidates"][0]["answer"] == "Build a seed library."
 
 
+async def test_operator_must_confirm_match_approval_before_users_are_pitched(backend, store):
+    match = await store.create_match(
+        {
+            "locality_id": store.properties[0]["locality_id"],
+            "peer_a_property_id": store.properties[0]["id"],
+            "peer_b_property_id": store.properties[1]["id"],
+            "proposed_project_title": "shared seed library",
+            "jane_synergy_rationale": "Both recorded seed-library work.",
+        }
+    )
+    pending = await backend.execute(["matches"])
+    assert pending.value[0]["operator_status"] == "pending"
+    assert store.outbox == []
+
+    with pytest.raises(WriteConfirmationRequired):
+        await backend.execute(["match-approve", match["id"], "Grounded", "proposal"])
+
+    approved = await backend.execute(
+        ["match-approve", match["id"], "Grounded", "proposal"],
+        allow_write=True,
+    )
+    assert approved.value["match"]["operator_status"] == "approved"
+    assert approved.value["match"]["operator_review_note"] == "Grounded proposal"
+    assert len(approved.value["pitched_property_ids"]) == 2
+    assert len(store.outbox) == 2
+
+    rejected_match = await store.create_match(
+        {
+            "locality_id": store.properties[0]["locality_id"],
+            "peer_a_property_id": store.properties[0]["id"],
+            "peer_b_property_id": store.properties[1]["id"],
+            "proposed_project_title": "second proposal",
+            "jane_synergy_rationale": "A separate recorded proposal.",
+        }
+    )
+    rejected = await backend.execute(
+        ["match-reject", rejected_match["id"], "Not", "appropriate"],
+        allow_write=True,
+    )
+    assert rejected.value["match"]["operator_status"] == "rejected"
+    assert rejected.value["pitched_property_ids"] == []
+    assert len(store.outbox) == 2
+
+
 def test_bootstrap_environment_is_loaded_without_overriding_explicit_values(tmp_path, monkeypatch):
     env_file = tmp_path / "chatwoot.env"
     env_file.write_text(

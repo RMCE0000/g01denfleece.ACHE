@@ -24,6 +24,7 @@ from app.config import Settings, get_settings
 from app.errors import G01Error
 from app.homesteaders import open_peer_conversation, resolve_homesteader
 from app.jobs import mature_demand_polls, open_ready_collaborations, recount_referral_windows, scan_neighbor_synergies
+from app.matchmaking import approve_match, reject_match
 from app.northstar import view_from_property
 from app.polling import close_due_community_polls, compile_community_poll, create_operator_poll
 from app.runtime import open_store
@@ -40,6 +41,11 @@ HELP = """Commands
   polls [limit]                     Daily, requested, and operator polls
   poll <poll-id>                    Question, response metrics, themes, and answers
   poll-create "<question>"          Ask every homesteader in their private Jane thread
+  matches [pending|approved|rejected|all]
+                                    Automatically discovered match proposals
+  match <match-id>                  Full proposal and both homesteaders
+  match-approve <match-id> [note]   Approve and privately pitch the match
+  match-reject <match-id> [note]    Reject without contacting either user
   analyze [all|engagement|northstar|network|polls]
                                     Deterministic analyses over all users and chats
   set <user> <field> <value>        Update a whitelisted North Star/profile field
@@ -119,6 +125,7 @@ class OperatorBackend:
         chats = (await list_conversations(self.store))["conversations"]
         localities = await self.store.list_localities()
         community_polls = await self.store.list_community_polls()
+        pending_matches = await self.store.list_matches("pending", 1000)
         return {
             "mode": "minimum showcase",
             "store": type(self.store).__name__,
@@ -129,13 +136,16 @@ class OperatorBackend:
             "localities": len(localities),
             "community_polls": len(community_polls),
             "open_community_polls": sum(row["status"] == "open" for row in community_polls),
+            "matches_waiting_for_operator": len(pending_matches),
             "integrations": {
                 "chatwoot_account_api": bool(self.settings.chatwoot_api_token),
                 "chatwoot_platform_api": bool(self.settings.chatwoot_platform_token),
                 "chatwoot_webhook_auth": bool(self.settings.chatwoot_webhook_secret),
                 "ollama_model": self.settings.ollama_model,
                 "stripe": bool(self.settings.stripe_secret_key),
-                "background_scheduler": self.settings.background_jobs,
+                "daily_poll_scheduler": self.settings.daily_poll_enabled,
+                "automatic_matchmaking": self.settings.automatic_matchmaking_enabled,
+                "legacy_celery_scheduler": self.settings.background_jobs,
             },
         }
 
@@ -297,6 +307,51 @@ class OperatorBackend:
                 for row in compiled
             ],
         }
+
+    async def _match_view(self, match: dict) -> dict:
+        left = await self.store.get_property(match["peer_a_property_id"])
+        right = await self.store.get_property(match["peer_b_property_id"])
+        locality = await self.store.get_locality(match["locality_id"])
+        return {
+            **match,
+            "locality": (locality or {}).get("name"),
+            "peer_a": {
+                "property_id": match["peer_a_property_id"],
+                "name": _name(left or {}),
+                "username": (left or {}).get("username"),
+            },
+            "peer_b": {
+                "property_id": match["peer_b_property_id"],
+                "name": _name(right or {}),
+                "username": (right or {}).get("username"),
+            },
+        }
+
+    async def matches(self, status: str = "pending") -> list[dict]:
+        if status not in {"pending", "approved", "rejected", "all"}:
+            raise G01Error("match status must be pending, approved, rejected, or all", 422)
+        rows = await self.store.list_matches(None if status == "all" else status)
+        return [await self._match_view(row) for row in rows]
+
+    async def match(self, match_id: str) -> dict:
+        row = await self.store.get_match(match_id)
+        if row is None:
+            raise G01Error("match not found", 404)
+        return await self._match_view(row)
+
+    async def review_match(
+        self,
+        match_id: str,
+        decision: str,
+        note: str | None,
+        *,
+        allow_write: bool,
+    ) -> dict:
+        if not allow_write:
+            raise WriteConfirmationRequired
+        if decision == "approved":
+            return await approve_match(self.store, match_id, note)
+        return {"match": await reject_match(self.store, match_id, note), "pitched_property_ids": []}
 
     def _engagement(self, users: list[dict], chats: list[dict]) -> dict:
         private = {int(row["conversation_id"]): row for row in chats if row["kind"] == "jane"}
@@ -473,7 +528,8 @@ class OperatorBackend:
             {"area": "Email, WhatsApp, social channels", "status": "provider required", "operator_action": "Add and verify each external provider before using its inbox."},
             {"area": "North Star and ledger", "status": "inspectable", "operator_action": "Use `user` or `analyze northstar`; live MS chat does not update it."},
             {"area": "Jane daily and poll-mode questions", "status": "active", "operator_action": "Use `polls`, `poll`, `poll-create`, or `analyze polls`; Jane schedules and captures answers."},
-            {"area": "Legacy demand and match workflows", "status": "manual", "operator_action": "Use `jobs`; the Celery scheduler remains off in MS."},
+            {"area": "Automatic matchmaking", "status": "active with approval", "operator_action": "Discovery is automatic. Use `matches`, then `match-approve` or `match-reject`; pending matches never contact users."},
+            {"area": "Legacy demand polling", "status": "manual", "operator_action": "Use `jobs polls`; the Celery scheduler remains off in MS."},
             {"area": "Sponsor ranking", "status": "inspectable", "operator_action": "Use `rank <user> <service-tag>`."},
             {"area": "Stripe and identity", "status": "configured only with keys", "operator_action": "Dashboard shows readiness; payment webhooks remain supported."},
         ]
@@ -500,6 +556,18 @@ class OperatorBackend:
         if command == "poll-create" and args:
             question = " ".join(args)
             return CommandOutput("Jane poll created", await self.create_poll(question, allow_write=allow_write))
+        if command == "matches" and len(args) <= 1:
+            status = args[0] if args else "pending"
+            return CommandOutput(f"Matches: {status}", await self.matches(status))
+        if command == "match" and len(args) == 1:
+            return CommandOutput(f"Match: {args[0]}", await self.match(args[0]))
+        if command in {"match-approve", "match-reject"} and args:
+            decision = "approved" if command == "match-approve" else "rejected"
+            note = " ".join(args[1:]).strip() or None
+            return CommandOutput(
+                f"Match {decision}",
+                await self.review_match(args[0], decision, note, allow_write=allow_write),
+            )
         if command == "analyze" and len(args) <= 1:
             kind = args[0] if args else "all"
             return CommandOutput(f"Analysis: {kind}", await self.analyze(kind))

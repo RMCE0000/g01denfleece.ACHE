@@ -4,7 +4,7 @@ import logging
 
 from app.collaboration import refresh_match_gate
 from app.graphs.demand_poll_graph import build_demand_poll_graph
-from app.graphs.matchmaking_graph import build_matchmaking_graph
+from app.graphs.matchmaking_graph import discover_neighbor_synergies
 from app.runtime import set_store
 
 log = logging.getLogger(__name__)
@@ -22,10 +22,7 @@ async def mature_demand_polls(store) -> list[str]:
 
 
 async def scan_neighbor_synergies(store) -> list[str]:
-    set_store(store)
-    graph = build_matchmaking_graph()
-    result = await graph.ainvoke({})
-    return list(result.get("created_match_ids") or [])
+    return await discover_neighbor_synergies(store)
 
 
 async def recount_referral_windows(store) -> None:

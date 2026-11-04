@@ -1,4 +1,4 @@
-"""Background neighbor scan. Pitches stay private until both accept and both pass KYC."""
+"""Grounded neighbor discovery. New proposals wait for operator review."""
 
 import json
 import logging
@@ -14,20 +14,44 @@ class MatchState(TypedDict, total=False):
 
 from app.config import get_settings
 from app.constitution import JANE_SYSTEM_PROMPT
-from app.delivery import deliver
 from app.llm import complete_json, embed_text, llm_override
-from app.runtime import current_checkpointer, get_store
+from app.runtime import current_checkpointer, get_store, set_store
 
 log = logging.getLogger(__name__)
 
 
 def _goals(prop: dict) -> list[str]:
-    return [str(item).strip() for item in (prop.get("known_facts_ledger") or {}).get("active_goals") or [] if str(item).strip()]
+    return [
+        str(item).strip().rstrip(".!?")
+        for item in (prop.get("known_facts_ledger") or {}).get("active_goals") or []
+        if str(item).strip()
+    ]
+
+
+_MATCH_STOP_WORDS = {
+    "about", "after", "again", "could", "first", "from", "have", "homestead",
+    "local", "need", "project", "should", "that", "their", "there", "these",
+    "thing", "this", "want", "what", "with", "would",
+}
+
+
+def _goal_terms(prop: dict) -> set[str]:
+    return {
+        word
+        for goal in _goals(prop)
+        for word in re.findall(r"[a-z][a-z0-9'-]{3,}", goal.casefold())
+        if word not in _MATCH_STOP_WORDS
+    }
 
 
 def _overlap(left: dict, right: dict) -> list[str]:
     shared = {item.casefold() for item in _goals(left)} & {item.casefold() for item in _goals(right)}
-    return sorted(shared)
+    if shared:
+        return sorted(shared)
+    terms = _goal_terms(left) & _goal_terms(right)
+    if len(terms) >= 2 or any(len(term) >= 8 for term in terms):
+        return sorted(terms)
+    return []
 
 
 def _cosine(left: list[float] | None, right: list[float] | None) -> float | None:
@@ -81,7 +105,7 @@ async def _rationale(left: dict, right: dict, overlap: list[str], similarity: fl
     return template
 
 
-async def scan_and_pitch(state: dict) -> dict:
+async def scan_and_queue(state: dict) -> dict:
     store = get_store()
     settings = get_settings()
     created: list[str] = []
@@ -100,10 +124,10 @@ async def scan_and_pitch(state: dict) -> dict:
         by_locality.setdefault(prop["locality_id"], []).append(prop)
 
     for locality_id, group in by_locality.items():
-        locality = await store.get_locality(locality_id)
-        place = locality["name"] if locality else "this locality"
         for index, left in enumerate(group):
             for right in group[index + 1 :]:
+                if await store.find_peer_between(left["id"], right["id"]):
+                    continue
                 overlap = _overlap(left, right)
                 similarity = _cosine(left.get("goals_embedding"), right.get("goals_embedding"))
                 vector_hit = similarity is not None and similarity >= settings.match_similarity_threshold
@@ -122,22 +146,19 @@ async def scan_and_pitch(state: dict) -> dict:
                 )
                 if not match:
                     continue
-                pitch = (
-                    f"Someone else in {place} has a recorded goal that lines up with yours ({title}). {rationale} "
-                    f"Reply YES {match['id']} to accept or NO {match['id']} to decline. "
-                    "I will open a shared thread only after both of you accept and both pass identity verification. "
-                    "I am not sharing either street address."
-                )
-                for peer in (left, right):
-                    if peer.get("primary_conversation_id"):
-                        await deliver(store, peer["primary_conversation_id"], pitch)
                 created.append(match["id"])
     return {"created_match_ids": created}
 
 
+async def discover_neighbor_synergies(store) -> list[str]:
+    set_store(store)
+    result = await scan_and_queue({})
+    return list(result.get("created_match_ids") or [])
+
+
 def build_matchmaking_graph(checkpointer=None):
     graph = StateGraph(MatchState)
-    graph.add_node("scan_and_pitch", scan_and_pitch)
-    graph.add_edge(START, "scan_and_pitch")
-    graph.add_edge("scan_and_pitch", END)
+    graph.add_node("scan_and_queue", scan_and_queue)
+    graph.add_edge(START, "scan_and_queue")
+    graph.add_edge("scan_and_queue", END)
     return graph.compile(checkpointer=checkpointer if checkpointer is not None else current_checkpointer.get())

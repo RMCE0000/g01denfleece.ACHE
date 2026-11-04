@@ -552,6 +552,9 @@ class MemoryStore:
             "peer_b_property_id": peer_b,
             "proposed_project_title": title,
             "jane_synergy_rationale": fields["jane_synergy_rationale"],
+            "operator_status": "pending",
+            "operator_review_note": None,
+            "operator_reviewed_at": None,
             "peer_a_status": "pitched",
             "peer_b_status": "pitched",
             "shared_chatwoot_conversation_id": None,
@@ -566,11 +569,33 @@ class MemoryStore:
                 return deepcopy(match)
         return None
 
+    async def list_matches(self, operator_status: str | None = None, limit: int = 100) -> list[dict]:
+        rows = self.matches
+        if operator_status:
+            rows = [row for row in rows if row["operator_status"] == operator_status]
+        ordered = sorted(rows, key=lambda row: (row["created_at"], row["id"]), reverse=True)
+        return [deepcopy(row) for row in ordered[:limit]]
+
+    async def set_match_operator_status(self, match_id: str, status: str, note: str | None = None) -> dict:
+        if status not in ("approved", "rejected"):
+            raise G01Error("operator match status must be approved or rejected", 422)
+        for match in self.matches:
+            if match["id"] != match_id:
+                continue
+            if match["operator_status"] != "pending":
+                raise G01Error(f"match is already {match['operator_status']}", 409)
+            match["operator_status"] = status
+            match["operator_review_note"] = note
+            match["operator_reviewed_at"] = self._clock()
+            return deepcopy(match)
+        raise G01Error("match not found", 404)
+
     async def matches_for_property(self, property_id: str) -> list[dict]:
         return [
             deepcopy(match)
             for match in self.matches
             if property_id in (match["peer_a_property_id"], match["peer_b_property_id"])
+            and match["operator_status"] == "approved"
             and match["shared_chatwoot_conversation_id"] is None
             and "declined" not in (match["peer_a_status"], match["peer_b_status"])
         ]
@@ -581,6 +606,8 @@ class MemoryStore:
         for match in self.matches:
             if match["id"] != match_id:
                 continue
+            if match["operator_status"] != "approved":
+                raise G01Error("match requires operator approval", 409)
             if match["peer_a_property_id"] == peer_property_id:
                 match["peer_a_status"] = status
             elif match["peer_b_property_id"] == peer_property_id:
@@ -601,6 +628,8 @@ class MemoryStore:
         ready = []
         for match in self.matches:
             if match["shared_chatwoot_conversation_id"] is not None:
+                continue
+            if match["operator_status"] != "approved":
                 continue
             if match["peer_a_status"] != "accepted" or match["peer_b_status"] != "accepted":
                 continue
@@ -708,7 +737,21 @@ class MemoryStore:
         raise G01Error("sponsor not found", 404)
 
     async def properties_with_goals(self) -> list[dict]:
-        return [deepcopy(row) for row in self.properties if (row.get("known_facts_ledger") or {}).get("active_goals")]
+        answers: dict[str, list[str]] = {}
+        for answer in self.community_poll_answers:
+            answers.setdefault(answer["property_id"], []).append(answer["answer"])
+        rows = []
+        for prop in self.properties:
+            goals = list((prop.get("known_facts_ledger") or {}).get("active_goals") or [])
+            signals = [*goals, *answers.get(prop["id"], [])]
+            if not signals and not prop.get("goals_embedding"):
+                continue
+            row = deepcopy(prop)
+            ledger = deepcopy(row.get("known_facts_ledger") or {})
+            ledger["active_goals"] = signals
+            row["known_facts_ledger"] = ledger
+            rows.append(row)
+        return rows
 
     def _ordered_pair(self, left: str, right: str) -> tuple[str, str]:
         first, second = str(left), str(right)

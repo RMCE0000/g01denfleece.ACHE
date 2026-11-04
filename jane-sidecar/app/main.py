@@ -13,6 +13,7 @@ from app.community import bridge_actor, community_state, start_connection
 from app.config import get_settings
 from app.errors import G01Error
 from app.homesteaders import open_peer_conversation, provision_homesteader, register_homesteader, sync_workspace_metadata
+from app.matchmaking import matchmaking_scheduler
 from app.payments import apply_stripe_event
 from app.polling import poll_scheduler
 from app.runtime import current_checkpointer, open_checkpointer, open_store, set_store
@@ -69,6 +70,7 @@ async def lifespan(app: FastAPI):
     set_store(store)
     lease = None
     poll_task = None
+    match_task = None
     if settings.database_url and override is None:
         lease = await open_checkpointer(settings.database_url)
         current_checkpointer.set(lease.saver)
@@ -92,6 +94,8 @@ async def lifespan(app: FastAPI):
                 log.exception("signed-in homesteader seed did not finish")
     if override is None:
         poll_task = asyncio.create_task(poll_scheduler(store, settings), name="jane-poll-scheduler")
+        if settings.automatic_matchmaking_enabled:
+            match_task = asyncio.create_task(matchmaking_scheduler(store, settings), name="jane-match-scheduler")
     try:
         yield
     finally:
@@ -99,6 +103,10 @@ async def lifespan(app: FastAPI):
             poll_task.cancel()
             with suppress(asyncio.CancelledError):
                 await poll_task
+        if match_task is not None:
+            match_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await match_task
         if lease is not None:
             current_checkpointer.set(None)
             await lease.close()

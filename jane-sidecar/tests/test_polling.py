@@ -2,6 +2,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
 from app.config import get_settings
+from app.graphs.matchmaking_graph import discover_neighbor_synergies
 from app.polling import (
     DEFAULT_POLL_MODE_QUESTION,
     close_due_community_polls,
@@ -144,3 +145,29 @@ async def test_compilation_and_atomic_close_are_grounded_in_recorded_answers(sto
     assert len(first_close) == 1
     assert second_close == []
     assert store.community_polls[0]["compiled_analysis"]["response_count"] == 2
+
+
+async def test_poll_answers_feed_automatic_match_discovery_without_contacting_users(store):
+    store.properties[1]["locality_id"] = store.properties[0]["locality_id"]
+    result = await create_requested_poll(
+        store,
+        store.properties[0],
+        "What should neighbors build together?",
+    )
+    poll_id = result["poll"]["id"]
+    await store.answer_community_poll(
+        poll_id,
+        store.properties[0]["id"],
+        "Build a shared cedar tool shed.",
+    )
+    await store.answer_community_poll(
+        poll_id,
+        store.properties[1]["id"],
+        "A shared cedar shed would help.",
+    )
+    outbox_before = len(store.outbox)
+    created = await discover_neighbor_synergies(store)
+    assert len(created) == 1
+    assert store.matches[0]["operator_status"] == "pending"
+    assert "cedar" in store.matches[0]["proposed_project_title"]
+    assert len(store.outbox) == outbox_before

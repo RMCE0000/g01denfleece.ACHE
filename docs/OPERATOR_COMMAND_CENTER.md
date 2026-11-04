@@ -26,6 +26,10 @@ analyze polls
 polls
 poll <poll-id>
 poll-create "What project should the community organize next?"
+matches pending
+match <match-id>
+match-approve <match-id> "grounded in recorded goals"
+match-reject <match-id> "not appropriate"
 set ada.yard@example.com aesthetic 82
 set ada.yard@example.com labor-hours 12
 connect ada.yard@example.com bea.chenier@example.com "shared greenhouse"
@@ -35,7 +39,7 @@ localities
 capabilities
 ```
 
-`set`, `connect`, `poll-create`, and `jobs` can change data or send Chatwoot messages. The
+`set`, `connect`, `poll-create`, `match-approve`, `match-reject`, and `jobs` can change data or send Chatwoot messages. The
 interactive console asks before running them. `set` is limited to the fields
 listed by `help`; arbitrary database columns cannot be changed.
 
@@ -71,6 +75,12 @@ accident.
 - `polls` compiles response rates, recurring terms, action candidates, and the
   attributed source answers. It never asks a model to invent a consensus.
 
+Automatic match discovery compares recorded goals and poll answers only inside
+the same locality. New proposals are operator-pending and contact no one.
+`match-approve` privately pitches a reviewed proposal to both users;
+`match-reject` records the decision without contacting either user. A shared
+thread still requires both users to accept and both to pass identity verification.
+
 These are deterministic operational analyses. The minimum-showcase live chat
 does not update the old MVP ledger or North Star values.
 
@@ -97,7 +107,8 @@ records and workflows without replacing those features.
 | North Star and ledger | Inspectable in the command center; not updated by live MS chat |
 | Sponsors | Ranking can be previewed with `rank` |
 | Jane polls | One rotating question is sent daily in each private Jane thread. `poll mode` starts the community-action question; `poll mode: <question>` broadcasts a supplied question. Operators use `polls`, `poll`, `poll-create`, and `analyze polls` |
-| Legacy demand polls and matchmaking | Existing workflows can be run explicitly with `jobs`; their Celery scheduling remains off |
+| Automatic matchmaking | Discovery runs in Jane. Operators must review `matches` and confirm `match-approve` before users are contacted; both users and identity verification remain required |
+| Legacy demand polls | Existing workflows can be run explicitly with `jobs polls`; Celery scheduling remains off |
 | Stripe and identity | Operate only when production keys and webhooks are configured |
 
 The `capabilities` command carries this boundary into the running system.

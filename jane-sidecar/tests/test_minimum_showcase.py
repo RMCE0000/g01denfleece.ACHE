@@ -135,6 +135,39 @@ def test_a_connection_stays_quiet_until_someone_says_jane(client, store):
     assert any(row["content"] == "The cistern is full." for row in store.transcript)
 
 
+def test_an_approved_match_confirmation_is_handled_without_the_chat_model(client, store):
+    import asyncio
+
+    from app.matchmaking import approve_match
+
+    match = asyncio.run(
+        store.create_match(
+            {
+                "locality_id": store.properties[0]["locality_id"],
+                "peer_a_property_id": store.properties[0]["id"],
+                "peer_b_property_id": store.properties[1]["id"],
+                "proposed_project_title": "shared seed library",
+                "jane_synergy_rationale": "Both recorded a shared seed library.",
+            }
+        )
+    )
+    assert store.outbox == []
+    asyncio.run(approve_match(store, match["id"], "Operator verified the recorded goals."))
+    calls = []
+    token = model_override.set(lambda _system, user: calls.append(user) or "model reply")
+    try:
+        response = client.post(
+            "/webhooks/chatwoot",
+            json=_message(f"YES {match['id']}", 12, name="Ada"),
+        )
+    finally:
+        model_override.reset(token)
+    assert response.json()["match"] is True
+    assert "other homestead still has to accept" in response.json()["reply"]
+    assert calls == []
+    assert store.matches[0]["peer_a_status"] == "accepted"
+
+
 def test_a_missing_local_model_is_said_out_loud(client, monkeypatch):
     class Down:
         def __init__(self, *args, **kwargs):

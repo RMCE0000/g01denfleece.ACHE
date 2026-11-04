@@ -6,6 +6,7 @@ The minimum showcase prompts a local model with the constitution and the history
 import re
 
 from app.config import get_settings
+from app.matchmaking import handle_private_match_message
 from app.polling import handle_private_poll_message
 from app.runtime import set_store
 from app.showcase import answer
@@ -103,6 +104,9 @@ async def run_turn(store, payload: dict) -> dict:
         if await store.is_peer_conversation(conversation_id) and not _MENTIONS_JANE.search(message.get("content") or ""):
             await _remember_incoming(store, message)
             return {"ok": True, "ignored": "peer"}
+        match_reply = await handle_private_match_message(store, message)
+        if match_reply is not None:
+            return {"ok": True, "reply": match_reply, "match": True}
         poll_reply = await handle_private_poll_message(store, message)
         if poll_reply is not None:
             return {"ok": True, "reply": poll_reply, "poll": True}

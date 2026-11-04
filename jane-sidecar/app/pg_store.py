@@ -29,6 +29,12 @@ homesteader_rating, promo_boost_weight, stripe_customer_id, stripe_subscription_
 applied_promo_code, is_active_sponsor, created_at
 """
 
+_MATCH = """
+id, locality_id, peer_a_property_id, peer_b_property_id, proposed_project_title,
+jane_synergy_rationale, operator_status, operator_review_note, operator_reviewed_at,
+peer_a_status, peer_b_status, shared_chatwoot_conversation_id, created_at
+"""
+
 
 def _clean(value):
     if isinstance(value, dict):
@@ -723,15 +729,14 @@ class PostgresStore:
     async def create_match(self, fields: dict) -> dict | None:
         peer_a, peer_b = sorted([fields["peer_a_property_id"], fields["peer_b_property_id"]])
         rows = await self._write(
-            """
+            f"""
             INSERT INTO g01_neighbor_matches (
                 locality_id, peer_a_property_id, peer_b_property_id, proposed_project_title, jane_synergy_rationale
             ) VALUES (
                 CAST(:locality AS uuid), CAST(:peer_a AS uuid), CAST(:peer_b AS uuid), :title, :rationale
             )
             ON CONFLICT (peer_a_property_id, peer_b_property_id, proposed_project_title) DO NOTHING
-            RETURNING id, locality_id, peer_a_property_id, peer_b_property_id, proposed_project_title,
-                      jane_synergy_rationale, peer_a_status, peer_b_status, shared_chatwoot_conversation_id, created_at
+            RETURNING {_MATCH}
             """,
             {
                 "locality": fields["locality_id"],
@@ -745,21 +750,51 @@ class PostgresStore:
 
     async def get_match(self, match_id: str) -> dict | None:
         return await self._one(
-            """
-            SELECT id, locality_id, peer_a_property_id, peer_b_property_id, proposed_project_title,
-                   jane_synergy_rationale, peer_a_status, peer_b_status, shared_chatwoot_conversation_id, created_at
-            FROM g01_neighbor_matches WHERE id = CAST(:id AS uuid)
-            """,
+            f"SELECT {_MATCH} FROM g01_neighbor_matches WHERE id = CAST(:id AS uuid)",
             {"id": match_id},
         )
 
+    async def list_matches(self, operator_status: str | None = None, limit: int = 100) -> list[dict]:
+        where = "WHERE operator_status = :status" if operator_status else ""
+        return await self._all(
+            f"""
+            SELECT {_MATCH}
+            FROM g01_neighbor_matches
+            {where}
+            ORDER BY created_at DESC, id DESC
+            LIMIT :limit
+            """,
+            {"status": operator_status, "limit": int(limit)},
+        )
+
+    async def set_match_operator_status(self, match_id: str, status: str, note: str | None = None) -> dict:
+        if status not in ("approved", "rejected"):
+            raise G01Error("operator match status must be approved or rejected", 422)
+        rows = await self._write(
+            f"""
+            UPDATE g01_neighbor_matches
+            SET operator_status = :status,
+                operator_review_note = :note,
+                operator_reviewed_at = NOW()
+            WHERE id = CAST(:id AS uuid) AND operator_status = 'pending'
+            RETURNING {_MATCH}
+            """,
+            {"id": match_id, "status": status, "note": note},
+        )
+        if rows:
+            return rows[0]
+        found = await self.get_match(match_id)
+        if found:
+            raise G01Error(f"match is already {found['operator_status']}", 409)
+        raise G01Error("match not found", 404)
+
     async def matches_for_property(self, property_id: str) -> list[dict]:
         return await self._all(
-            """
-            SELECT id, locality_id, peer_a_property_id, peer_b_property_id, proposed_project_title,
-                   jane_synergy_rationale, peer_a_status, peer_b_status, shared_chatwoot_conversation_id, created_at
+            f"""
+            SELECT {_MATCH}
             FROM g01_neighbor_matches
             WHERE (peer_a_property_id = CAST(:id AS uuid) OR peer_b_property_id = CAST(:id AS uuid))
+              AND operator_status = 'approved'
               AND shared_chatwoot_conversation_id IS NULL
               AND peer_a_status <> 'declined'
               AND peer_b_status <> 'declined'
@@ -768,9 +803,13 @@ class PostgresStore:
         )
 
     async def set_match_status(self, match_id: str, peer_property_id: str, status: str) -> dict:
+        if status not in ("pitched", "accepted", "declined"):
+            raise G01Error("invalid match status", 422)
         match = await self.get_match(match_id)
         if not match:
             raise G01Error("match not found", 404)
+        if match["operator_status"] != "approved":
+            raise G01Error("match requires operator approval", 409)
         if match["peer_a_property_id"] == peer_property_id:
             column = "peer_a_status"
         elif match["peer_b_property_id"] == peer_property_id:
@@ -781,8 +820,7 @@ class PostgresStore:
             f"""
             UPDATE g01_neighbor_matches SET {column} = :status
             WHERE id = CAST(:id AS uuid)
-            RETURNING id, locality_id, peer_a_property_id, peer_b_property_id, proposed_project_title,
-                      jane_synergy_rationale, peer_a_status, peer_b_status, shared_chatwoot_conversation_id, created_at
+            RETURNING {_MATCH}
             """,
             {"id": match_id, "status": status},
         )
@@ -790,12 +828,11 @@ class PostgresStore:
 
     async def set_shared_conversation(self, match_id: str, conversation_id: int) -> dict:
         rows = await self._write(
-            """
+            f"""
             UPDATE g01_neighbor_matches
             SET shared_chatwoot_conversation_id = :conversation_id
             WHERE id = CAST(:id AS uuid)
-            RETURNING id, locality_id, peer_a_property_id, peer_b_property_id, proposed_project_title,
-                      jane_synergy_rationale, peer_a_status, peer_b_status, shared_chatwoot_conversation_id, created_at
+            RETURNING {_MATCH}
             """,
             {"id": match_id, "conversation_id": int(conversation_id)},
         )
@@ -807,11 +844,13 @@ class PostgresStore:
         rows = await self._all(
             """
             SELECT m.id, m.locality_id, m.peer_a_property_id, m.peer_b_property_id, m.proposed_project_title,
-                   m.jane_synergy_rationale, m.peer_a_status, m.peer_b_status, m.shared_chatwoot_conversation_id, m.created_at
+                   m.jane_synergy_rationale, m.operator_status, m.operator_review_note, m.operator_reviewed_at,
+                   m.peer_a_status, m.peer_b_status, m.shared_chatwoot_conversation_id, m.created_at
             FROM g01_neighbor_matches m
             JOIN g01_properties a ON a.id = m.peer_a_property_id
             JOIN g01_properties b ON b.id = m.peer_b_property_id
             WHERE m.shared_chatwoot_conversation_id IS NULL
+              AND m.operator_status = 'approved'
               AND m.peer_a_status = 'accepted'
               AND m.peer_b_status = 'accepted'
               AND a.kyc_verified
@@ -1009,13 +1048,29 @@ class PostgresStore:
     async def properties_with_goals(self) -> list[dict]:
         rows = await self._all(
             f"""
-            SELECT {_PROPERTY}, goals_embedding::text AS goals_embedding
+            SELECT {_PROPERTY}, goals_embedding::text AS goals_embedding,
+                   ARRAY(
+                       SELECT a.answer
+                       FROM g01_community_poll_answers a
+                       WHERE a.property_id = g01_properties.id
+                       ORDER BY a.created_at, a.id
+                   ) AS poll_answers
             FROM g01_properties
             WHERE jsonb_array_length(COALESCE(known_facts_ledger->'active_goals', '[]'::jsonb)) > 0
                OR goals_embedding IS NOT NULL
+               OR EXISTS (
+                   SELECT 1 FROM g01_community_poll_answers a
+                   WHERE a.property_id = g01_properties.id
+               )
             """
         )
         for row in rows:
+            ledger = dict(row.get("known_facts_ledger") or {})
+            ledger["active_goals"] = [
+                *(ledger.get("active_goals") or []),
+                *(row.pop("poll_answers", []) or []),
+            ]
+            row["known_facts_ledger"] = ledger
             raw = row.get("goals_embedding")
             if isinstance(raw, str) and raw.startswith("["):
                 row["goals_embedding"] = [float(part) for part in raw.strip("[]").split(",") if part]
