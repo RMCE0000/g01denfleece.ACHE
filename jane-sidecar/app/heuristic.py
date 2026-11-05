@@ -33,6 +33,10 @@ _BUSINESS = re.compile(
 )
 _CANCEL_SPONSOR = re.compile(r"\bcancel (the |my )?sponsor", re.I)
 _NEED = re.compile(r"\b(need|buy|source|find|looking for|where can i)\b", re.I)
+_RECOMMEND_LOCAL = re.compile(
+    r"\b(?:recommend|find|list|show)\b.{0,80}\b(?:local compan(?:y|ies)|local businesses?|sponsors?)\b",
+    re.I,
+)
 _ASK_RECORD = re.compile(
     r"\b(what are my scores|how am i doing|north star|where do i stand|my automated|my aesthetic|my material|my energetic|my contained)\b",
     re.I,
@@ -206,6 +210,13 @@ def heuristic_decision(state: dict) -> dict:
                 "I only know what you tell me."
             )
         return decision
+
+    if _RECOMMEND_LOCAL.search(text) and detect_service_tag(text) is None:
+        decision["reply"] = (
+            "Yes. I can build the plan with you and recommend active g01 sponsors in your locality; "
+            "they do not need to have been named earlier in this chat. "
+            "What product or service should I match first?"
+        )
 
     hours = extract_hours(text)
     if hours is not None:

@@ -109,6 +109,8 @@ def test_prompt_includes_the_constitution_grounded_record_and_history(client, st
     assert '"known_facts":' in seen["system"]
     assert "facts already present" in seen["system"]
     assert "private internal context" in seen["system"]
+    assert "valid recommendations even if chat history never named them" in seen["system"]
+    assert "does not mean refusing to plan" in seen["system"]
     assert seen["models"] == ["gemini-3.5-flash", "gemini-3.5-flash"]
     assert seen["complexities"] == ["standard", "standard"]
     assert seen["prompts"][0] == "Ada: The cistern is empty."

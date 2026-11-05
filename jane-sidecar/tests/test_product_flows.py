@@ -74,6 +74,22 @@ def test_asking_jane_ranks_the_maker_ahead_of_logistics(client, store):
     assert client.get(f"/api/properties/{DEMO_PROPERTY_ID}/sponsors").status_code == 404
 
 
+def test_jane_knows_verified_sponsors_do_not_need_prior_chat_mentions(client, store):
+    response = ledger_reply(
+        store,
+        _message(
+            "Aren't you supposed to plan this for me and recommend local companies for me?",
+            6,
+        ),
+    )
+    reply = response.json()["reply"]
+    assert "build the plan with you" in reply
+    assert "active g01 sponsors" in reply
+    assert "do not need to have been named earlier" in reply
+    assert "What product or service" in reply
+    assert "do not have any listed" not in reply
+
+
 def test_chat_turn_ranks_without_retailers_and_ignores_jane(client, store):
     token = llm_override.set(lambda model, system, user: {"reply": "Buy it at https://www.amazon.com/dp/example today."})
     try:
