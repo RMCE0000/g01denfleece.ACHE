@@ -189,7 +189,11 @@ async def answer_with_effects(store, message: dict) -> str:
             "matches": await store.matches_for_property(prop["id"]) if prop else [],
         }
     )
-    if not decision.get("reply") and not decision.get("report_scores"):
+    if (
+        not decision.get("reply")
+        and not decision.get("report_scores")
+        and not decision.get("service_tag")
+    ):
         decision["reply"] = cleaned
     await store.append_transcript(
         conversation_id=int(message["conversation_id"]),

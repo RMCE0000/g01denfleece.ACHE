@@ -8,7 +8,7 @@ from app.constitution import JANE_CONSTITUTION, JANE_SYSTEM_PROMPT
 from app.heuristic import detect_service_tag
 from app.northstar import NorthStar, automated_pct_from_hours
 from app.sanitize import sanitize_reply
-from app.sourcing import rank_sponsor_rows, recommendation_score, sponsor_matches_tag, sponsor_rejection_reason
+from app.sourcing import format_ladder, rank_sponsor_rows, recommendation_score, sponsor_matches_tag, sponsor_rejection_reason
 
 ROOT = Path(__file__).resolve().parents[2]
 SQL = (ROOT / "sql" / "001_init_g01_schema.sql").read_text(encoding="utf-8")
@@ -149,6 +149,26 @@ def test_fair_rotation_and_franchise_filter():
         founding_city="Rogers",
         founding_state="AR",
     ) is None
+
+
+def test_user_facing_sponsor_result_hides_internal_ranking():
+    reply = format_ladder(
+        "lumber",
+        [
+            {
+                "company_name": "G01 Test Garden Works",
+                "capabilities_summary": "Provides locally made raised-bed materials.",
+                "sourcing_tier": "local_manufacturer",
+                "tier_weight": 0.85,
+                "score": 0.85,
+                "distance_miles": 0,
+                "referrals_last_14d": 0,
+            }
+        ],
+    )
+    assert reply == "G01 Test Garden Works — Provides locally made raised-bed materials."
+    for internal in ("tier", "weight", "score", "miles", "referrals", "0.85"):
+        assert internal not in reply.casefold()
 
 
 def test_retailer_sentences_are_removed_whole():

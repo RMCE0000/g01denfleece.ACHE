@@ -94,6 +94,7 @@ async def deliberate(state: dict) -> dict:
         return {"decision": decision}
     if (
         not decision.get("report_scores")
+        and not decision.get("service_tag")
         and isinstance(raw, dict)
         and isinstance(raw.get("reply"), str)
         and raw["reply"].strip()

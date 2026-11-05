@@ -164,7 +164,7 @@ def status_reply(prop: dict, locality: dict | None) -> str:
 
 
 def fallback_reply(decision: dict) -> str:
-    if decision.get("report_scores"):
+    if decision.get("report_scores") or decision.get("service_tag"):
         return ""
     recorded = bool(decision.get("ledger_patch")) or any(
         decision.get(key) is not None
@@ -314,7 +314,5 @@ def heuristic_decision(state: dict) -> dict:
     tag = detect_service_tag(text)
     if tag and not decision["start_poll"]:
         decision["service_tag"] = tag
-        if not decision["reply"]:
-            decision["reply"] = "I'll stay inside your locality and start with what you can make on the homestead."
 
     return decision

@@ -66,8 +66,10 @@ def test_aesthetic_and_labor_are_told_to_jane(client, store):
 def test_asking_jane_ranks_the_maker_ahead_of_logistics(client, store):
     response = ledger_reply(store, _message("Where can I get a grow light?", 5))
     reply = response.json()["reply"]
-    assert "Tier 1" in reply
     assert reply.index("Calcasieu Glass & Lamp") < reply.index("Chenier Logistics")
+    assert "Blows and wires small greenhouse lamps" in reply
+    for internal in ("Tier 1", "weight", "score", "miles", "referrals", "local_manufacturer"):
+        assert internal not in reply
     assert "Walmart" not in reply
     assert "amazon" not in reply.casefold()
     assert store.sponsors[0]["referrals_last_14d"] == 1
@@ -99,9 +101,9 @@ def test_chat_turn_ranks_without_retailers_and_ignores_jane(client, store):
     assert response.status_code == 200
     reply = response.json()["reply"]
     assert "amazon.com" not in reply.lower()
-    assert "Tier 1" in reply
-    assert "1.00" in reply
     assert reply.index("Calcasieu Glass & Lamp") < reply.index("Chenier Logistics")
+    for internal in ("Tier 1", "1.00", "weight", "score", "miles", "referrals"):
+        assert internal not in reply
     assert "Walmart" not in reply
     assert "aquaponics" in store.properties[0]["known_facts_ledger"]["active_goals"]
     assert store.sponsors[0]["referrals_last_14d"] == 1

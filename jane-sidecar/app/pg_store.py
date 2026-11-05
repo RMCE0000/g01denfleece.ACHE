@@ -483,9 +483,16 @@ class PostgresStore:
     async def rank_sponsors(self, property_id: str, service_tag: str, limit: int = 5) -> list[dict]:
         return await self._all(
             """
-            SELECT sponsor_id, company_name, sourcing_tier, tier_weight, distance_miles, score,
-                   promo_boost_weight, referrals_last_14d, homesteader_rating
-            FROM g01_rank_local_sponsors(CAST(:property_id AS uuid), :service_tag, :limit)
+            SELECT ranked.sponsor_id, ranked.company_name, ranked.sourcing_tier,
+                   ranked.tier_weight, ranked.distance_miles, ranked.score,
+                   ranked.promo_boost_weight, ranked.referrals_last_14d,
+                   ranked.homesteader_rating, sponsor.capabilities_summary,
+                   sponsor.founding_city, sponsor.founding_state
+            FROM g01_rank_local_sponsors(
+                CAST(:property_id AS uuid), :service_tag, :limit
+            ) AS ranked
+            JOIN g01_sponsors AS sponsor ON sponsor.id = ranked.sponsor_id
+            ORDER BY ranked.score DESC, ranked.referrals_last_14d ASC, ranked.sponsor_id ASC
             """,
             {"property_id": property_id, "service_tag": service_tag, "limit": limit},
         )
