@@ -54,6 +54,7 @@ def test_brand_assets_are_gold_and_white():
     assert "#eef2f3" in css
     assert ".g01-own-message .right-bubble" in css
     assert ".g01-other-message .right-bubble" in css
+    assert ".conversation-wrap .right .message-content" not in css
     assert 'window.axios.get("/auth/validate_token")' in script
     assert '"/api/v1/accounts/"' in script
     assert '"/conversations/"' in script
@@ -68,11 +69,18 @@ def test_brand_assets_are_gold_and_white():
     assert "nav ul.items-center .g01-community-label" in css
     assert "min-height: 1.25rem" in css
     assert '[data-bubble-name="audio"] > audio.g01-native-audio' in css
+    assert '.message-bubble-container[data-bubble-name="audio"]' in css
     assert "enhanceAudioPlayers" in script
     assert '"/rails/active_storage/blobs/proxy/"' in script
     assert 'audio.classList.remove("hidden")' in script
     assert 'audio.nextElementSibling.classList.add("g01-audio-custom-controls")' in script
     assert "installAudioPlaybackRecovery" not in script
+    assert "installFastAudioRecorder" in script
+    assert '"audio/webm;codecs=opus"' in script
+    assert 'form.append("attachments[]", file)' in script
+    assert 'form.append("is_voice_message", "true")' in script
+    assert "audioBitsPerSecond: 48000" in script
+    assert "Stop and send audio" in script
     assert "platform.access_token" in bootstrap
     assert 'raise "g01 bridge secret is empty"' in bootstrap
     assert "CHATWOOT_INSTALLATION_ONBOARDING" in bootstrap

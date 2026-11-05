@@ -39,26 +39,207 @@
       });
     }
     bubbles.forEach(function (bubble) {
-      var audio = bubble.querySelector("audio");
-      if (!audio || audio.classList.contains("g01-native-audio")) return;
-      var source = audio.querySelector("source");
-      if (source && source.src) {
-        var url = new URL(source.src, window.location.origin);
-        url.pathname = url.pathname.replace(
-          "/rails/active_storage/blobs/redirect/",
-          "/rails/active_storage/blobs/proxy/"
-        );
-        source.src = url.toString();
+      try {
+        var audio = bubble.querySelector("audio");
+        if (!audio || audio.classList.contains("g01-native-audio")) return;
+        var source = audio.querySelector("source");
+        if (source && source.src) {
+          var url = new URL(source.src, window.location.origin);
+          url.pathname = url.pathname.replace(
+            "/rails/active_storage/blobs/redirect/",
+            "/rails/active_storage/blobs/proxy/"
+          );
+          source.src = url.toString();
+        }
+        audio.classList.remove("hidden");
+        audio.classList.add("g01-native-audio");
+        audio.controls = true;
+        audio.preload = "metadata";
+        if (audio.nextElementSibling) {
+          audio.nextElementSibling.classList.add("g01-audio-custom-controls");
+        }
+        audio.load();
+      } catch (_error) {
+        // Leave Chatwoot's player intact if a browser cannot enhance this attachment.
       }
-      audio.classList.remove("hidden");
-      audio.classList.add("g01-native-audio");
-      audio.controls = true;
-      audio.preload = "metadata";
-      if (audio.nextElementSibling) {
-        audio.nextElementSibling.classList.add("g01-audio-custom-controls");
-      }
-      audio.load();
     });
+  }
+
+  var activeRecorder = null;
+  var recorderStarting = false;
+
+  function recorderStatus(button) {
+    var parent = button.parentNode;
+    var existing = parent && parent.querySelector(".g01-audio-recorder-status");
+    if (existing) return existing;
+    var status = document.createElement("span");
+    status.className = "g01-audio-recorder-status";
+    if (parent) parent.appendChild(status);
+    return status;
+  }
+
+  function preferredRecordingType() {
+    return [
+      "audio/webm;codecs=opus",
+      "audio/ogg;codecs=opus",
+      "audio/mp4",
+      "audio/webm",
+    ].find(function (type) {
+      return window.MediaRecorder.isTypeSupported(type);
+    });
+  }
+
+  function finishRecorder(context, message) {
+    window.clearInterval(context.timer);
+    context.stream.getTracks().forEach(function (track) {
+      track.stop();
+    });
+    context.button.classList.remove("g01-recording-active");
+    context.button.title = "Record audio";
+    if (activeRecorder === context) activeRecorder = null;
+    context.status.textContent = message || "";
+    if (message) {
+      window.setTimeout(function () {
+        context.status.remove();
+      }, 4000);
+    } else {
+      context.status.remove();
+    }
+  }
+
+  function uploadRecording(context, blob) {
+    var route = conversationContext();
+    if (!route || !window.axios || !blob.size) {
+      finishRecorder(context, "Audio was not sent. Try again.");
+      return;
+    }
+    var simpleType = (blob.type || "audio/webm").split(";", 1)[0];
+    var extensions = {
+      "audio/webm": "webm",
+      "audio/ogg": "ogg",
+      "audio/mp4": "m4a",
+    };
+    var file = new File([blob], "voice-" + Date.now() + "." + (extensions[simpleType] || "webm"), {
+      type: simpleType,
+    });
+    var form = new FormData();
+    form.append("attachments[]", file);
+    form.append("private", "false");
+    form.append("is_voice_message", "true");
+    context.status.textContent = "Sending audio…";
+    window.axios
+      .post(
+        "/api/v1/accounts/" +
+          route.accountId +
+          "/conversations/" +
+          route.conversationId +
+          "/messages",
+        form
+      )
+      .then(function () {
+        finishRecorder(context, "Audio sent");
+      })
+      .catch(function () {
+        finishRecorder(context, "Audio was not sent. Try again.");
+      });
+  }
+
+  function startFastRecorder(button) {
+    var status = recorderStatus(button);
+    recorderStarting = true;
+    status.textContent = "Starting microphone…";
+    navigator.mediaDevices
+      .getUserMedia({ audio: true })
+      .then(function (stream) {
+        recorderStarting = false;
+        var mimeType = preferredRecordingType();
+        var recorder;
+        try {
+          recorder = mimeType
+            ? new MediaRecorder(stream, { mimeType: mimeType, audioBitsPerSecond: 48000 })
+            : new MediaRecorder(stream);
+        } catch (error) {
+          stream.getTracks().forEach(function (track) {
+            track.stop();
+          });
+          throw error;
+        }
+        var context = {
+          button: button,
+          chunks: [],
+          recorder: recorder,
+          startedAt: Date.now(),
+          status: status,
+          stream: stream,
+          timer: null,
+          failed: false,
+        };
+        activeRecorder = context;
+        recorder.ondataavailable = function (event) {
+          if (event.data && event.data.size) context.chunks.push(event.data);
+        };
+        recorder.onerror = function () {
+          context.failed = true;
+          finishRecorder(context, "Recording failed. Try again.");
+        };
+        recorder.onstop = function () {
+          if (context.failed) return;
+          window.clearInterval(context.timer);
+          context.stream.getTracks().forEach(function (track) {
+            track.stop();
+          });
+          uploadRecording(context, new Blob(context.chunks, { type: recorder.mimeType }));
+        };
+        recorder.start(1000);
+        button.classList.add("g01-recording-active");
+        button.title = "Stop and send audio";
+        status.textContent = "Recording 0:00 — click again to stop and send";
+        context.timer = window.setInterval(function () {
+          var seconds = Math.floor((Date.now() - context.startedAt) / 1000);
+          status.textContent =
+            "Recording " +
+            Math.floor(seconds / 60) +
+            ":" +
+            String(seconds % 60).padStart(2, "0") +
+            " — click again to stop and send";
+        }, 500);
+      })
+      .catch(function () {
+        recorderStarting = false;
+        status.textContent = "Microphone access was denied.";
+        window.setTimeout(function () {
+          status.remove();
+        }, 4000);
+      });
+  }
+
+  function installFastAudioRecorder() {
+    document.addEventListener(
+      "click",
+      function (event) {
+        var button = event.target.closest && event.target.closest("button");
+        if (
+          !button ||
+          !button.querySelector('[class*="i-ph-microphone"]') ||
+          !window.MediaRecorder ||
+          !navigator.mediaDevices
+        ) {
+          return;
+        }
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (recorderStarting) return;
+        if (activeRecorder) {
+          if (activeRecorder.button === button && activeRecorder.recorder.state === "recording") {
+            activeRecorder.status.textContent = "Finishing audio…";
+            activeRecorder.recorder.stop();
+          }
+          return;
+        }
+        startFastRecorder(button);
+      },
+      true
+    );
   }
 
   var currentUserId = null;
@@ -178,15 +359,16 @@
 
   function watch() {
     brandImages(document);
-    enhanceAudioPlayers(document);
     classifyMessages(document);
+    enhanceAudioPlayers(document);
+    installFastAudioRecorder();
     new MutationObserver(function (records) {
       records.forEach(function (record) {
         record.addedNodes.forEach(function (node) {
           if (node.nodeType === 1) {
             brandImages(node);
-            enhanceAudioPlayers(node);
             scheduleMessageClassification();
+            enhanceAudioPlayers(node);
           }
         });
       });
