@@ -230,7 +230,7 @@
         event.stopImmediatePropagation();
         if (recorderStarting) return;
         if (activeRecorder) {
-          if (activeRecorder.button === button && activeRecorder.recorder.state === "recording") {
+          if (activeRecorder.recorder.state === "recording") {
             activeRecorder.status.textContent = "Finishing audio…";
             activeRecorder.recorder.stop();
           }

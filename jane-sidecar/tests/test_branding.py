@@ -81,6 +81,8 @@ def test_brand_assets_are_gold_and_white():
     assert 'form.append("is_voice_message", "true")' in script
     assert "audioBitsPerSecond: 48000" in script
     assert "Stop and send audio" in script
+    assert "activeRecorder.button === button" not in script
+    assert 'activeRecorder.recorder.state === "recording"' in script
     assert "platform.access_token" in bootstrap
     assert 'raise "g01 bridge secret is empty"' in bootstrap
     assert "CHATWOOT_INSTALLATION_ONBOARDING" in bootstrap
