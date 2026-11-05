@@ -159,6 +159,29 @@ def status_reply(prop: dict, locality: dict | None) -> str:
     )
 
 
+def fallback_reply(decision: dict) -> str:
+    if decision.get("report_scores"):
+        return ""
+    recorded = bool(decision.get("ledger_patch")) or any(
+        decision.get(key) is not None
+        for key in (
+            "outside_aid_hours_per_week",
+            "aesthetic_pct",
+            "material_independent",
+            "material_surplus_profitable",
+            "energetic_pct",
+            "energetic_profitable",
+            "contained_zero_waste",
+            "street_address",
+            "property_lat",
+            "property_lng",
+        )
+    )
+    if recorded:
+        return "I recorded that. What would you like to work on next?"
+    return "What would you like help with on your homestead?"
+
+
 def heuristic_decision(state: dict) -> dict:
     message = state.get("message") or {}
     text = message.get("content") or ""
@@ -283,18 +306,4 @@ def heuristic_decision(state: dict) -> dict:
         if not decision["reply"]:
             decision["reply"] = "I'll stay inside your locality and start with what you can make on the homestead."
 
-    wrote_score = any(
-        decision[key] is not None
-        for key in (
-            "outside_aid_hours_per_week",
-            "aesthetic_pct",
-            "material_independent",
-            "material_surplus_profitable",
-            "energetic_pct",
-            "energetic_profitable",
-            "contained_zero_waste",
-        )
-    )
-    if not decision["reply"] and not decision["report_scores"] and not wrote_score:
-        decision["reply"] = status_reply(prop, locality)
     return decision

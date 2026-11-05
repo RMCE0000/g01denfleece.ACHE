@@ -20,7 +20,7 @@ class SyncState(TypedDict, total=False):
 from app.config import get_settings
 from app.constitution import JANE_JSON_INSTRUCTION, JANE_SYSTEM_PROMPT
 from app.effects import commit_decision
-from app.heuristic import heuristic_decision
+from app.heuristic import fallback_reply, heuristic_decision
 from app.llm import complete_json, llm_override
 from app.runtime import current_checkpointer, get_store
 
@@ -70,6 +70,8 @@ async def deliberate(state: dict) -> dict:
     decision = heuristic_decision(state)
     settings = get_settings()
     if llm_override.get() is None and not settings.gemini_api_key:
+        if not decision.get("reply"):
+            decision["reply"] = fallback_reply(decision)
         return {"decision": decision}
     context = {
         "homesteader_message": (state.get("message") or {}).get("content"),
@@ -87,8 +89,15 @@ async def deliberate(state: dict) -> dict:
         )
     except Exception:
         log.exception("Gemini chat turn failed; posting the grounded reply")
+        if not decision.get("reply"):
+            decision["reply"] = fallback_reply(decision)
         return {"decision": decision}
-    if isinstance(raw, dict) and isinstance(raw.get("reply"), str) and raw["reply"].strip():
+    if (
+        not decision.get("report_scores")
+        and isinstance(raw, dict)
+        and isinstance(raw.get("reply"), str)
+        and raw["reply"].strip()
+    ):
         decision["reply"] = raw["reply"].strip()
     if isinstance(raw, dict) and isinstance(raw.get("ledger_patch"), dict):
         patch = dict(decision.get("ledger_patch") or {})

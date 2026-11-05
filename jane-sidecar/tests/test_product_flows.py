@@ -47,8 +47,9 @@ def test_scores_are_answered_in_the_thread(client, store):
 
 def test_aesthetic_and_labor_are_told_to_jane(client, store):
     told = ledger_reply(store, _message("I rate the beauty 82.5. We spend 10 hours a week.", 2))
-    assert "Automated 75.00" in told.json()["reply"]
-    assert "Aesthetic 82.50" in told.json()["reply"]
+    assert "Automated" not in told.json()["reply"]
+    assert "Aesthetic" not in told.json()["reply"]
+    assert "recorded" in told.json()["reply"]
     response = ledger_reply(store, _message("What are my scores?", 3))
     reply = response.json()["reply"]
     assert "Automated 75.00" in reply
@@ -455,7 +456,7 @@ def test_zip_attaches_the_thread_and_hides_the_street(client, store):
     assert opened.status_code == 200
     reply = opened.json()["reply"]
     assert "Lake Charles" in reply
-    assert "Automated 75.00" in reply
+    assert "Automated" not in reply
     assert "Prien" not in reply
     prop = next(row for row in store.properties if row["chatwoot_contact_id"] == 880)
     assert prop["zip_code"] == "70601"

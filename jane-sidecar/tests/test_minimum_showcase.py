@@ -108,6 +108,7 @@ def test_prompt_includes_the_constitution_grounded_record_and_history(client, st
     assert '"locality":"Lake Charles & Calcasieu Suburbs"' in seen["system"]
     assert '"known_facts":' in seen["system"]
     assert "facts already present" in seen["system"]
+    assert "private internal context" in seen["system"]
     assert seen["models"] == ["gemini-3.5-flash", "gemini-3.5-flash"]
     assert seen["complexities"] == ["standard", "standard"]
     assert seen["prompts"][0] == "Ada: The cistern is empty."
@@ -136,6 +137,29 @@ def test_prompt_includes_the_constitution_grounded_record_and_history(client, st
     duplicate = client.post("/webhooks/chatwoot", json=_message("The cistern is empty.", 1, name="Ada"))
     assert duplicate.json()["duplicate"] is True
     assert len([row for row in store.transcript if row["message_id"] == "1"]) == 1
+
+
+def test_recording_a_normal_fact_does_not_expose_internal_scores(client, store):
+    token = gemini_override.set(
+        lambda _model, _messages, _complexity: (
+            "I recorded that you have about two acres and no equipment. "
+            "What would you most like to build or grow first?"
+        )
+    )
+    try:
+        response = client.post(
+            "/webhooks/chatwoot",
+            json=_message("I currently have no equipment, and my property is about 2 acres.", 790, name="Ada"),
+        )
+    finally:
+        gemini_override.reset(token)
+
+    assert response.status_code == 200
+    reply = response.json()["reply"]
+    assert reply.startswith("I recorded that you have about two acres")
+    for internal in ("Automated", "Aesthetic", "Material is", "Energetic", "Contained"):
+        assert internal not in reply
+    assert store.properties[0]["known_facts_ledger"]["acreage"] == "2"
 
 
 def test_live_private_chat_applies_scores_and_grounded_sponsor_ranking(client, store):

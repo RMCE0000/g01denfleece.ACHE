@@ -84,6 +84,9 @@ def _grounded_system(prop: dict | None, locality: dict | None) -> str:
         + "\nCURRENT VERIFIED HOMESTEAD RECORD\n"
         + json.dumps(record, ensure_ascii=True, separators=(",", ":"), default=str)
         + "\nUse this record instead of asking again for facts already present. "
+        "The north_star object is private internal context. Never enumerate or volunteer its field names, "
+        "scores, percentages, or booleans. Disclose a metric only when the latest message explicitly asks "
+        "about the North Star or scores, or when one specific metric is strictly necessary to answer a direct question about it. "
         "Answer the latest request directly before asking at most one useful follow-up question."
     )
 
@@ -183,16 +186,7 @@ async def answer_with_effects(store, message: dict) -> str:
             "matches": await store.matches_for_property(prop["id"]) if prop else [],
         }
     )
-    effect_keys = (
-        "ledger_patch", "outside_aid_hours_per_week", "aesthetic_pct",
-        "material_independent", "material_surplus_profitable", "energetic_pct",
-        "energetic_profitable", "contained_zero_waste", "service_tag",
-        "start_poll", "vote_poll_id", "match_id", "sponsor_active",
-        "cancel_sponsor", "report_scores", "request_kyc", "street_address",
-        "property_lat", "property_lng",
-    )
-    has_grounded_effect = any(decision.get(key) for key in effect_keys)
-    if not has_grounded_effect:
+    if not decision.get("reply") and not decision.get("report_scores"):
         decision["reply"] = cleaned
     await store.append_transcript(
         conversation_id=int(message["conversation_id"]),

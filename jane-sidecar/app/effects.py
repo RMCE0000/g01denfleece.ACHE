@@ -177,19 +177,7 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
     ledger = gate_ledger_patch(prop.get("known_facts_ledger") or {}, decision.get("ledger_patch") or {}, user_text)
     prop = await store.merge_ledger(prop["id"], ledger)
 
-    wrote_score = any(
-        decision.get(key) is not None
-        for key in (
-            "outside_aid_hours_per_week",
-            "aesthetic_pct",
-            "material_independent",
-            "material_surplus_profitable",
-            "energetic_pct",
-            "energetic_profitable",
-            "contained_zero_waste",
-        )
-    )
-    if decision.get("report_scores") or wrote_score:
+    if decision.get("report_scores"):
         fresh_locality = locality or await store.get_locality(prop["locality_id"])
         notes.append(status_reply(prop, fresh_locality))
 
