@@ -27,38 +27,96 @@
     });
   }
 
-  function classifyMessages(scope) {
-    var root = scope && scope.querySelectorAll ? scope : document;
-    var store = window.WOOT && window.WOOT.$store;
-    var getters = store && store.getters;
-    var currentUser = getters && getters.getCurrentUser;
-    var currentUserId =
-      (getters && getters.getCurrentUserID) || (currentUser && currentUser.id);
-    var selectedChat = getters && getters.getSelectedChat;
-    var chatMessages = (selectedChat && selectedChat.messages) || [];
-    if (!currentUserId || !chatMessages.length) return;
+  var currentUserId = null;
+  var messageSenders = {};
+  var activeConversationKey = "";
+  var messageClassificationRequest = null;
 
-    var messages = [];
-    if (root.matches && root.matches(".message-bubble-container")) messages.push(root);
-    if (root.querySelectorAll) {
-      root.querySelectorAll(".message-bubble-container").forEach(function (message) {
-        messages.push(message);
-      });
-    }
+  function conversationContext() {
+    var match = window.location.pathname.match(
+      /\/app\/accounts\/(\d+).*\/conversations\/(\d+)/
+    );
+    if (!match) return null;
+    return {
+      accountId: match[1],
+      conversationId: match[2],
+      key: match[1] + ":" + match[2],
+    };
+  }
+
+  function visibleMessages() {
+    return Array.prototype.slice.call(
+      document.querySelectorAll(".message-bubble-container[data-message-id]")
+    );
+  }
+
+  function applyMessageClasses(messages) {
+    if (currentUserId == null) return;
     messages.forEach(function (message) {
       var messageId = Number(message.getAttribute("data-message-id"));
-      var messageData = chatMessages.find(function (item) {
-        return Number(item.id) === messageId;
-      });
-      if (!messageData) return;
-      var senderId = messageData.sender_id;
-      if (senderId == null) senderId = messageData.senderId;
-      if (senderId == null && messageData.sender) senderId = messageData.sender.id;
-      if (senderId == null) return;
+      var senderId = messageSenders[messageId];
+      if (senderId == null || senderId === false) return;
       var own = Number(senderId) === Number(currentUserId);
       message.classList.toggle("g01-own-message", own);
       message.classList.toggle("g01-other-message", !own);
     });
+  }
+
+  function classifyMessages() {
+    var context = conversationContext();
+    var messages = visibleMessages();
+    if (!context || !messages.length || !window.axios) return;
+
+    if (activeConversationKey !== context.key) {
+      activeConversationKey = context.key;
+      messageSenders = {};
+    }
+    applyMessageClasses(messages);
+
+    var missingIds = messages
+      .map(function (message) {
+        return Number(message.getAttribute("data-message-id"));
+      })
+      .filter(function (messageId) {
+        return Number.isFinite(messageId) && messageSenders[messageId] === undefined;
+      });
+    if (!missingIds.length || messageClassificationRequest) return;
+
+    var firstId = Math.min.apply(Math, missingIds);
+    var lastId = Math.max.apply(Math, missingIds);
+    var requestKey = context.key;
+    var userRequest = currentUserId
+      ? Promise.resolve()
+      : window.axios.get("/auth/validate_token").then(function (response) {
+          currentUserId = response.data.payload.data.id;
+        });
+    var messagesUrl =
+      "/api/v1/accounts/" +
+      context.accountId +
+      "/conversations/" +
+      context.conversationId +
+      "/messages";
+    var messagesRequest = window.axios
+      .get(messagesUrl, { params: { after: firstId, before: lastId + 1 } })
+      .then(function (response) {
+        if (activeConversationKey !== requestKey) return;
+        (response.data.payload || []).forEach(function (message) {
+          var senderId = message.sender_id;
+          if (senderId == null && message.sender) senderId = message.sender.id;
+          messageSenders[message.id] = senderId == null ? false : senderId;
+        });
+      });
+
+    messageClassificationRequest = Promise.all([userRequest, messagesRequest])
+      .then(function () {
+        if (activeConversationKey === requestKey) applyMessageClasses(visibleMessages());
+      })
+      .catch(function () {
+        // Keep Chatwoot's messages usable if either read-only lookup fails.
+      })
+      .finally(function () {
+        messageClassificationRequest = null;
+      });
   }
 
   var messageClassificationQueued = false;
@@ -87,11 +145,6 @@
   function watch() {
     brandImages(document);
     classifyMessages(document);
-    var store = window.WOOT && window.WOOT.$store;
-    if (store && store.subscribe && !window.__g01MessageStoreSubscribed) {
-      window.__g01MessageStoreSubscribed = true;
-      store.subscribe(scheduleMessageClassification);
-    }
     new MutationObserver(function (records) {
       records.forEach(function (record) {
         record.addedNodes.forEach(function (node) {

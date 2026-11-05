@@ -51,12 +51,17 @@ def test_brand_assets_are_gold_and_white():
     assert "#eef2f3" in css
     assert ".g01-own-message .right-bubble" in css
     assert ".g01-other-message .right-bubble" in css
-    assert "window.WOOT && window.WOOT.$store" in script
-    assert "getters.getSelectedChat" in script
+    assert 'window.axios.get("/auth/validate_token")' in script
+    assert '"/api/v1/accounts/"' in script
+    assert '"/conversations/"' in script
+    assert '"/messages"' in script
     assert 'message.getAttribute("data-message-id")' in script
     assert 'message.classList.toggle("g01-own-message", own)' in script
     assert "Number(senderId) === Number(currentUserId)" in script
+    assert "response.data.payload.data.id" in script
+    assert "response.data.payload || []" in script
     assert "__vueParentComponent" not in script
+    assert "WOOT.$store" not in script
     assert "nav ul.items-center .g01-community-label" in css
     assert "platform.access_token" in bootstrap
     assert 'raise "g01 bridge secret is empty"' in bootstrap
