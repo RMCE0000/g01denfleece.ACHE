@@ -1,6 +1,6 @@
 (function () {
   var LOGO = "/g01-logo.png";
-  var MARK = "/g01-mark.svg";
+  var MARK = "/g01-favicon.png?v=6";
 
   function light() {
     var root = document.documentElement;
@@ -22,9 +22,8 @@
       img.alt = "g01";
     });
     document.querySelectorAll('link[rel~="icon"]').forEach(function (link) {
-      var href = link.getAttribute("href") || "";
-      if (href.indexOf("g01-mark") !== -1) return;
-      if (/brand-assets|favicon|logo/i.test(href)) link.href = MARK;
+      link.href = MARK;
+      link.type = "image/png";
     });
   }
 
@@ -98,9 +97,13 @@
       return;
     }
     document.body.classList.add("g01-login-page");
-    if (document.getElementById("g01-signup")) return;
     var heading = document.querySelector("h2");
     if (!heading || !heading.parentNode) return;
+    if (/login to chatwoot/i.test(heading.textContent || "")) {
+      heading.textContent = "Sign in to g01";
+    }
+    if (/chatwoot/i.test(document.title)) document.title = "Sign in · g01";
+    if (document.getElementById("g01-signup")) return;
 
     var block = document.createElement("div");
     block.id = "g01-signup";

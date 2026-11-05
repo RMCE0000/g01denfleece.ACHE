@@ -13,11 +13,16 @@ def test_brand_assets_are_gold_and_white():
     assert logo.startswith(b"\x89PNG\r\n\x1a\n") and len(logo) > 10_000
     assert "#7A5E24" in mark
     assert "/g01-logo.png" in script
+    favicon = (ROOT / "branding" / "g01-favicon.png").read_bytes()
+    assert favicon.startswith(b"\x89PNG\r\n\x1a\n") and len(favicon) > 10_000
+    assert "/g01-favicon.png" in script
+    assert "Sign in to g01" in script
     assert "g01-login-page" in script
     assert "g01-login-page img" in css
     assert (ROOT / "branding" / "g01-mark.png").stat().st_size > 500
     initializer = (ROOT / "ops" / "g01_branding.rb").read_text(encoding="utf-8")
     assert "g01-brand.css" in initializer
+    assert 'gsub("Login to Chatwoot", "Sign in to g01")' in initializer
     assert "/g01/signup" in initializer
     assert "Create an account" in script
     assert "thread with Jane" not in script
@@ -50,6 +55,7 @@ def test_brand_assets_are_gold_and_white():
     assert "\n  RAILS_SERVE_STATIC_FILES: \"true\"" in compose
     assert "\n      RAILS_SERVE_STATIC_FILES:" not in compose
     assert "/app/public/g01-logo.png" in compose
+    assert "/app/public/g01-favicon.png" in compose
     assert "g01_branding.rb" in compose
     assert "g01_community_controller.rb" in compose
     assert "g01_contacts_scope.rb" in compose

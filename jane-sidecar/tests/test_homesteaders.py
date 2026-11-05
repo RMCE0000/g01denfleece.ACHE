@@ -11,6 +11,8 @@ class FakeChatwoot:
     calls = []
     seq = 800
     preexisting = {}
+    orphaned = set()
+    omit_custom_attributes = False
 
     def __init__(self, settings=None):
         self.settings = settings
@@ -20,6 +22,8 @@ class FakeChatwoot:
         cls.calls = []
         cls.seq = 800
         cls.preexisting = {}
+        cls.orphaned = set()
+        cls.omit_custom_attributes = False
 
     def configured(self):
         return True
@@ -35,13 +39,25 @@ class FakeChatwoot:
         if email in FakeChatwoot.preexisting:
             user_id = FakeChatwoot.preexisting[email]
             FakeChatwoot.calls.append(("user", user_id, email))
+            if email in FakeChatwoot.orphaned:
+                return {
+                    "id": user_id,
+                    "name": name,
+                    "email": email,
+                    "custom_attributes": {"g01": True, "g01_signup": "old-attempt"},
+                    "accounts": [],
+                    "account_id": None,
+                }
             return {"id": user_id, "name": name, "email": email, "custom_attributes": {}}
         user_id = self._next()
         FakeChatwoot.calls.append(("user", user_id, email))
         attributes = {"g01": True}
         if signup_nonce:
             attributes["g01_signup"] = signup_nonce
-        return {"id": user_id, "name": name, "email": email, "custom_attributes": attributes}
+        user = {"id": user_id, "name": name, "email": email, "accounts": [], "account_id": None}
+        if not FakeChatwoot.omit_custom_attributes:
+            user["custom_attributes"] = attributes
+        return user
 
     async def add_account_user(self, user_id, role="agent"):
         FakeChatwoot.calls.append(("account_user", int(user_id), role))
@@ -220,6 +236,17 @@ def test_login_page_signup_opens_a_sign_in(store, monkeypatch):
         assert body["sso_url"].startswith("http://localhost:3000/auth/sso?user=")
         assert "api_access_token" not in body
         assert any(call[0] == "inbox" and call[1] == "Jane — Cara North" for call in FakeChatwoot.calls)
+
+        FakeChatwoot.omit_custom_attributes = True
+        older = client.post("/api/signup", json=_person("Sam Field", "sam.field@example.com", "70601"))
+        assert older.status_code == 200
+        assert older.json()["email"] == "sam.field@example.com"
+
+        FakeChatwoot.preexisting["pat.orphaned@example.com"] = 78
+        FakeChatwoot.orphaned.add("pat.orphaned@example.com")
+        resumed = client.post("/api/signup", json=_person("Pat Orchard", "pat.orphaned@example.com", "70601"))
+        assert resumed.status_code == 200
+        assert resumed.json()["email"] == "pat.orphaned@example.com"
 
         again = client.post("/api/signup", json=_person("Cara North", "cara.north@example.com", "70607"))
         assert again.status_code == 409

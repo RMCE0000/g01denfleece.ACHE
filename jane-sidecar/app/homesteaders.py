@@ -160,6 +160,27 @@ def _public_homesteader(prop: dict, *, existing: bool) -> dict:
     }
 
 
+def _platform_user_was_created(user: dict, nonce: str) -> bool:
+    """Accept a new user or resume a g01-created user left unattached by an older failed signup."""
+    attributes = user.get("custom_attributes")
+    if isinstance(attributes, dict):
+        if attributes.get("g01_signup") == nonce:
+            return True
+        # Earlier g01 code could create the platform user and then reject the
+        # response before adding an account. Only resume that identifiable,
+        # account-less g01 user; never claim an ordinary Chatwoot user.
+        return (
+            attributes.get("g01") is True
+            and user.get("account_id") is None
+            and user.get("accounts") == []
+        )
+    # A just-created platform user has not been attached to an account yet.
+    # Older Chatwoot serializers omit custom_attributes, but still expose the
+    # empty account list. Existing users already attached to Chatwoot do not.
+    accounts = user.get("accounts")
+    return user.get("account_id") is None and isinstance(accounts, list) and not accounts
+
+
 async def register_homesteader(store, fields: dict) -> dict:
     """Public login-page signup. An email that already has a sign-in does not get a new session."""
     email = _email(fields.get("email") or "")
@@ -206,7 +227,7 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
     settings = get_settings()
     nonce = uuid4().hex if reject_existing_user else None
     user = await client.create_platform_user(name, email, password, signup_nonce=nonce)
-    if nonce and (user.get("custom_attributes") or {}).get("g01_signup") != nonce:
+    if nonce and not _platform_user_was_created(user, nonce):
         raise G01Error("That email already has a sign-in.", 409)
     user_id = int(user["id"])
     await client.add_account_user(user_id, role="agent")

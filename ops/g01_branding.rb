@@ -6,7 +6,7 @@ require "net/http"
 require "uri"
 
 class G01Branding
-  SNIPPET = '<link rel="stylesheet" href="/g01-brand.css?v=5"><script src="/g01-brand.js?v=5"></script>'
+  SNIPPET = '<link rel="icon" type="image/png" href="/g01-favicon.png?v=6"><link rel="stylesheet" href="/g01-brand.css?v=6"><script src="/g01-brand.js?v=6"></script>'
   SIGNUP_PATH = "/g01/signup"
 
   def initialize(app)
@@ -27,7 +27,8 @@ class G01Branding
     body.close if body.respond_to?(:close)
     return [status, headers, [raw]] unless raw.include?("</head>") && !raw.include?("g01-brand.css")
 
-    branded = raw.sub("</head>", "#{SNIPPET}</head>")
+    branded = raw.gsub("Login to Chatwoot", "Sign in to g01")
+                 .sub("</head>", "#{SNIPPET}</head>")
     headers = headers.dup
     headers["Content-Length"] = branded.bytesize.to_s
     headers.delete("Transfer-Encoding")

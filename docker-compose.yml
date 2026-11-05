@@ -122,6 +122,7 @@ services:
       - chatwoot_storage:/app/storage
       - ./branding:/branding:ro
       - ./branding/g01-logo.png:/app/public/g01-logo.png:ro
+      - ./branding/g01-favicon.png:/app/public/g01-favicon.png:ro
       - ./branding/g01-mark.svg:/app/public/g01-mark.svg:ro
       - ./branding/g01-mark.png:/app/public/g01-mark.png:ro
       - ./branding/g01-brand.css:/app/public/g01-brand.css:ro
