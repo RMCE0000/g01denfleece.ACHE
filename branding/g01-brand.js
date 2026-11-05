@@ -9,7 +9,7 @@
   }
 
   function isBrandLogo(src) {
-    return /brand-assets\/logo|logo_dark|logo_thumbnail|\/logo\.svg(?:$|\?)/i.test(src || "");
+    return /brand-assets\/logo|logo_dark|logo_thumbnail|\/logo\.svg(?:$|\?)|\/g01-(?:mark|favicon)/i.test(src || "");
   }
 
   function brandImages(scope) {
@@ -18,7 +18,7 @@
     images.forEach(function (img) {
       var src = img.getAttribute("src") || "";
       if (!isBrandLogo(src) || src.indexOf("g01-logo") !== -1) return;
-      img.src = LOGO;
+      img.src = /thumbnail|g01-(?:mark|favicon)/i.test(src) ? MARK : LOGO;
       img.alt = "g01";
     });
     document.querySelectorAll('link[rel~="icon"]').forEach(function (link) {
@@ -332,7 +332,7 @@
       communityElement(
         "p",
         "g01-community-intro",
-        "Enter a homesteader's exact username to start a private Chatwoot conversation. There is no public member directory."
+        "Enter the username of a peer to start a conversation."
       )
     );
     panel.appendChild(communityElement("p", "g01-community-identity"));

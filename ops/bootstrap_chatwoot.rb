@@ -127,7 +127,7 @@ channel.update!(
   "BRAND_NAME" => SITE_NAME,
   "LOGO" => "/g01-logo.png",
   "LOGO_DARK" => "/g01-logo.png",
-  "LOGO_THUMBNAIL" => "/g01-mark.svg",
+  "LOGO_THUMBNAIL" => "/g01-favicon.png",
   "BRAND_URL" => SITE_URL,
   "WIDGET_BRAND_URL" => SITE_URL,
   "DISPLAY_MANIFEST" => false

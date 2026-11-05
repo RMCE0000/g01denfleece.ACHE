@@ -200,11 +200,25 @@ body.g01-login-page .g01-signup-card {
   backdrop-filter: blur(12px);
 }
 
+.chat-bubble.user,
 .chat-bubble.outgoing .message-content,
 .conversation-wrap .right .message-content,
+.right-bubble,
 .widget-header,
 .header-brand {
   background-color: #7a5e24 !important;
+  color: #ffffff !important;
+}
+
+.chat-bubble.agent,
+.conversation-wrap .left .message-content,
+.left-bubble {
+  background-color: #f1e6cf !important;
+  color: #2a2418 !important;
+}
+
+.right-bubble a,
+.chat-bubble.user a {
   color: #ffffff !important;
 }
 
@@ -216,14 +230,18 @@ body.g01-login-page .g01-signup-card {
 }
 
 .g01-community-open {
-  width: calc(100% - 1rem);
-  margin: 0.5rem;
+  width: fit-content !important;
+  max-width: calc(100% - 1.5rem);
+  min-height: 1.75rem;
+  margin: 0.35rem 0.75rem;
   border: 1px solid #d4b87a;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fffaf0;
   color: #5a4414;
-  padding: 0.6rem 0.75rem;
+  padding: 0.3rem 0.5rem;
   text-align: left;
+  font-size: 0.78rem;
+  line-height: 1.15;
   font-weight: 600;
   cursor: pointer;
 }

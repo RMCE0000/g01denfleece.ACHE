@@ -31,7 +31,9 @@ def test_brand_assets_are_gold_and_white():
     assert "/g01/signup" in script
     assert "g01 Community" in script
     assert "Username" in script
-    assert "There is no public member directory" in script
+    assert "Enter the username of a peer to start a conversation." in script
+    assert "exact username" not in script
+    assert "public member directory" not in script
     assert "member_id" not in script
     assert "window.axios" in script
     assert "X-G01-Requested-With" in script
@@ -41,6 +43,9 @@ def test_brand_assets_are_gold_and_white():
     assert 'SITE_URL = "https://g01denfleece.com"' in bootstrap
     assert "website_url: SITE_URL" in bootstrap
     assert "/g01-logo.png" in bootstrap
+    assert '"LOGO_THUMBNAIL" => "/g01-favicon.png"' in bootstrap
+    assert ".right-bubble" in css
+    assert ".left-bubble" in css
     assert "platform.access_token" in bootstrap
     assert 'raise "g01 bridge secret is empty"' in bootstrap
     assert "CHATWOOT_INSTALLATION_ONBOARDING" in bootstrap
