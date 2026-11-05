@@ -11,6 +11,20 @@ from app.errors import G01Error
 log = logging.getLogger(__name__)
 
 
+def _message_content(row: dict) -> str:
+    content = str(row.get("content") or "").strip()
+    if content:
+        return content
+    transcripts: list[str] = []
+    for attachment in row.get("attachments") or []:
+        if not isinstance(attachment, dict) or str(attachment.get("file_type") or "").lower() != "audio":
+            continue
+        text = str(attachment.get("transcribed_text") or "").strip()
+        if text:
+            transcripts.append(text)
+    return "\n".join(transcripts)
+
+
 def _webhook_urls(payload) -> set[str]:
     found: set[str] = set()
     if isinstance(payload, dict):
@@ -77,7 +91,7 @@ class ChatwootClient:
                 continue
             if row.get("message_type") in (2, "activity", "template"):
                 continue
-            content = str(row.get("content") or "").strip()
+            content = _message_content(row)
             if not content:
                 continue
             attributes = row.get("content_attributes") or {}

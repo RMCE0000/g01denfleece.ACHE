@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     gemini_chat_model: str = "gemini-3.5-flash"
     gemini_deliberation_model: str = "gemini-3.1-pro-preview"
     gemini_embedding_model: str = "gemini-embedding-2"
+    audio_transcription_enabled: bool = True
+    audio_transcription_max_bytes: int = 10_000_000
 
     chatwoot_base_url: str = "http://localhost:3000"
     chatwoot_public_url: str = "http://localhost:3000"

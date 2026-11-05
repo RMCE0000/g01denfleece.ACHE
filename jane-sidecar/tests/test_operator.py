@@ -24,6 +24,7 @@ async def test_dashboard_users_and_complete_user_view(backend):
     assert dashboard["localities"] == 2
     assert dashboard["integrations"]["gemini_standard_model"] == "gemini-3.5-flash"
     assert dashboard["integrations"]["gemini_complex_model"] == "gemini-3.1-pro-preview"
+    assert dashboard["integrations"]["audio_transcription"] is False
 
     users = await backend.users()
     assert users[0]["name"] == "Lake Charles Homestead"

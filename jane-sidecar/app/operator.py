@@ -158,6 +158,8 @@ class OperatorBackend:
                 "gemini_api": bool(self.settings.gemini_api_key),
                 "gemini_standard_model": self.settings.gemini_chat_model,
                 "gemini_complex_model": self.settings.gemini_deliberation_model,
+                "audio_transcription": self.settings.audio_transcription_enabled
+                and bool(self.settings.gemini_api_key),
                 "stripe": bool(self.settings.stripe_secret_key),
                 "daily_poll_scheduler": self.settings.daily_poll_enabled,
                 "automatic_matchmaking": self.settings.automatic_matchmaking_enabled,
@@ -697,7 +699,7 @@ class OperatorBackend:
             {"area": "Homesteader signup", "status": "active", "operator_action": "g01 creates an agent, property, and private Jane inbox."},
             {"area": "Private Jane chat", "status": "active with Gemini key", "operator_action": "LangChain routes ordinary turns to Gemini Flash and complex planning/analysis to Gemini Pro."},
             {"area": "Homesteader connections", "status": "active", "operator_action": "Users open Community in Chatwoot, or the operator uses `connect`."},
-            {"area": "Messages, files, and private notes", "status": "active", "operator_action": "Stock Chatwoot behavior remains available in every permitted inbox."},
+            {"area": "Messages, files, audio, and private notes", "status": "active", "operator_action": "Chatwoot delivers and plays recordings between humans; Jane transcribes audio with Gemini before processing it."},
             {"area": "Contacts, labels, and custom fields", "status": "active", "operator_action": "Chatwoot CRM works normally; homesteaders see contacts only in permitted inboxes."},
             {"area": "Assignment, status, snooze, priority", "status": "active", "operator_action": "Stock Chatwoot controls remain available without changing g01 records."},
             {"area": "Reports", "status": "administrator", "operator_action": "Use Chatwoot reports for messaging operations and this console for g01 analyses."},

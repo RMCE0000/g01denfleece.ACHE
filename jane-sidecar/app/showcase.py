@@ -84,6 +84,25 @@ def _same_message(line: dict, message: dict) -> bool:
     return bool(left and right and left == right)
 
 
+def _merge_remote_and_local_history(remote: list[dict], local: list[dict]) -> list[dict]:
+    """Keep local-only transcripts, including audio, beside Chatwoot history."""
+    if not remote:
+        return local
+    merged = list(remote)
+    known = {str(line.get("message_id") or "") for line in remote}
+    for line in local:
+        message_id = str(line.get("message_id") or "")
+        if message_id and message_id not in known:
+            merged.append(line)
+            known.add(message_id)
+
+    def message_order(line: dict) -> tuple[int, int]:
+        value = str(line.get("message_id") or "")
+        return (0, int(value)) if value.isdigit() else (1, 0)
+
+    return sorted(merged, key=message_order)
+
+
 async def remote_history(conversation_id: int) -> list[dict]:
     client = ChatwootClient(get_settings())
     if not client.configured():
@@ -97,9 +116,9 @@ async def remote_history(conversation_id: int) -> list[dict]:
 
 async def history_for(store, message: dict) -> list[dict]:
     conversation_id = int(message["conversation_id"])
-    lines = await remote_history(conversation_id)
-    if not lines:
-        lines = await store.list_transcript(conversation_id)
+    remote = await remote_history(conversation_id)
+    local = await store.list_transcript(conversation_id)
+    lines = _merge_remote_and_local_history(remote, local)
     if not any(_same_message(line, message) for line in lines):
         lines = [*lines, _incoming_line(message)]
     return lines[-_HISTORY_LIMIT:]
@@ -234,9 +253,9 @@ async def list_conversations(store) -> dict:
         )
     conversations = []
     for row in sorted(found.values(), key=lambda item: item["conversation_id"]):
-        messages = await remote_history(row["conversation_id"])
-        if not messages:
-            messages = await store.list_transcript(row["conversation_id"])
+        remote = await remote_history(row["conversation_id"])
+        local = await store.list_transcript(row["conversation_id"])
+        messages = _merge_remote_and_local_history(remote, local)
         row["messages"] = _public_messages(messages)
         conversations.append(row)
     return {

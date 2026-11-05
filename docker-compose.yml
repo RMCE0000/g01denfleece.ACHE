@@ -58,6 +58,8 @@ x-jane-env: &jane-env
   G01_GEMINI_CHAT_MODEL: gemini-3.5-flash
   G01_GEMINI_DELIBERATION_MODEL: gemini-3.1-pro-preview
   G01_GEMINI_EMBEDDING_MODEL: gemini-embedding-2
+  G01_AUDIO_TRANSCRIPTION_ENABLED: ${G01_AUDIO_TRANSCRIPTION_ENABLED:-1}
+  G01_AUDIO_TRANSCRIPTION_MAX_BYTES: ${G01_AUDIO_TRANSCRIPTION_MAX_BYTES:-10000000}
   G01_CHATWOOT_BASE_URL: http://rails:3000
   # Browser links. On the public host this is https://g01denfleece.com.
   G01_CHATWOOT_PUBLIC_URL: ${G01_CHATWOOT_PUBLIC_URL:-http://localhost:3000}

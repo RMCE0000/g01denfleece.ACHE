@@ -36,6 +36,9 @@ Ties break toward fewer referrals in the last 14 days, then sponsor id.
 
 Set `G01_GEMINI_API_KEY` before starting Jane. The flow routes standard turns to
 `G01_GEMINI_CHAT_MODEL` and complex work to `G01_GEMINI_DELIBERATION_MODEL`.
+Audio recordings remain ordinary Chatwoot attachments for playback between
+humans; Jane downloads signed local recordings and transcribes them through the
+same Gemini/LangChain stack before applying chat, poll, and project workflows.
 If Gemini is unavailable, Jane says so explicitly. Celery beat and its worker
 remain optional; Jane's polling and matchmaking schedulers run in the sidecar.
 
