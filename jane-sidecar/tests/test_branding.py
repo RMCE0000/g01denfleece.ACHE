@@ -49,6 +49,11 @@ def test_brand_assets_are_gold_and_white():
     assert ".right-bubble" in css
     assert ".left-bubble" in css
     assert "#eef2f3" in css
+    assert ".g01-own-message .right-bubble" in css
+    assert ".g01-other-message .right-bubble" in css
+    assert "message.__vueParentComponent" in script
+    assert 'message.classList.toggle("g01-own-message", own)' in script
+    assert "Number(senderId) === Number(props.currentUserId)" in script
     assert "nav ul.items-center .g01-community-label" in css
     assert "platform.access_token" in bootstrap
     assert 'raise "g01 bridge secret is empty"' in bootstrap

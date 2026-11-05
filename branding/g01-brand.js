@@ -27,6 +27,33 @@
     });
   }
 
+  function classifyMessages(scope) {
+    var root = scope && scope.querySelectorAll ? scope : document;
+    var messages = [];
+    if (root.matches && root.matches(".message-bubble-container")) messages.push(root);
+    if (root.querySelectorAll) {
+      root.querySelectorAll(".message-bubble-container").forEach(function (message) {
+        messages.push(message);
+      });
+    }
+    messages.forEach(function (message) {
+      var component = message.__vueParentComponent;
+      var props = null;
+      for (var depth = 0; component && depth < 8; depth += 1) {
+        if (component.props && component.props.currentUserId != null) {
+          props = component.props;
+          break;
+        }
+        component = component.parent;
+      }
+      if (!props) return;
+      var senderId = props.senderId != null ? props.senderId : props.sender && props.sender.id;
+      var own = senderId != null && Number(senderId) === Number(props.currentUserId);
+      message.classList.toggle("g01-own-message", own);
+      message.classList.toggle("g01-other-message", !own);
+    });
+  }
+
   light();
   try {
     ["color_scheme", "theme", "cw_theme", "cw-theme", "appearance"].forEach(function (key) {
@@ -42,13 +69,20 @@
 
   function watch() {
     brandImages(document);
+    classifyMessages(document);
     new MutationObserver(function (records) {
       records.forEach(function (record) {
         record.addedNodes.forEach(function (node) {
-          if (node.nodeType === 1) brandImages(node);
+          if (node.nodeType === 1) {
+            brandImages(node);
+            classifyMessages(node);
+          }
         });
       });
     }).observe(document.body, { childList: true, subtree: true });
+    window.setTimeout(function () {
+      classifyMessages(document);
+    }, 1000);
   }
 
   if (document.body) watch();
