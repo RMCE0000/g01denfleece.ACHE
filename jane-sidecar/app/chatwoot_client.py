@@ -38,10 +38,17 @@ class ChatwootClient:
     async def _request(self, method: str, path: str, body: dict | None = None, platform: bool = False):
         token = self.settings.chatwoot_platform_token if platform else self.settings.chatwoot_api_token
         url = self.settings.chatwoot_base_url.rstrip("/") + path
-        headers = {"api_access_token": token, "Accept": "application/json"}
+        # Production Chatwoot forces HTTPS at the Rails layer. Jane reaches it
+        # over the private Docker network, so identify the original public
+        # scheme and avoid a redirect to an unusable https://rails:3000 URL.
+        headers = {
+            "api_access_token": token,
+            "Accept": "application/json",
+            "X-Forwarded-Proto": "https",
+        }
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.request(method, url, headers=headers, json=body)
-        if response.status_code >= 400:
+        if response.status_code >= 300:
             detail = " ".join(response.text.split())[:180]
             raise G01Error(f"Chatwoot returned {response.status_code}: {detail}", 502)
         if not response.content:
