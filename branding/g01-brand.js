@@ -894,6 +894,13 @@
     });
   }
 
+  function ensureCallsHidden() {
+    document.querySelectorAll('a[href*="/calls"]').forEach(function (link) {
+      var item = link.closest("li");
+      (item || link).classList.add("g01-hidden-calls");
+    });
+  }
+
   function ensureCommunityButton() {
     var accountId = currentAccountId();
     var existing = document.getElementById("g01-community-open");
@@ -924,9 +931,11 @@
   function watchCommunity() {
     ensureCommunityButton();
     ensureCommunitySearch();
+    ensureCallsHidden();
     new MutationObserver(function () {
       ensureCommunityButton();
       ensureCommunitySearch();
+      ensureCallsHidden();
     }).observe(document.body, { childList: true, subtree: true });
     window.addEventListener("popstate", ensureCommunityButton);
     document.addEventListener("keydown", function (event) {
