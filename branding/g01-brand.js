@@ -249,7 +249,7 @@
 
   function conversationContext() {
     var match = window.location.pathname.match(
-      /\/app\/accounts\/(\d+).*\/conversations\/(\d+)/
+      /\/app\/accounts\/(\d+).*\/conversations?\/(\d+)/
     );
     if (!match) return null;
     return {
