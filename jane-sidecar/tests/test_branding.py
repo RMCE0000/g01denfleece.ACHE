@@ -23,11 +23,7 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-login-page img" in css
     assert (ROOT / "branding" / "g01-mark.png").stat().st_size > 500
     initializer = (ROOT / "ops" / "g01_branding.rb").read_text(encoding="utf-8")
-    audio_initializer = (ROOT / "ops" / "g01_audio_playback.rb").read_text(encoding="utf-8")
     assert "g01-brand.css" in initializer
-    assert "rails_storage_proxy_path" in audio_initializer
-    assert 'disposition: "inline"' in audio_initializer
-    assert "Attachment.prepend(G01InlineAudioPlayback)" in audio_initializer
     assert 'gsub("Login to Chatwoot", "Sign in to g01")' in initializer
     assert "/g01/signup" in initializer
     assert "Create an account" in script
@@ -71,7 +67,11 @@ def test_brand_assets_are_gold_and_white():
     assert "WOOT.$store" not in script
     assert "nav ul.items-center .g01-community-label" in css
     assert "min-height: 1.25rem" in css
-    assert '[data-bubble-name="audio"] > .bg-n-alpha-white' in css
+    assert '[data-bubble-name="audio"] > audio.g01-native-audio' in css
+    assert "enhanceAudioPlayers" in script
+    assert '"/rails/active_storage/blobs/proxy/"' in script
+    assert 'audio.classList.remove("hidden")' in script
+    assert 'audio.nextElementSibling.classList.add("g01-audio-custom-controls")' in script
     assert "installAudioPlaybackRecovery" not in script
     assert "platform.access_token" in bootstrap
     assert 'raise "g01 bridge secret is empty"' in bootstrap
@@ -91,7 +91,7 @@ def test_brand_assets_are_gold_and_white():
     assert "/app/public/g01-logo.png" in compose
     assert "/app/public/g01-favicon.png" in compose
     assert "g01_branding.rb" in compose
-    assert compose.count("g01_audio_playback.rb:/app/config/initializers/g01_audio_playback.rb:ro") == 2
+    assert "g01_audio_playback.rb" not in compose
     assert "g01_community_controller.rb" in compose
     assert "g01_contacts_scope.rb" in compose
     assert "G01_BRIDGE_SECRET:" in compose

@@ -27,6 +27,40 @@
     });
   }
 
+  function enhanceAudioPlayers(scope) {
+    var root = scope && scope.querySelectorAll ? scope : document;
+    var bubbles = [];
+    if (root.matches && root.matches('[data-bubble-name="audio"]')) bubbles.push(root);
+    var parentBubble = root.closest && root.closest('[data-bubble-name="audio"]');
+    if (parentBubble && bubbles.indexOf(parentBubble) === -1) bubbles.push(parentBubble);
+    if (root.querySelectorAll) {
+      root.querySelectorAll('[data-bubble-name="audio"]').forEach(function (bubble) {
+        bubbles.push(bubble);
+      });
+    }
+    bubbles.forEach(function (bubble) {
+      var audio = bubble.querySelector("audio");
+      if (!audio || audio.classList.contains("g01-native-audio")) return;
+      var source = audio.querySelector("source");
+      if (source && source.src) {
+        var url = new URL(source.src, window.location.origin);
+        url.pathname = url.pathname.replace(
+          "/rails/active_storage/blobs/redirect/",
+          "/rails/active_storage/blobs/proxy/"
+        );
+        source.src = url.toString();
+      }
+      audio.classList.remove("hidden");
+      audio.classList.add("g01-native-audio");
+      audio.controls = true;
+      audio.preload = "metadata";
+      if (audio.nextElementSibling) {
+        audio.nextElementSibling.classList.add("g01-audio-custom-controls");
+      }
+      audio.load();
+    });
+  }
+
   var currentUserId = null;
   var messageSenders = {};
   var activeConversationKey = "";
@@ -144,12 +178,14 @@
 
   function watch() {
     brandImages(document);
+    enhanceAudioPlayers(document);
     classifyMessages(document);
     new MutationObserver(function (records) {
       records.forEach(function (record) {
         record.addedNodes.forEach(function (node) {
           if (node.nodeType === 1) {
             brandImages(node);
+            enhanceAudioPlayers(node);
             scheduleMessageClassification();
           }
         });
