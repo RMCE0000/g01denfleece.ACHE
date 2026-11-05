@@ -447,6 +447,13 @@ nav ul.items-center .g01-community-label {
   display: none !important;
 }
 
+[data-g01-community-search="true"] span:not(.i-lucide-search) {
+  overflow: hidden;
+  line-height: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .g01-community-dial .g01-community-primary {
   grid-column: auto;
   grid-row: auto;

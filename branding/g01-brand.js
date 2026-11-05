@@ -861,7 +861,7 @@
       var label = Array.prototype.find.call(link.querySelectorAll("span"), function (span) {
         return !span.className.includes("i-lucide-search") && span.textContent.trim();
       });
-      if (label) label.textContent = "Search conversations…";
+      if (label) label.textContent = "Search…";
       link.addEventListener(
         "click",
         function (event) {

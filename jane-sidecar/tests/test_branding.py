@@ -41,6 +41,8 @@ def test_brand_assets_are_gold_and_white():
     assert "Enter the username of a peer to start a conversation." in script
     assert "Search conversations you have already opened through Community." in script
     assert "Search by peer name or username" in script
+    assert 'label.textContent = "Search…"' in script
+    assert "white-space: nowrap" in css
     assert 'openCommunitySearch(link)' in script
     assert 'connection.conversation_path' in script
     assert "g01-hidden-compose" in script
