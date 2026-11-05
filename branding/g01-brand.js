@@ -29,6 +29,15 @@
 
   function classifyMessages(scope) {
     var root = scope && scope.querySelectorAll ? scope : document;
+    var store = window.WOOT && window.WOOT.$store;
+    var getters = store && store.getters;
+    var currentUser = getters && getters.getCurrentUser;
+    var currentUserId =
+      (getters && getters.getCurrentUserID) || (currentUser && currentUser.id);
+    var selectedChat = getters && getters.getSelectedChat;
+    var chatMessages = (selectedChat && selectedChat.messages) || [];
+    if (!currentUserId || !chatMessages.length) return;
+
     var messages = [];
     if (root.matches && root.matches(".message-bubble-container")) messages.push(root);
     if (root.querySelectorAll) {
@@ -37,20 +46,28 @@
       });
     }
     messages.forEach(function (message) {
-      var component = message.__vueParentComponent;
-      var props = null;
-      for (var depth = 0; component && depth < 8; depth += 1) {
-        if (component.props && component.props.currentUserId != null) {
-          props = component.props;
-          break;
-        }
-        component = component.parent;
-      }
-      if (!props) return;
-      var senderId = props.senderId != null ? props.senderId : props.sender && props.sender.id;
-      var own = senderId != null && Number(senderId) === Number(props.currentUserId);
+      var messageId = Number(message.getAttribute("data-message-id"));
+      var messageData = chatMessages.find(function (item) {
+        return Number(item.id) === messageId;
+      });
+      if (!messageData) return;
+      var senderId = messageData.sender_id;
+      if (senderId == null) senderId = messageData.senderId;
+      if (senderId == null && messageData.sender) senderId = messageData.sender.id;
+      if (senderId == null) return;
+      var own = Number(senderId) === Number(currentUserId);
       message.classList.toggle("g01-own-message", own);
       message.classList.toggle("g01-other-message", !own);
+    });
+  }
+
+  var messageClassificationQueued = false;
+  function scheduleMessageClassification() {
+    if (messageClassificationQueued) return;
+    messageClassificationQueued = true;
+    window.requestAnimationFrame(function () {
+      messageClassificationQueued = false;
+      classifyMessages(document);
     });
   }
 
@@ -70,12 +87,17 @@
   function watch() {
     brandImages(document);
     classifyMessages(document);
+    var store = window.WOOT && window.WOOT.$store;
+    if (store && store.subscribe && !window.__g01MessageStoreSubscribed) {
+      window.__g01MessageStoreSubscribed = true;
+      store.subscribe(scheduleMessageClassification);
+    }
     new MutationObserver(function (records) {
       records.forEach(function (record) {
         record.addedNodes.forEach(function (node) {
           if (node.nodeType === 1) {
             brandImages(node);
-            classifyMessages(node);
+            scheduleMessageClassification();
           }
         });
       });
@@ -83,6 +105,9 @@
     window.setTimeout(function () {
       classifyMessages(document);
     }, 1000);
+    window.setTimeout(function () {
+      classifyMessages(document);
+    }, 3000);
   }
 
   if (document.body) watch();

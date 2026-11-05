@@ -203,6 +203,7 @@ body.g01-login-page .g01-signup-card {
 .chat-bubble.user,
 .chat-bubble.outgoing .message-content,
 .conversation-wrap .right .message-content,
+.right-bubble,
 .widget-header,
 .header-brand {
   background-color: #7a5e24 !important;
@@ -211,8 +212,13 @@ body.g01-login-page .g01-signup-card {
 
 .chat-bubble.agent,
 .conversation-wrap .left .message-content,
-.right-bubble,
 .left-bubble {
+  background-color: #eef2f3 !important;
+  color: #20262b !important;
+}
+
+.g01-other-message .right-bubble,
+.g01-other-message .left-bubble {
   background-color: #eef2f3 !important;
   color: #20262b !important;
 }
