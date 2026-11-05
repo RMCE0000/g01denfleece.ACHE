@@ -262,6 +262,23 @@ body.g01-login-page .g01-signup-card {
   color: #20262b !important;
 }
 
+.g01-audio-message,
+.g01-audio-message.right-bubble,
+.g01-audio-message.left-bubble,
+.g01-audio-message .right-bubble,
+.g01-audio-message .left-bubble {
+  background: transparent !important;
+  color: #20262b !important;
+  box-shadow: none !important;
+}
+
+.g01-audio-message.right-bubble *,
+.g01-audio-message.left-bubble *,
+.g01-audio-message .right-bubble *,
+.g01-audio-message .left-bubble * {
+  color: #20262b !important;
+}
+
 [data-bubble-name="audio"] > .g01-audio-custom-controls {
   display: none !important;
 }

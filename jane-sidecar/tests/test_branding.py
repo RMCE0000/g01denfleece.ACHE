@@ -70,10 +70,15 @@ def test_brand_assets_are_gold_and_white():
     assert "min-height: 1.25rem" in css
     assert '[data-bubble-name="audio"] > audio.g01-native-audio' in css
     assert '.message-bubble-container[data-bubble-name="audio"]' in css
+    assert ".g01-audio-message.right-bubble" in css
     assert "enhanceAudioPlayers" in script
     assert '"/rails/active_storage/blobs/proxy/"' in script
     assert 'audio.classList.remove("hidden")' in script
     assert 'audio.nextElementSibling.classList.add("g01-audio-custom-controls")' in script
+    assert 'message.classList.add("g01-audio-message")' in script
+    assert ".fetch(playbackUrl" in script
+    assert 'credentials: "same-origin"' in script
+    assert "URL.createObjectURL(blob)" in script
     assert "installAudioPlaybackRecovery" not in script
     assert "installFastAudioRecorder" in script
     assert '"audio/webm;codecs=opus"' in script

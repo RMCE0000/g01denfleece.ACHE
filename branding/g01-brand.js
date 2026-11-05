@@ -40,16 +40,20 @@
     }
     bubbles.forEach(function (bubble) {
       try {
+        var message = bubble.closest("[data-message-id]") || bubble.closest(".message-bubble-container");
+        if (message) message.classList.add("g01-audio-message");
         var audio = bubble.querySelector("audio");
         if (!audio || audio.classList.contains("g01-native-audio")) return;
         var source = audio.querySelector("source");
+        var playbackUrl = "";
         if (source && source.src) {
           var url = new URL(source.src, window.location.origin);
           url.pathname = url.pathname.replace(
             "/rails/active_storage/blobs/redirect/",
             "/rails/active_storage/blobs/proxy/"
           );
-          source.src = url.toString();
+          playbackUrl = url.toString();
+          source.src = playbackUrl;
         }
         audio.classList.remove("hidden");
         audio.classList.add("g01-native-audio");
@@ -59,6 +63,25 @@
           audio.nextElementSibling.classList.add("g01-audio-custom-controls");
         }
         audio.load();
+        if (source && playbackUrl) {
+          window
+            .fetch(playbackUrl, { credentials: "same-origin" })
+            .then(function (response) {
+              if (!response.ok) throw new Error("Audio download failed");
+              return response.blob();
+            })
+            .then(function (blob) {
+              if (!audio.isConnected || !blob.size) return;
+              var objectUrl = URL.createObjectURL(blob);
+              source.src = objectUrl;
+              if (blob.type) source.type = blob.type;
+              audio.dataset.g01ObjectUrl = objectUrl;
+              audio.load();
+            })
+            .catch(function () {
+              // The proxied source remains available if full download fails.
+            });
+        }
       } catch (_error) {
         // Leave Chatwoot's player intact if a browser cannot enhance this attachment.
       }
