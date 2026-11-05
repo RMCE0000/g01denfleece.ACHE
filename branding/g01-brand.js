@@ -908,6 +908,18 @@
     });
   }
 
+  function ensureBusinessToolsHidden() {
+    [
+      [".i-lucide-building-2", "g01-hidden-companies"],
+      [".i-lucide-bolt", "g01-hidden-settings"],
+    ].forEach(function (entry) {
+      document.querySelectorAll("nav " + entry[0]).forEach(function (icon) {
+        var item = icon.closest("li");
+        if (item) item.classList.add(entry[1]);
+      });
+    });
+  }
+
   function ensureCommunityButton() {
     var accountId = currentAccountId();
     var existing = document.getElementById("g01-community-open");
@@ -940,11 +952,13 @@
     ensureCommunitySearch();
     ensureCallsHidden();
     ensureContactsHidden();
+    ensureBusinessToolsHidden();
     new MutationObserver(function () {
       ensureCommunityButton();
       ensureCommunitySearch();
       ensureCallsHidden();
       ensureContactsHidden();
+      ensureBusinessToolsHidden();
     }).observe(document.body, { childList: true, subtree: true });
     window.addEventListener("popstate", ensureCommunityButton);
     document.addEventListener("keydown", function (event) {
