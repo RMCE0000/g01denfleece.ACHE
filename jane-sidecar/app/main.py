@@ -150,6 +150,9 @@ def create_app(store=None) -> FastAPI:
             "showcase": "minimum",
             "llm": "gemini",
             "gemini_configured": bool(app.state.settings.gemini_api_key),
+            "gemini_chat_model": app.state.settings.gemini_chat_model,
+            "gemini_deliberation_model": app.state.settings.gemini_deliberation_model,
+            "audio_transcription_enabled": app.state.settings.audio_transcription_enabled,
         }
 
     @app.post("/api/admin/promo-codes")

@@ -129,6 +129,30 @@
     });
   }
 
+  function installAudioPlaybackRecovery() {
+    document.addEventListener(
+      "click",
+      function (event) {
+        var button = event.target.closest && event.target.closest("button");
+        var bubble = button && button.closest('[data-bubble-name="audio"]');
+        if (!bubble) return;
+        var buttons = bubble.querySelectorAll("button");
+        var audio = bubble.querySelector("audio");
+        if (!audio || buttons[0] !== button || !audio.paused) return;
+        var attempt = audio.play();
+        if (attempt && attempt.catch) {
+          attempt.catch(function () {
+            audio.load();
+            audio.play().catch(function () {
+              bubble.setAttribute("data-g01-playback-error", "true");
+            });
+          });
+        }
+      },
+      true
+    );
+  }
+
   light();
   try {
     ["color_scheme", "theme", "cw_theme", "cw-theme", "appearance"].forEach(function (key) {
@@ -145,6 +169,7 @@
   function watch() {
     brandImages(document);
     classifyMessages(document);
+    installAudioPlaybackRecovery();
     new MutationObserver(function (records) {
       records.forEach(function (record) {
         record.addedNodes.forEach(function (node) {

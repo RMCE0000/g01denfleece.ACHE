@@ -83,7 +83,7 @@ async def test_langchain_flow_selects_the_model_for_task_complexity():
     ]
 
 
-def test_prompt_is_the_constitution_and_the_history(client, store):
+def test_prompt_includes_the_constitution_grounded_record_and_history(client, store):
     seen = {"prompts": []}
 
     def fake(model, messages, complexity):
@@ -102,7 +102,12 @@ def test_prompt_is_the_constitution_and_the_history(client, store):
         gemini_override.reset(token)
     assert first.status_code == 200
     assert first.json()["reply"] == "Make the cistern on the homestead."
-    assert seen["system"] == JANE_CONSTITUTION
+    assert seen["system"].startswith(JANE_CONSTITUTION)
+    assert "CURRENT VERIFIED HOMESTEAD RECORD" in seen["system"]
+    assert '"homesteader":null' in seen["system"]
+    assert '"locality":"Lake Charles & Calcasieu Suburbs"' in seen["system"]
+    assert '"known_facts":' in seen["system"]
+    assert "facts already present" in seen["system"]
     assert seen["models"] == ["gemini-3.5-flash", "gemini-3.5-flash"]
     assert seen["complexities"] == ["standard", "standard"]
     assert seen["prompts"][0] == "Ada: The cistern is empty."
@@ -306,6 +311,8 @@ def test_the_backend_lists_every_conversation(store, monkeypatch):
     assert health.json()["showcase"] == "minimum"
     assert health.json()["llm"] == "gemini"
     assert health.json()["gemini_configured"] is False
+    assert health.json()["gemini_chat_model"] == "gemini-3.5-flash"
+    assert health.json()["audio_transcription_enabled"] is True
 
 
 def test_background_jobs_stay_off_and_ollama_is_removed():

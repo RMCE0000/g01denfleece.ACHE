@@ -67,6 +67,10 @@ def test_brand_assets_are_gold_and_white():
     assert "WOOT.$store" not in script
     assert "nav ul.items-center .g01-community-label" in css
     assert "min-height: 1.25rem" in css
+    assert '[data-bubble-name="audio"] > .bg-n-alpha-white' in css
+    assert "installAudioPlaybackRecovery" in script
+    assert 'button.closest(\'[data-bubble-name="audio"]\')' in script
+    assert "audio.load()" in script
     assert "platform.access_token" in bootstrap
     assert 'raise "g01 bridge secret is empty"' in bootstrap
     assert "CHATWOOT_INSTALLATION_ONBOARDING" in bootstrap

@@ -1,5 +1,6 @@
 """Minimum showcase. A prompt is the constitution plus the message history."""
 
+import json
 import logging
 
 from app.chatwoot_client import ChatwootClient
@@ -10,6 +11,7 @@ from app.effects import commit_decision
 from app.gemini_flow import complete_text
 from app.homesteaders import conversation_url
 from app.heuristic import heuristic_decision
+from app.northstar import view_from_property
 from app.sanitize import sanitize_reply
 
 log = logging.getLogger(__name__)
@@ -66,6 +68,24 @@ def render_history(lines: list[dict]) -> str:
             speaker = "Jane" if line.get("role") == "jane" else "Homesteader"
         parts.append(f"{speaker}: {content}")
     return "\n".join(parts)
+
+
+def _grounded_system(prop: dict | None, locality: dict | None) -> str:
+    if prop is None:
+        return JANE_CONSTITUTION
+    record = {
+        "homesteader": prop.get("display_name"),
+        "locality": locality.get("name") if locality else None,
+        "known_facts": prop.get("known_facts_ledger") or {},
+        "north_star": view_from_property(prop).get("northstar"),
+    }
+    return (
+        JANE_CONSTITUTION
+        + "\nCURRENT VERIFIED HOMESTEAD RECORD\n"
+        + json.dumps(record, ensure_ascii=True, separators=(",", ":"), default=str)
+        + "\nUse this record instead of asking again for facts already present. "
+        "Answer the latest request directly before asking at most one useful follow-up question."
+    )
 
 
 def _incoming_line(message: dict) -> dict:
@@ -143,14 +163,17 @@ async def answer(store, message: dict) -> str:
 async def answer_with_effects(store, message: dict) -> str:
     """Keep the history-aware Gemini reply while applying grounded product workflows."""
     lines = await history_for(store, message)
-    reply = reply_as_jane(await complete_text(JANE_CONSTITUTION, render_history(lines), lines), lines)
-    cleaned = sanitize_reply(reply).strip() or _BLOCKED
     prop = await store.get_property_by_conversation(int(message["conversation_id"]))
     if prop is None and message.get("contact_id") is not None:
         prop = await store.get_property_by_contact(int(message["contact_id"]))
     if prop is None and message.get("user_id") is not None:
         prop = await store.get_property_by_user(int(message["user_id"]))
     locality = await store.get_locality(prop["locality_id"]) if prop else None
+    reply = reply_as_jane(
+        await complete_text(_grounded_system(prop, locality), render_history(lines), lines),
+        lines,
+    )
+    cleaned = sanitize_reply(reply).strip() or _BLOCKED
     decision = heuristic_decision(
         {
             "message": message,

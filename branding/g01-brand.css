@@ -245,6 +245,16 @@ body.g01-login-page .g01-signup-card {
   color: #20262b !important;
 }
 
+[data-bubble-name="audio"] > .bg-n-alpha-white {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+[data-bubble-name="audio"] button {
+  color: inherit !important;
+}
+
 .conversation-wrap,
 .messages-wrap,
 .reply-box,
