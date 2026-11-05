@@ -539,9 +539,9 @@
     var button = communityElement("button", "g01-community-open");
     button.id = "g01-community-open";
     button.type = "button";
-    button.title = "g01 Community";
+    button.title = "Community";
     button.appendChild(communityElement("span", "g01-community-glyph", "g01"));
-    button.appendChild(communityElement("span", "g01-community-label", "g01 Community"));
+    button.appendChild(communityElement("span", "g01-community-label", "Community"));
     button.addEventListener("click", openCommunity);
     item.appendChild(button);
     list.appendChild(item);

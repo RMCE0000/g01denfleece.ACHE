@@ -274,7 +274,7 @@ body.g01-login-page .g01-signup-card {
   padding: 0 0.75rem;
   text-align: left;
   font-size: 0.875rem;
-  line-height: 1;
+  line-height: 1.25rem;
   font-weight: 600;
   cursor: pointer;
 }
@@ -294,6 +294,10 @@ body.g01-login-page .g01-signup-card {
 }
 
 .g01-community-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.25rem;
+  line-height: 1.25rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
