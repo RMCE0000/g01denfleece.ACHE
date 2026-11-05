@@ -228,6 +228,16 @@ def test_login_page_signup_opens_a_sign_in(store, monkeypatch):
     monkeypatch.setattr("app.homesteaders.ChatwootClient", FakeChatwoot)
 
     with TestClient(create_app(store)) as client:
+        weak = _person("Weak Password", "weak.password@example.com", "70601")
+        weak["password"] = "alllowercase"
+        rejected = client.post("/api/signup", json=weak)
+        assert rejected.status_code == 422
+        assert rejected.json()["detail"] == (
+            "Password must be at least 8 characters and include uppercase, lowercase, "
+            "a number, and a special character."
+        )
+        assert not any(call[0] == "user" for call in FakeChatwoot.calls)
+
         created = client.post("/api/signup", json=_person("Cara North", "cara.north@example.com", "70607"))
         assert created.status_code == 200
         body = created.json()

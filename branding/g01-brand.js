@@ -74,7 +74,10 @@
     input.required = true;
     input.autocomplete = type === "password" ? "new-password" : name;
     if (placeholder) input.placeholder = placeholder;
-    if (name === "password") input.minLength = 8;
+    if (name === "password") {
+      input.minLength = 8;
+      input.autocomplete = "new-password";
+    }
     if (name === "username") {
       input.minLength = 3;
       input.maxLength = 32;
@@ -85,6 +88,12 @@
     if (name === "zip_code") input.inputMode = "numeric";
     label.appendChild(caption);
     label.appendChild(input);
+    if (name === "password") {
+      var help = document.createElement("small");
+      help.className = "g01-field-help";
+      help.textContent = "Use 8+ characters with uppercase, lowercase, a number, and a special character.";
+      label.appendChild(help);
+    }
     return label;
   }
 
@@ -190,6 +199,19 @@
         password: value("password"),
         zip_code: value("zip_code"),
       };
+      var passwordIsValid =
+        payload.password.length >= 8 &&
+        /[A-Z]/.test(payload.password) &&
+        /[a-z]/.test(payload.password) &&
+        /[0-9]/.test(payload.password) &&
+        /[!@#$%^&*()_+\-=[\]{}|'"\/\\.,`<>:;?~]/.test(payload.password);
+      if (!passwordIsValid) {
+        error.textContent =
+          "Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character.";
+        error.hidden = false;
+        submit.disabled = false;
+        return;
+      }
       fetch("/g01/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },

@@ -13,6 +13,11 @@ log = logging.getLogger(__name__)
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _USERNAME = re.compile(r"^[a-z][a-z0-9._-]{2,31}$")
+_PASSWORD_SPECIALS = set("!@#$%^&*()_+-=[]{}|'\"/\\.,`<>:;?~")
+_PASSWORD_HELP = (
+    "Password must be at least 8 characters and include uppercase, lowercase, "
+    "a number, and a special character."
+)
 _PEER_LOCKS: dict[tuple[str, str], asyncio.Lock] = {}
 
 
@@ -205,8 +210,14 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
     email = _email(fields.get("email") or "")
     username = _username(fields.get("username"), email)
     password = str(fields.get("password") or "")
-    if len(password) < 8:
-        raise G01Error("password must be at least 8 characters", 422)
+    if not (
+        len(password) >= 8
+        and any(char.isupper() for char in password)
+        and any(char.islower() for char in password)
+        and any(char.isdigit() for char in password)
+        and any(char in _PASSWORD_SPECIALS for char in password)
+    ):
+        raise G01Error(_PASSWORD_HELP, 422)
     zip_code = _zip(fields.get("zip_code") or "")
     locality = await store.locality_for_zip(zip_code)
     if locality is None:

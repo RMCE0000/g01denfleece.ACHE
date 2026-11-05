@@ -502,5 +502,5 @@ def test_promo_admin_and_signup_gate(store, monkeypatch):
         assert created.status_code == 200
         assert created.json()["code"] == "SWLA50"
         assert gated.get("/ui/signup").status_code == 404
-        signup = gated.post("/api/signup", json={"name": "Ada Yard", "email": "ada@example.com", "password": "pasture-1", "zip_code": "70601"})
+        signup = gated.post("/api/signup", json={"name": "Ada Yard", "email": "ada@example.com", "password": "Pasture-1!", "zip_code": "70601"})
         assert signup.status_code == 503

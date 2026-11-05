@@ -110,6 +110,14 @@ select:focus {
   padding: 0.55rem 0.75rem;
 }
 
+.g01-field-help {
+  display: block;
+  margin-top: 0.3rem;
+  color: #6f6556;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 .g01-signup-card button[type="submit"] {
   width: 100%;
   border: 0;

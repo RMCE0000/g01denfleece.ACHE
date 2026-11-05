@@ -17,6 +17,8 @@ def test_brand_assets_are_gold_and_white():
     assert favicon.startswith(b"\x89PNG\r\n\x1a\n") and len(favicon) > 10_000
     assert "/g01-favicon.png" in script
     assert "Sign in to g01" in script
+    assert "uppercase, lowercase, a number, and a special character" in script
+    assert "g01-field-help" in css
     assert "g01-login-page" in script
     assert "g01-login-page img" in css
     assert (ROOT / "branding" / "g01-mark.png").stat().st_size > 500
