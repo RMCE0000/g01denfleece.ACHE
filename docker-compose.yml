@@ -130,6 +130,7 @@ services:
       - ./branding/g01-brand.css:/app/public/g01-brand.css:ro
       - ./branding/g01-brand.js:/app/public/g01-brand.js:ro
       - ./ops/g01_branding.rb:/app/config/initializers/g01_branding.rb:ro
+      - ./ops/g01_audio_playback.rb:/app/config/initializers/g01_audio_playback.rb:ro
       - ./ops/g01_contacts_scope.rb:/app/config/initializers/g01_contacts_scope.rb:ro
       - ./ops/g01_community_controller.rb:/app/app/controllers/api/v1/accounts/g01_community_controller.rb:ro
     healthcheck:
@@ -150,6 +151,7 @@ services:
     command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
     volumes:
       - chatwoot_storage:/app/storage
+      - ./ops/g01_audio_playback.rb:/app/config/initializers/g01_audio_playback.rb:ro
 
   bootstrap:
     image: chatwoot/chatwoot@sha256:0ea1fdeecf99470d76c51ca6d60f54d0e0b044c149ea069290741b35113a720d
