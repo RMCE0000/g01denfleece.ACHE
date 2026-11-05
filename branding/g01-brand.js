@@ -398,8 +398,8 @@
       .catch(function (requestError) {
         if (requestError && requestError.response && requestError.response.status === 403) {
           closeCommunity();
-          var button = document.getElementById("g01-community-open");
-          if (button) button.remove();
+          var item = document.getElementById("g01-community-item");
+          if (item) item.remove();
           return;
         }
         var detail = requestError && requestError.response && requestError.response.data;
@@ -412,18 +412,27 @@
     var accountId = currentAccountId();
     var existing = document.getElementById("g01-community-open");
     if (!accountId) {
-      if (existing) existing.remove();
+      var staleItem = document.getElementById("g01-community-item");
+      if (staleItem) staleItem.remove();
       closeCommunity();
       return;
     }
     if (existing) return;
     var nav = document.querySelector("nav.woot-sidebar-menu, nav.woot-sidebar-main-w-g, nav");
     if (!nav) return;
-    var button = communityElement("button", "g01-community-open", "g01 Community");
+    var list = nav.querySelector("ul");
+    if (!list) return;
+    var item = communityElement("li", "g01-community-item");
+    item.id = "g01-community-item";
+    var button = communityElement("button", "g01-community-open");
     button.id = "g01-community-open";
     button.type = "button";
+    button.title = "g01 Community";
+    button.appendChild(communityElement("span", "g01-community-glyph", "g01"));
+    button.appendChild(communityElement("span", "g01-community-label", "g01 Community"));
     button.addEventListener("click", openCommunity);
-    nav.appendChild(button);
+    item.appendChild(button);
+    list.appendChild(item);
   }
 
   function watchCommunity() {

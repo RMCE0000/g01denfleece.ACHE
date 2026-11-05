@@ -30,6 +30,8 @@ def test_brand_assets_are_gold_and_white():
     assert "thread with Jane" not in script
     assert "/g01/signup" in script
     assert "g01 Community" in script
+    assert 'communityElement("li", "g01-community-item")' in script
+    assert 'communityElement("span", "g01-community-glyph", "g01")' in script
     assert "Username" in script
     assert "Enter the username of a peer to start a conversation." in script
     assert "exact username" not in script
@@ -46,6 +48,8 @@ def test_brand_assets_are_gold_and_white():
     assert '"LOGO_THUMBNAIL" => "/g01-favicon.png"' in bootstrap
     assert ".right-bubble" in css
     assert ".left-bubble" in css
+    assert "#eef2f3" in css
+    assert "nav ul.items-center .g01-community-label" in css
     assert "platform.access_token" in bootstrap
     assert 'raise "g01 bridge secret is empty"' in bootstrap
     assert "CHATWOOT_INSTALLATION_ONBOARDING" in bootstrap

@@ -213,13 +213,18 @@ body.g01-login-page .g01-signup-card {
 .chat-bubble.agent,
 .conversation-wrap .left .message-content,
 .left-bubble {
-  background-color: #f1e6cf !important;
-  color: #2a2418 !important;
+  background-color: #eef2f3 !important;
+  color: #20262b !important;
 }
 
-.right-bubble a,
-.chat-bubble.user a {
+.right-bubble *,
+.chat-bubble.user * {
   color: #ffffff !important;
+}
+
+.left-bubble *,
+.chat-bubble.agent * {
+  color: #20262b !important;
 }
 
 .conversation-wrap,
@@ -229,25 +234,65 @@ body.g01-login-page .g01-signup-card {
   background: #ffffff !important;
 }
 
+.g01-community-item {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  list-style: none;
+}
+
 .g01-community-open {
-  width: fit-content !important;
-  max-width: calc(100% - 1.5rem);
-  min-height: 1.75rem;
-  margin: 0.35rem 0.75rem;
-  border: 1px solid #d4b87a;
-  border-radius: 6px;
-  background: #fffaf0;
-  color: #5a4414;
-  padding: 0.3rem 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100% !important;
+  height: 2.5rem;
+  margin: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #d4b87a;
+  padding: 0 0.75rem;
   text-align: left;
-  font-size: 0.78rem;
-  line-height: 1.15;
+  font-size: 0.875rem;
+  line-height: 1;
   font-weight: 600;
   cursor: pointer;
 }
 
 .g01-community-open:hover {
-  background: #f4e8cc;
+  background: rgb(212 184 122 / 14%);
+}
+
+.g01-community-glyph {
+  display: inline-grid;
+  flex: 0 0 1rem;
+  width: 1rem;
+  place-items: center;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.g01-community-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+nav ul.items-center .g01-community-item {
+  width: 2.5rem;
+}
+
+nav ul.items-center .g01-community-open {
+  justify-content: center;
+  width: 2.5rem !important;
+  padding: 0;
+}
+
+nav ul.items-center .g01-community-label {
+  display: none;
 }
 
 .g01-community-backdrop {
