@@ -35,6 +35,7 @@ def test_brand_assets_are_gold_and_white():
     assert 'communityElement("span", "g01-community-label", "Community")' in script
     assert 'button.title = "Community"' in script
     assert "height: 2.625rem" in css
+    assert "align-self: start" in css
     assert '"g01-community-label", "g01 Community"' not in script
     assert "Username" in script
     assert "Enter the username of a peer to start a conversation." in script

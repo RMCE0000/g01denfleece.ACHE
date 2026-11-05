@@ -440,9 +440,10 @@ nav ul.items-center .g01-community-label {
 .g01-community-dial .g01-community-primary {
   grid-column: auto;
   grid-row: auto;
-  align-self: center;
+  align-self: start;
   box-sizing: border-box;
   height: 2.625rem;
+  margin: 0;
   padding-block: 0.5rem;
   white-space: nowrap;
 }
