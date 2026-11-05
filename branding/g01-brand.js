@@ -617,11 +617,14 @@
     return { "X-G01-Requested-With": "community-v1" };
   }
 
+  var communityLastOpener = null;
+
   function closeCommunity() {
     var modal = document.getElementById("g01-community-modal");
     if (modal) modal.remove();
-    var opener = document.getElementById("g01-community-open");
+    var opener = communityLastOpener || document.getElementById("g01-community-open");
     if (opener) opener.focus();
+    communityLastOpener = null;
   }
 
   function communityElement(tag, className, text) {
@@ -637,15 +640,16 @@
     error.hidden = false;
   }
 
-  function renderCommunityState(panel, payload) {
-    var identity = panel.querySelector(".g01-community-identity");
-    var self = payload && payload.self;
-    identity.textContent = self && self.username ? "Your username: @" + self.username : "";
-    var list = panel.querySelector(".g01-community-list");
+  function renderCommunityConnections(list, connections, emptyMessage) {
     list.replaceChildren();
-    var connections = payload && Array.isArray(payload.connections) ? payload.connections : [];
     if (!connections.length) {
-      list.appendChild(communityElement("p", "g01-community-empty", "You have no existing homesteader conversations."));
+      list.appendChild(
+        communityElement(
+          "p",
+          "g01-community-empty",
+          emptyMessage || "You have no existing homesteader conversations."
+        )
+      );
       return;
     }
     connections.forEach(function (connection) {
@@ -660,10 +664,19 @@
     });
   }
 
+  function renderCommunityState(panel, payload) {
+    var identity = panel.querySelector(".g01-community-identity");
+    var self = payload && payload.self;
+    identity.textContent = self && self.username ? "Your username: @" + self.username : "";
+    var connections = payload && Array.isArray(payload.connections) ? payload.connections : [];
+    renderCommunityConnections(panel.querySelector(".g01-community-list"), connections);
+  }
+
   function openCommunity() {
     if (document.getElementById("g01-community-modal")) return;
     var accountId = currentAccountId();
     if (!accountId || !window.axios) return;
+    communityLastOpener = document.getElementById("g01-community-open");
 
     var backdrop = communityElement("div", "g01-community-backdrop");
     backdrop.id = "g01-community-modal";
@@ -761,6 +774,126 @@
       });
   }
 
+  function openCommunitySearch(opener) {
+    if (document.getElementById("g01-community-modal")) return;
+    var accountId = currentAccountId();
+    if (!accountId || !window.axios) return;
+    communityLastOpener = opener || null;
+
+    var backdrop = communityElement("div", "g01-community-backdrop");
+    backdrop.id = "g01-community-modal";
+    backdrop.setAttribute("role", "presentation");
+    var panel = communityElement("section", "g01-community-panel");
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-labelledby", "g01-community-title");
+    var header = communityElement("header", "g01-community-header");
+    var title = communityElement("h2", "", "Community conversations");
+    title.id = "g01-community-title";
+    var close = communityElement("button", "g01-community-close", "Close");
+    close.type = "button";
+    close.addEventListener("click", closeCommunity);
+    header.appendChild(title);
+    header.appendChild(close);
+    panel.appendChild(header);
+    panel.appendChild(
+      communityElement(
+        "p",
+        "g01-community-intro",
+        "Search conversations you have already opened through Community."
+      )
+    );
+    var search = communityElement("input", "g01-community-search");
+    search.type = "search";
+    search.placeholder = "Search by peer name or username";
+    search.setAttribute("aria-label", "Search existing Community conversations");
+    panel.appendChild(search);
+    var error = communityElement("p", "g01-community-error");
+    error.hidden = true;
+    panel.appendChild(error);
+    var list = communityElement("div", "g01-community-list", "Loading conversations…");
+    panel.appendChild(list);
+    backdrop.appendChild(panel);
+    backdrop.addEventListener("click", function (event) {
+      if (event.target === backdrop) closeCommunity();
+    });
+    document.body.appendChild(backdrop);
+    search.focus();
+
+    window.axios
+      .get("/api/v1/accounts/" + accountId + "/g01/community", { headers: communityHeaders() })
+      .then(function (response) {
+        var payload = response.data || {};
+        var connections = Array.isArray(payload.connections) ? payload.connections : [];
+        var filterConnections = function () {
+          var query = search.value.trim().toLocaleLowerCase();
+          var visible = connections.filter(function (connection) {
+            return [connection.name, connection.username, connection.locality, connection.topic]
+              .filter(Boolean)
+              .some(function (value) {
+                return String(value).toLocaleLowerCase().indexOf(query) !== -1;
+              });
+          });
+          renderCommunityConnections(
+            list,
+            visible,
+            query
+              ? "No existing Community conversations match that search."
+              : "You have no existing homesteader conversations."
+          );
+        };
+        search.addEventListener("input", filterConnections);
+        filterConnections();
+      })
+      .catch(function (requestError) {
+        var detail = requestError && requestError.response && requestError.response.data;
+        showCommunityError(panel, (detail && (detail.detail || detail.error)) || "Community service is unavailable.");
+        list.replaceChildren();
+      });
+  }
+
+  function ensureCommunitySearch() {
+    var searchLinks = document.querySelectorAll('a[href*="/search"]');
+    searchLinks.forEach(function (link) {
+      if (!link.querySelector(".i-lucide-search") || link.dataset.g01CommunitySearch === "true") return;
+      link.dataset.g01CommunitySearch = "true";
+      link.title = "Search Community conversations";
+      var label = Array.prototype.find.call(link.querySelectorAll("span"), function (span) {
+        return !span.className.includes("i-lucide-search") && span.textContent.trim();
+      });
+      if (label) label.textContent = "Search conversations…";
+      link.addEventListener(
+        "click",
+        function (event) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          openCommunitySearch(link);
+        },
+        true
+      );
+      var row = link.parentElement;
+      var composeIcon = row && row.querySelector(".i-lucide-pen-line");
+      var composeButton = composeIcon && composeIcon.closest("button");
+      if (composeButton) composeButton.classList.add("g01-hidden-compose");
+      if (row) {
+        row.querySelectorAll("button").forEach(function (button) {
+          if (button === composeButton || button.dataset.g01CommunitySearch === "true") return;
+          button.dataset.g01CommunitySearch = "true";
+          button.title = "Search Community conversations";
+          button.addEventListener(
+            "click",
+            function (event) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              openCommunitySearch(link);
+            },
+            true
+          );
+        });
+      }
+    });
+  }
+
   function ensureCommunityButton() {
     var accountId = currentAccountId();
     var existing = document.getElementById("g01-community-open");
@@ -790,13 +923,24 @@
 
   function watchCommunity() {
     ensureCommunityButton();
+    ensureCommunitySearch();
     new MutationObserver(function () {
       ensureCommunityButton();
+      ensureCommunitySearch();
     }).observe(document.body, { childList: true, subtree: true });
     window.addEventListener("popstate", ensureCommunityButton);
     document.addEventListener("keydown", function (event) {
       if (event.key === "Escape") closeCommunity();
-    });
+      if (
+        event.key.toLocaleLowerCase() === "k" &&
+        (event.metaKey || event.ctrlKey) &&
+        currentAccountId()
+      ) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        openCommunitySearch(document.querySelector('[data-g01-community-search="true"]'));
+      }
+    }, true);
   }
 
   if (document.body) watchCommunity();

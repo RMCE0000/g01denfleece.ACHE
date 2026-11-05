@@ -39,6 +39,12 @@ def test_brand_assets_are_gold_and_white():
     assert '"g01-community-label", "g01 Community"' not in script
     assert "Username" in script
     assert "Enter the username of a peer to start a conversation." in script
+    assert "Search conversations you have already opened through Community." in script
+    assert "Search by peer name or username" in script
+    assert 'openCommunitySearch(link)' in script
+    assert 'connection.conversation_path' in script
+    assert "g01-hidden-compose" in script
+    assert ".g01-hidden-compose" in css
     assert "exact username" not in script
     assert "public member directory" not in script
     assert "member_id" not in script

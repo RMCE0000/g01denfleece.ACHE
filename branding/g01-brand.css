@@ -429,12 +429,22 @@ nav ul.items-center .g01-community-label {
 }
 
 .g01-community-username,
-.g01-community-topic {
+.g01-community-topic,
+.g01-community-search {
   width: 100%;
   min-width: 0;
   border: 1px solid #d4b87a;
   border-radius: 6px;
   padding: 0.5rem 0.65rem;
+}
+
+.g01-community-search {
+  box-sizing: border-box;
+  margin-bottom: 1rem;
+}
+
+.g01-hidden-compose {
+  display: none !important;
 }
 
 .g01-community-dial .g01-community-primary {
