@@ -112,6 +112,18 @@ def test_brand_assets_are_gold_and_white():
     assert "CHATWOOT_INSTALLATION_ONBOARDING" in bootstrap
     assert "g01-connection" in bootstrap
     assert "custom_attribute_definitions" in bootstrap
+    assert 'slug: "g01-guide"' in bootstrap
+    assert 'channel_web_widget: channel' in bootstrap
+    assert 'status: :published' in bootstrap
+    assert 'title: "Welcome to g01"' in bootstrap
+    assert 'title: "Working with Jane"' in bootstrap
+    assert 'title: "Messages, audio, and files"' in bootstrap
+    assert 'title: "Community conversations"' in bootstrap
+    assert 'title: "Local sponsors and recommendations"' in bootstrap
+    assert 'title: "Your account and privacy"' in bootstrap
+    assert "has not appeared earlier in your chat" in bootstrap
+    assert "internal score" not in bootstrap.lower()
+    assert "tier_weight" not in bootstrap
     controller = (ROOT / "ops" / "g01_community_controller.rb").read_text(encoding="utf-8")
     assert "Api::V1::Accounts::BaseController" in controller
     assert "dashboard authentication required" in controller
