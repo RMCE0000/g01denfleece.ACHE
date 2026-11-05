@@ -55,6 +55,10 @@ def test_brand_assets_are_gold_and_white():
     assert '".i-lucide-bolt", "g01-hidden-settings"' in script
     assert ".g01-hidden-companies" in css
     assert ".g01-hidden-settings" in css
+    assert 'document.querySelectorAll(\'nav a[href*="/portals"]\')' in script
+    assert 'label.textContent = "Product Guide"' in script
+    assert 'window.location.assign("/hc/g01-guide/en")' in script
+    assert ".g01-hidden-help-center-control" in css
     assert "exact username" not in script
     assert "public member directory" not in script
     assert "member_id" not in script

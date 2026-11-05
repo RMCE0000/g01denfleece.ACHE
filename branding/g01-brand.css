@@ -456,7 +456,8 @@ nav ul.items-center .g01-community-label {
 }
 
 .g01-hidden-companies,
-.g01-hidden-settings {
+.g01-hidden-settings,
+.g01-hidden-help-center-control {
   display: none !important;
 }
 

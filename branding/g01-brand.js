@@ -920,6 +920,33 @@
     });
   }
 
+  function ensureHelpCenterGuide() {
+    document.querySelectorAll('nav a[href*="/portals"]').forEach(function (link) {
+      var item = link.closest("li") || link;
+      if (link.dataset.g01HelpCenterGuide === "true") return;
+      var label = Array.prototype.find.call(link.querySelectorAll("span, div"), function (element) {
+        return !element.children.length && element.textContent.trim().toLocaleLowerCase() === "articles";
+      });
+      if (!label) {
+        item.classList.add("g01-hidden-help-center-control");
+        return;
+      }
+      link.dataset.g01HelpCenterGuide = "true";
+      link.href = "/hc/g01-guide/en";
+      link.title = "Open the g01 product guide";
+      label.textContent = "Product Guide";
+      link.addEventListener(
+        "click",
+        function (event) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          window.location.assign("/hc/g01-guide/en");
+        },
+        true
+      );
+    });
+  }
+
   function ensureCommunityButton() {
     var accountId = currentAccountId();
     var existing = document.getElementById("g01-community-open");
@@ -953,12 +980,14 @@
     ensureCallsHidden();
     ensureContactsHidden();
     ensureBusinessToolsHidden();
+    ensureHelpCenterGuide();
     new MutationObserver(function () {
       ensureCommunityButton();
       ensureCommunitySearch();
       ensureCallsHidden();
       ensureContactsHidden();
       ensureBusinessToolsHidden();
+      ensureHelpCenterGuide();
     }).observe(document.body, { childList: true, subtree: true });
     window.addEventListener("popstate", ensureCommunityButton);
     document.addEventListener("keydown", function (event) {
