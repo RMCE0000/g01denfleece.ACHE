@@ -901,6 +901,13 @@
     });
   }
 
+  function ensureContactsHidden() {
+    document.querySelectorAll("nav .i-lucide-contact").forEach(function (icon) {
+      var item = icon.closest("li");
+      if (item) item.classList.add("g01-hidden-contacts");
+    });
+  }
+
   function ensureCommunityButton() {
     var accountId = currentAccountId();
     var existing = document.getElementById("g01-community-open");
@@ -932,10 +939,12 @@
     ensureCommunityButton();
     ensureCommunitySearch();
     ensureCallsHidden();
+    ensureContactsHidden();
     new MutationObserver(function () {
       ensureCommunityButton();
       ensureCommunitySearch();
       ensureCallsHidden();
+      ensureContactsHidden();
     }).observe(document.body, { childList: true, subtree: true });
     window.addEventListener("popstate", ensureCommunityButton);
     document.addEventListener("keydown", function (event) {

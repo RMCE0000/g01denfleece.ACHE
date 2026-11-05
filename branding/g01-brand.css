@@ -451,6 +451,10 @@ nav ul.items-center .g01-community-label {
   display: none !important;
 }
 
+.g01-hidden-contacts {
+  display: none !important;
+}
+
 [data-g01-community-search="true"] span:not(.i-lucide-search) {
   overflow: hidden;
   line-height: 1rem;
