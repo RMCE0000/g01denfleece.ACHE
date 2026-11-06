@@ -1,0 +1,12 @@
+{
+  "tools": [
+    {
+      "name": "ask_community",
+      "description": "Post one question to the other homesteads. arguments.question is the decision they are making, written by you, never a copy of this person's message."
+    },
+    {
+      "name": "lookup_public",
+      "description": "Look up one public fact, such as which US state a city is in. arguments.question is only that question, with no homestead record attached."
+    }
+  ]
+}

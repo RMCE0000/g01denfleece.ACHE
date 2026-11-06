@@ -55,18 +55,10 @@ _COMMUNITY_ASK = re.compile(
     r"|\bpoll\s+the\b",
     re.I,
 )
-_LEADING_YES = re.compile(r"^(?:yeah|yes|yep|yup|sure)(?:\s*\.{2,}|\s*[,.]|\s+)\s*", re.I)
-
-
-def community_question(text: str) -> str | None:
-    """The question for other homesteads, with a leading yes removed."""
+def wants_community(text: str) -> bool:
+    """True when they are asking the other homesteads something. The harness writes the question."""
     cleaned = " ".join((text or "").split())
-    if not cleaned or not _COMMUNITY_ASK.search(cleaned):
-        return None
-    rest = _LEADING_YES.sub("", cleaned).strip()
-    if not rest:
-        return None
-    return rest[:1].upper() + rest[1:]
+    return bool(cleaned and _COMMUNITY_ASK.search(cleaned))
 
 
 def _poll_prompt(question: str) -> str:
@@ -268,8 +260,7 @@ async def handle_private_poll_message(store, message: dict) -> str | None:
         return None
     content = str(message.get("content") or "").strip()
     command = _POLL_MODE.fullmatch(content)
-    asked = None if command else community_question(content)
-    if command or asked:
+    if command:
         await store.append_transcript(
             conversation_id=conversation_id,
             message_id=str(message.get("message_id") or "") or None,
@@ -277,7 +268,7 @@ async def handle_private_poll_message(store, message: dict) -> str | None:
             speaker=message.get("speaker") or "Homesteader",
             content=content,
         )
-        question = (command.group(1) if command else asked) or DEFAULT_POLL_MODE_QUESTION
+        question = command.group(1) or DEFAULT_POLL_MODE_QUESTION
         result = await create_requested_poll(store, prop, question)
         if result["recipients_added"]:
             reply = _asked_confirmation(result["poll"]["question"])
@@ -286,14 +277,10 @@ async def handle_private_poll_message(store, message: dict) -> str | None:
         await deliver(store, conversation_id, reply)
         return reply
 
-    if _POLL_STATUS.search(content):
-        pending = await store.pending_community_polls(prop["id"])
-        if not pending:
-            reply = "I do not have a poll for you today."
-        else:
-            reply = f"Yes. {pending[-1]['question']}"
-        await deliver(store, conversation_id, reply)
-        return reply
+    # A community ask and a "any polls?" question are ordinary turns. The harness
+    # writes the question and the reply. Do not treat either as a poll answer.
+    if wants_community(content) or _POLL_STATUS.search(content):
+        return None
 
     pending = await store.pending_community_polls(prop["id"])
     if not pending:
@@ -327,10 +314,21 @@ async def handle_private_poll_message(store, message: dict) -> str | None:
     answer = await store.answer_community_poll(poll["id"], prop["id"], answer_content)
     if answer is None:
         return None
+    from app.harness import speak
+
     remaining = await store.pending_community_polls(prop["id"])
-    reply = "Thanks. Your poll answer is recorded."
+    reply = await speak(
+        store,
+        message,
+        prop=prop,
+        note=(
+            "You recorded this homesteader's answer to the community question. "
+            "Acknowledge that in your own words. Do not invent anyone else's answer."
+        ),
+        allow_community=False,
+    )
     if remaining:
-        reply += f"\n\nNext Jane poll: {remaining[0]['question']}"
+        reply = f"{reply}\n\nThe next question is: {remaining[0]['question']}"
     await deliver(store, conversation_id, reply)
     return reply
 

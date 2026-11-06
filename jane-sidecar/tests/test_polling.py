@@ -93,43 +93,67 @@ def test_poll_mode_broadcasts_and_the_next_private_reply_is_an_answer(client, st
         ),
     )
     assert answered.json()["poll"] is True
-    assert answered.json()["reply"] == "Thanks. Your poll answer is recorded."
+    assert answered.json()["reply"] == "Noted."
     assert store.community_poll_answers[0]["property_id"] == ROGERS_PROPERTY_ID
     assert store.community_poll_answers[0]["answer"] == "A shared seed library and tool shed."
 
 
 def test_an_ordinary_question_is_posted_to_the_other_homesteads(client, store):
-    from app.constitution import JANE_CONSTITUTION
+    import json
 
-    status = client.post(
-        "/webhooks/chatwoot",
-        json=_message(
-            "Do you have any polls for me?",
-            710,
-            user_id=DEMO_USER_ID,
-            conversation_id=DEMO_CONVERSATION_ID,
-        ),
-    )
-    assert status.json().get("poll") is True
-    assert status.json()["reply"] == "I do not have a poll for you today."
+    from app.constitution import JANE_CONSTITUTION
+    from app.gemini_flow import gemini_override
+
+    def think(_model, messages, complexity):
+        assert complexity == "complex"
+        system = messages[0].content
+        latest = messages[-1].content
+        if "does anybody want a dog" in latest.casefold():
+            return json.dumps(
+                {
+                    "reply": "I'll ask whether anyone wants to bring a dog onto their homestead.",
+                    "tools": [
+                        {
+                            "name": "ask_community",
+                            "arguments": {"question": "Would you bring a dog onto your homestead?"},
+                        }
+                    ],
+                }
+            )
+        assert "No community question is waiting." in system
+        return "I don't have one for you today."
+
+    token = gemini_override.set(think)
+    try:
+        status = client.post(
+            "/webhooks/chatwoot",
+            json=_message(
+                "Do you have any polls for me?",
+                710,
+                user_id=DEMO_USER_ID,
+                conversation_id=DEMO_CONVERSATION_ID,
+            ),
+        )
+        asked = client.post(
+            "/webhooks/chatwoot",
+            json=_message(
+                "Yeah... does anybody want a dog? I have 5 up for adoption.",
+                711,
+                user_id=DEMO_USER_ID,
+                conversation_id=DEMO_CONVERSATION_ID,
+            ),
+        )
+    finally:
+        gemini_override.reset(token)
+
+    assert status.json().get("poll") is None
+    assert status.json()["reply"] == "I don't have one for you today."
     assert "poll mode" not in status.json()["reply"].casefold()
     assert "poll mode" not in JANE_CONSTITUTION
-
-    asked = client.post(
-        "/webhooks/chatwoot",
-        json=_message(
-            "Yeah... does anybody want a dog? I have 5 up for adoption.",
-            711,
-            user_id=DEMO_USER_ID,
-            conversation_id=DEMO_CONVERSATION_ID,
-        ),
-    )
-    assert asked.json()["poll"] is True
-    assert asked.json()["reply"] == (
-        "I asked the other homesteads: Does anybody want a dog? I have 5 up for adoption."
-    )
+    assert asked.json()["reply"] == "I'll ask whether anyone wants to bring a dog onto their homestead."
     assert "poll mode" not in asked.json()["reply"].casefold()
-    assert store.community_polls[-1]["question"] == "Does anybody want a dog? I have 5 up for adoption."
+    assert store.community_polls[-1]["question"] == "Would you bring a dog onto your homestead?"
+    assert "does anybody want a dog" not in store.community_polls[-1]["question"].casefold()
     assert len(store.community_polls) == 1
 
 

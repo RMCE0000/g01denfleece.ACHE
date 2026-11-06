@@ -5,11 +5,10 @@ import logging
 
 from app.chatwoot_client import ChatwootClient
 from app.config import get_settings
-from app.constitution import JANE_CONSTITUTION
 from app.sponsor_chat import application_from_thread, missing_fields, sponsorship_thinking_note
 from app.delivery import deliver
 from app.effects import commit_decision
-from app.gemini_flow import complete_text, lookup_public, public_fact_question
+from app.gemini_flow import lookup_public, public_fact_question
 from app.homesteaders import conversation_url
 from app.heuristic import heuristic_decision
 from app.northstar import view_from_property
@@ -71,9 +70,9 @@ def render_history(lines: list[dict]) -> str:
     return "\n".join(parts)
 
 
-def _grounded_system(prop: dict | None, locality: dict | None) -> str:
+def _record_context(prop: dict | None, locality: dict | None) -> str:
     if prop is None:
-        return JANE_CONSTITUTION
+        return ""
     record = {
         "homesteader": prop.get("display_name"),
         "locality": locality.get("name") if locality else None,
@@ -83,8 +82,7 @@ def _grounded_system(prop: dict | None, locality: dict | None) -> str:
         "north_star": view_from_property(prop).get("northstar"),
     }
     return (
-        JANE_CONSTITUTION
-        + "\nCURRENT VERIFIED HOMESTEAD RECORD\n"
+        "CURRENT VERIFIED HOMESTEAD RECORD\n"
         + json.dumps(record, ensure_ascii=True, separators=(",", ":"), default=str)
         + "\nUse this record instead of asking again for facts already present. "
         "The north_star object is private internal context. Never enumerate or volunteer its field names, "
@@ -154,9 +152,11 @@ async def history_for(store, message: dict) -> list[dict]:
 
 
 async def answer(store, message: dict) -> str:
-    """Prompt Jane with the constitution and the history, then post her reply."""
+    """Every peer reply goes through the harness. Polls do not run in that thread."""
+    from app.harness import speak
+
     lines = await history_for(store, message)
-    reply = reply_as_jane(await complete_text(JANE_CONSTITUTION, render_history(lines), lines), lines)
+    reply = await speak(store, message, prop=None, allow_community=False, lines=lines)
     cleaned = sanitize_reply(reply).strip() or _BLOCKED
     await store.append_transcript(
         conversation_id=int(message["conversation_id"]),
@@ -200,40 +200,44 @@ async def answer_with_effects(store, message: dict) -> str:
         draft = dict(decision["sponsor_fields"])
     else:
         draft.update(incoming)
+    grounded_voice = bool(
+        decision.get("report_scores")
+        or decision.get("service_tag")
+        or decision.get("resend_payment_email")
+        or decision.get("sponsor_status")
+        or decision.get("vote_poll_id")
+        or decision.get("match_id")
+        or decision.get("start_poll")
+        or decision.get("request_kyc")
+        or decision.get("cancel_sponsor")
+    )
     jane_should_think = bool(
         decision.get("sponsor_active") and prop is not None and missing_fields(draft) and not decision.get("reply")
     )
-    ordinary = (
-        not decision.get("sponsor_active")
-        and not decision.get("resend_payment_email")
-        and not decision.get("sponsor_status")
-        and not decision.get("reply")
-        and not decision.get("report_scores")
-        and not decision.get("service_tag")
-    )
-    if jane_should_think or ordinary:
-        system = _grounded_system(prop, locality)
+    if prop is not None and not grounded_voice:
+        from app.harness import speak
+
+        context = _record_context(prop, locality)
         if jane_should_think:
-            system += "\n\n" + sponsorship_thinking_note(draft, lookup_failed_city, lookup_found)
-        elif ordinary:
+            context += "\n\n" + sponsorship_thinking_note(draft, lookup_failed_city, lookup_found)
+        else:
             question = public_fact_question(message.get("content") or "")
             if question:
                 found = await lookup_public(question)
                 if found:
-                    system += f"\n\nPublic lookup, use this and do not invent beyond it: {found}"
+                    context += f"\n\nPublic lookup, use this and do not invent beyond it: {found}"
                 else:
-                    system += (
+                    context += (
                         "\n\nA public lookup did not return an answer. "
                         "Say you could not look it up before you ask. Do not invent the fact."
                     )
-        reply = reply_as_jane(
-            await complete_text(
-                system,
-                render_history(lines),
-                lines,
-                complexity="complex" if jane_should_think else None,
-            ),
-            lines,
+        reply = await speak(
+            store,
+            message,
+            prop=prop,
+            locality=locality,
+            context=context,
+            lines=lines,
         )
         decision["reply"] = sanitize_reply(reply).strip() or _BLOCKED
     await store.append_transcript(
