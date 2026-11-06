@@ -947,15 +947,32 @@
 
   var HIDDEN_CONTACT_SECTIONS = { "conversation actions": true, macros: true };
 
+  function contactListItem(heading) {
+    var node = heading;
+    while (node && node.parentElement) {
+      var parent = node.parentElement;
+      if (
+        parent.classList &&
+        (parent.classList.contains("flex-col") || parent.classList.contains("list-group"))
+      ) {
+        return node;
+      }
+      node = parent;
+    }
+    var button = heading.closest && heading.closest("button");
+    return (button && button.parentElement) || heading;
+  }
+
   function ensureContactSectionsHidden() {
     document.querySelectorAll(".list-group h5").forEach(function (heading) {
       var text = heading.textContent.replace(/\s+/g, " ").trim().toLowerCase();
       if (!HIDDEN_CONTACT_SECTIONS[text]) return;
-      var accordion = heading.closest(".text-sm") || heading;
-      var block = accordion.closest(".conversation--actions") || accordion.parentElement || accordion;
-      if (block.classList && (block.classList.contains("list-group") || block.classList.contains("flex-col"))) {
-        block = accordion;
+      var block = contactListItem(heading);
+      if (!block || block === heading) {
+        var button = heading.closest && heading.closest("button");
+        block = (button && button.parentElement) || block;
       }
+      if (!block) return;
       block.classList.add("g01-hidden-contact-section");
       block.style.setProperty("display", "none", "important");
     });
