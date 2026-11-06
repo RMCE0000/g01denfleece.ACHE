@@ -19,6 +19,12 @@ log = logging.getLogger(__name__)
 
 gemini_override: ContextVar = ContextVar("g01_gemini_override", default=None)
 audio_transcription_override: ContextVar = ContextVar("g01_audio_transcription_override", default=None)
+search_override: ContextVar = ContextVar("g01_search_override", default=None)
+
+_PUBLIC_FACT = re.compile(
+    r"\b(?:what|which)\s+state\b|\bwhere\s+is\b|\bwhat\s+country\b|\bcapital\s+of\b|\bpopulation\s+of\b",
+    re.I,
+)
 
 UNREACHABLE = "I could not reach Gemini."
 _COMPLEX_TERMS = re.compile(
@@ -107,6 +113,64 @@ def build_gemini_chain(settings: Settings):
         (lambda state: state["complexity"] == "complex", pro),
         flash,
     )
+
+
+def public_fact_question(text: str) -> str | None:
+    """The homesteader's own public question, with no homestead record attached."""
+    cleaned = " ".join((text or "").split())
+    if not cleaned or not _PUBLIC_FACT.search(cleaned):
+        return None
+    return cleaned[:300]
+
+
+async def lookup_public(question: str) -> str | None:
+    """Look up one public fact. The request is only that question."""
+    cleaned = re.sub(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b", " ", question or "")
+    cleaned = " ".join(cleaned.split())
+    if not cleaned or "@" in cleaned:
+        return None
+    override = search_override.get()
+    if override is not None:
+        result = override(cleaned)
+        if hasattr(result, "__await__"):
+            result = await result
+        text = strip_jane_thought(str(result or "")).strip()
+        return None if not text or text.casefold() == "unknown" else text
+    settings = get_settings()
+    if not settings.gemini_api_key:
+        return None
+    model = _model(
+        settings,
+        settings.gemini_chat_model,
+        max_tokens=200,
+        thinking_level="low",
+    ).bind_tools([{"google_search": {}}])
+    try:
+        result = await model.ainvoke(
+            [
+                SystemMessage(
+                    content=(
+                        "Answer one public question using Google Search. "
+                        "Use only the question. Reply with the fact in a few words, or unknown."
+                    )
+                ),
+                HumanMessage(content=cleaned[:300]),
+            ]
+        )
+    except Exception:
+        log.exception("public lookup failed")
+        return None
+    content = getattr(result, "content", result)
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, dict):
+                parts.append(str(part.get("text") or ""))
+            else:
+                parts.append(str(part))
+        content = " ".join(parts)
+    text = strip_jane_thought(str(content or "")).strip()
+    return None if not text or text.casefold() == "unknown" else text
 
 
 async def complete_text(system: str, user: str, history: list[dict] | None = None) -> str:

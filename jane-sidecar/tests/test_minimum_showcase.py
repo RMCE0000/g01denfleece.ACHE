@@ -75,6 +75,7 @@ def test_task_complexity_routes_planning_to_pro():
     assert 'thinking_level="low"' in source
     assert 'thinking_level="high"' in source
     assert "include_thoughts=False" in source
+    assert '{"google_search": {}}' in source
 
 
 async def test_langchain_flow_selects_the_model_for_task_complexity():

@@ -5,7 +5,8 @@ from datetime import datetime, timedelta, timezone
 from langgraph.checkpoint.memory import MemorySaver
 
 from app.chatwoot_client import ChatwootClient
-from app.gemini_flow import gemini_override
+from app.gemini_flow import gemini_override, search_override
+from app.sponsor_chat import message_read_override, sole_state_code
 from app.jobs import mature_demand_polls, open_ready_collaborations, scan_neighbor_synergies
 from app.llm import llm_override
 from app.mail import mail_override
@@ -129,6 +130,120 @@ def test_sponsor_registration_keeps_each_answer_on_the_form(client, store):
     assert "Name: RackChess." in seen["system"]
     assert "local_manufacturer" not in seen["system"]
     assert "Do not ask again" in seen["system"]
+
+
+def test_a_state_name_is_one_code_and_two_states_are_not_a_guess():
+    assert sole_state_code("Louisiana") == "LA"
+    assert sole_state_code("Louisiana or Texas") is None
+
+
+def test_the_whole_message_is_read_and_the_city_state_is_looked_up(client, store):
+    seen = {}
+
+    def read_message(_text):
+        return {
+            "company_name": "RackChess",
+            "founding_city": "Lake Charles",
+            "what_they_do": "clothing brand",
+        }
+
+    def search(question):
+        seen["question"] = question
+        assert "north" not in question.casefold()
+        assert "@" not in question
+        assert "street" not in question.casefold()
+        return "Louisiana"
+
+    def think(_model, messages, _complexity):
+        seen["system"] = messages[0].content
+        return "RackChess is a clothing brand in Lake Charles, Louisiana. Is this for your homestead or a separate company?"
+
+    read_token = message_read_override.set(read_message)
+    search_token = search_override.set(search)
+    think_token = gemini_override.set(think)
+    try:
+        opened = client.post("/webhooks/chatwoot", json=_message("I want to become a sponsor.", 80))
+        described = client.post(
+            "/webhooks/chatwoot",
+            json=_message("Lake Charles! It is called RackChess, we are a clothing brand!", 81),
+        )
+    finally:
+        message_read_override.reset(read_token)
+        search_override.reset(search_token)
+        gemini_override.reset(think_token)
+
+    assert opened.status_code == 200
+    draft = store.properties[0]["sponsor_draft"]
+    assert draft.get("listing_kind") is None
+    assert described.json()["reply"].startswith("RackChess is a clothing brand")
+    assert draft["company_name"] == "RackChess"
+    assert draft["founding_city"] == "Lake Charles"
+    assert draft["service_tags"] == ["clothing"]
+    assert draft["founding_state"] == "LA"
+    assert seen["question"] == "Which single US state is Lake Charles in?"
+    assert "State: LA." in seen["system"]
+    assert "clothing brand" in seen["system"]
+    assert "the state where it was founded" not in seen["system"]
+
+
+def test_become_a_sponsor_does_not_choose_homestead_or_company(client, store):
+    seen = {}
+
+    def hostile(_text):
+        return {"listing_kind": "company", "company_name": "RackChess"}
+
+    def think(_model, messages, _complexity):
+        seen["system"] = messages[0].content
+        return "Is this for your homestead or a separate local company?"
+
+    read_token = message_read_override.set(hostile)
+    think_token = gemini_override.set(think)
+    try:
+        opened = client.post("/webhooks/chatwoot", json=_message("I want to become a sponsor.", 82))
+    finally:
+        message_read_override.reset(read_token)
+        gemini_override.reset(think_token)
+
+    draft = store.properties[0]["sponsor_draft"]
+    assert opened.status_code == 200
+    assert draft.get("listing_kind") is None
+    assert draft.get("company_name") is None
+    assert "This listing is a separate local company." not in seen["system"]
+    assert "whether this is their homestead or a separate local company" in seen["system"]
+
+
+def test_an_unclear_state_lookup_is_not_stored(client, store):
+    seen = {}
+
+    def read_message(_text):
+        return {"founding_city": "Springfield"}
+
+    def search(_question):
+        return "Louisiana or Texas"
+
+    def think(_model, messages, _complexity):
+        seen["system"] = messages[0].content
+        return "I could not look up the state. Which state is Springfield in?"
+
+    read_token = message_read_override.set(read_message)
+    search_token = search_override.set(search)
+    think_token = gemini_override.set(think)
+    try:
+        client.post("/webhooks/chatwoot", json=_message("I want to become a sponsor.", 83))
+        described = client.post(
+            "/webhooks/chatwoot",
+            json=_message("We are based in Springfield.", 84),
+        )
+    finally:
+        message_read_override.reset(read_token)
+        search_override.reset(search_token)
+        gemini_override.reset(think_token)
+
+    draft = store.properties[0]["sponsor_draft"]
+    assert described.status_code == 200
+    assert draft["founding_city"] == "Springfield"
+    assert draft.get("founding_state") is None
+    assert "could not look it up" in seen["system"]
 
 
 def test_sponsorship_payment_link_is_emailed_to_the_address_jane_collected(client, store, monkeypatch):

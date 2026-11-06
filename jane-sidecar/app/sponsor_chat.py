@@ -3,10 +3,17 @@
 import asyncio
 import re
 
+from contextvars import ContextVar
+
 from app.errors import G01Error
+from app.gemini_flow import lookup_public
+from app.llm import complete_json
 from app.mail import send_sponsor_payment_link
+from app.config import get_settings
 from app.sourcing import SPONSOR_TIERS, normalize_service_tag, sponsor_rejection_reason
 from app.stripe_service import create_sponsor_checkout, retrieve_checkout_url, stripe_ready
+
+message_read_override: ContextVar = ContextVar("g01_message_read_override", default=None)
 
 _FIELD_ORDER = (
     "company_name",
@@ -202,7 +209,7 @@ def company_type(answer: str) -> str | None:
         return "local_logistics_proxy"
     if re.search(r"\b(manufactur\w*|makes?|making|grows?|growing|mills?|sews?|builds?|fabricat\w*|produces?|production)\b", cleaned, re.I):
         return "local_manufacturer"
-    if re.search(r"\b(store|shop|stock|service|retail|sells?|selling|company|business|farm)\b", cleaned, re.I):
+    if re.search(r"\b(store|shop|stock|service|retail|sells?|selling|company|business|farm|brand)\b", cleaned, re.I):
         return "local_service_or_stock"
     if re.fullmatch(r"[A-Za-z][A-Za-z0-9 &'.,-]{2,120}", cleaned):
         return "local_service_or_stock"
@@ -444,6 +451,143 @@ def read_sponsor_message(text: str, draft: dict, locality: dict | None = None) -
     return fields
 
 
+_READ_SYSTEM = (
+    "Extract sponsorship facts explicitly stated in the message. "
+    "Return one JSON object and omit every key the message does not state. Do not infer. "
+    "\"I want to become a sponsor\" does not state whether it is a homestead or a company. "
+    "Keys you may include: listing_kind (homestead or company), company_name, founding_city, "
+    "founding_state, what_they_do, is_franchise_or_chain (true or false), billing_email."
+)
+
+
+def _stated(text: str, value: str) -> bool:
+    return bool(value) and value.casefold() in text.casefold()
+
+
+def _offer_fields(what: str) -> dict:
+    cleaned = " ".join(what.split()).strip(" .!")
+    if not cleaned:
+        return {}
+    product = re.sub(r"\b(a|an|the|brand|company|business|local)\b", " ", cleaned, flags=re.I)
+    product = " ".join(product.split())
+    tag = _tag(product or cleaned)
+    fields = {"capabilities_summary": cleaned}
+    if tag:
+        fields["service_tags"] = [tag]
+    if re.search(
+        r"\b(manufactur\w*|makes?|making|grows?|growing|deliver(?:y|ies)?|hauls?|trucking|store|shop|stock|service|retail|sells?|selling|company|business|farm|brand)\b",
+        cleaned,
+        re.I,
+    ):
+        typed = company_type(cleaned)
+        if typed:
+            fields["sourcing_tier"] = typed
+    return fields
+
+
+def sole_state_code(text: str) -> str | None:
+    """One US state from a lookup answer. Two states is not a guess."""
+    found = set()
+    for name, code in _STATE_NAMES.items():
+        if re.search(rf"\b{re.escape(name)}\b", text or "", re.I):
+            found.add(code)
+    stripped = (text or "").strip().rstrip(".")
+    if re.fullmatch(r"[A-Za-z]{2}", stripped):
+        found.add(stripped.upper())
+    if len(found) != 1:
+        return None
+    return found.pop()
+
+
+def _public_city(city: str) -> str | None:
+    cleaned = " ".join(str(city or "").split())
+    if not cleaned or "@" in cleaned or not re.fullmatch(r"[A-Za-z][A-Za-z .'-]{1,80}", cleaned):
+        return None
+    return cleaned
+
+
+def normalize_stated_facts(text: str, raw: dict) -> dict:
+    """Keep a structured read only where the message itself contains the fact."""
+    if not isinstance(raw, dict):
+        return {}
+    fields: dict = {}
+    kind = str(raw.get("listing_kind") or "").strip().casefold()
+    if kind == "homestead" and re.search(r"\bhomestead\b", text, re.I):
+        fields["listing_kind"] = "homestead"
+    elif kind == "company" and re.search(r"\b(company|business|shop|store)\b", text, re.I):
+        fields["listing_kind"] = "company"
+    name = str(raw.get("company_name") or "").strip().rstrip(".")
+    if name and _stated(text, name) and not listing_kind(name) and len(name) <= 120:
+        fields["company_name"] = name
+    city = str(raw.get("founding_city") or "").strip().rstrip(".")
+    if city and _stated(text, city) and len(city) <= 80:
+        fields["founding_city"] = city
+    state = _state_code(str(raw.get("founding_state") or ""))
+    if state is None:
+        state = sole_state_code(str(raw.get("founding_state") or ""))
+    if state and sole_state_code(text) == state:
+        fields["founding_state"] = state
+    what = str(raw.get("what_they_do") or raw.get("capabilities_summary") or "").strip()
+    if what and _stated(text, what):
+        fields.update(_offer_fields(what))
+    if "is_franchise_or_chain" in raw and re.search(r"\b(franchise|chain)\b", text, re.I):
+        fields["is_franchise_or_chain"] = raw.get("is_franchise_or_chain") in (True, "true", "yes", "Yes")
+    email = str(raw.get("billing_email") or "")
+    found = _EMAIL_FIND.search(text)
+    if found and email and found.group(0).casefold() == email.strip().casefold():
+        fields["billing_email"] = found.group(0).casefold()
+    return fields
+
+
+async def extract_stated_facts(text: str) -> dict:
+    """Read the whole message. A missing model returns nothing rather than a guess."""
+    override = message_read_override.get()
+    if override is not None:
+        result = override(text)
+        if hasattr(result, "__await__"):
+            result = await result
+        return normalize_stated_facts(text, result if isinstance(result, dict) else {})
+    if not get_settings().gemini_api_key:
+        return {}
+    try:
+        raw = await complete_json(get_settings().gemini_chat_model, _READ_SYSTEM, text)
+    except Exception:
+        return {}
+    return normalize_stated_facts(text, raw if isinstance(raw, dict) else {})
+
+
+async def lookup_state_for_city(city: str) -> str | None:
+    """Ask the public web which state a city is in. The question names only the city."""
+    public = _public_city(city)
+    if not public:
+        return None
+    found = await lookup_public(f"Which single US state is {public} in?")
+    if not found:
+        return None
+    return sole_state_code(found)
+
+
+async def enrich_sponsor_fields(text: str, draft: dict, locality: dict | None = None) -> tuple[dict, str | None]:
+    """Add facts the whole message stated, then look up a missing state for a known city."""
+    combined = {**draft, **read_sponsor_message(text, draft, locality)}
+    for key, value in (await extract_stated_facts(text)).items():
+        if combined.get(key) in (None, "", []):
+            combined[key] = value
+    failed_city = None
+    city = combined.get("founding_city")
+    if city and not combined.get("founding_state"):
+        state = await lookup_state_for_city(str(city))
+        if state:
+            combined["founding_state"] = state
+        else:
+            failed_city = _public_city(str(city)) or str(city)
+    added = {}
+    for key, value in combined.items():
+        if draft.get(key) in (None, "", []) and value not in (None, "", []):
+            added[key] = value
+    return added, failed_city
+
+
 _MISSING_WORDS = {
     "listing_kind": "whether this is their homestead or a separate local company",
     "company_name": "what it is called",
@@ -457,7 +601,7 @@ _MISSING_WORDS = {
 }
 
 
-def sponsorship_thinking_note(draft: dict) -> str:
+def sponsorship_thinking_note(draft: dict, lookup_failed_city: str | None = None) -> str:
     """Private context so Jane can think about the answer instead of reciting a form."""
     recorded = []
     if draft.get("listing_kind") == "homestead":
@@ -490,14 +634,22 @@ def sponsorship_thinking_note(draft: dict) -> str:
         else:
             missing_words.append(_MISSING_WORDS.get(key, key.replace("_", " ")))
     known = " ".join(recorded) if recorded else "nothing yet."
+    lookup = ""
+    if lookup_failed_city:
+        lookup = (
+            f"A public lookup for the state of {lookup_failed_city} did not return one clear answer. "
+            "Tell them you could not look it up, then ask which state. "
+        )
     return (
         "The homesteader is in the middle of a g01 sponsorship. "
         "Think about their latest answer before you reply. "
         f"Recorded so far: {known} "
         "Still needed, in this order: " + "; ".join(missing_words) + ". "
-        "Reply in your own words. Acknowledge what they just told you. "
+        + lookup
+        + "Reply in your own words. Acknowledge what they just told you. "
         "Ask only for the first thing still needed. "
         "Do not ask again for anything already recorded. "
+        "Do not claim they chose a homestead or a company unless Recorded so far says which one. "
         "Do not mention tier codes, scores, weights, distance, or referral rotation. "
         "Do not change the subject away from the sponsorship."
     )

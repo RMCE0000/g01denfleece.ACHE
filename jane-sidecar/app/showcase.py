@@ -6,10 +6,10 @@ import logging
 from app.chatwoot_client import ChatwootClient
 from app.config import get_settings
 from app.constitution import JANE_CONSTITUTION
-from app.sponsor_chat import missing_fields, sponsorship_thinking_note
+from app.sponsor_chat import enrich_sponsor_fields, missing_fields, sponsorship_thinking_note
 from app.delivery import deliver
 from app.effects import commit_decision
-from app.gemini_flow import complete_text
+from app.gemini_flow import complete_text, lookup_public, public_fact_question
 from app.homesteaders import conversation_url
 from app.heuristic import heuristic_decision
 from app.northstar import view_from_property
@@ -187,6 +187,12 @@ async def answer_with_effects(store, message: dict) -> str:
     )
     draft = dict((prop or {}).get("sponsor_draft") or {})
     draft.update(decision.get("sponsor_fields") or {})
+    lookup_failed_city = None
+    if decision.get("sponsor_active") and prop is not None:
+        added, lookup_failed_city = await enrich_sponsor_fields(message.get("content") or "", draft, locality)
+        if added:
+            decision["sponsor_fields"] = {**(decision.get("sponsor_fields") or {}), **added}
+            draft.update(added)
     jane_should_think = bool(
         decision.get("sponsor_active") and prop is not None and missing_fields(draft) and not decision.get("reply")
     )
@@ -201,7 +207,18 @@ async def answer_with_effects(store, message: dict) -> str:
     if jane_should_think or ordinary:
         system = _grounded_system(prop, locality)
         if jane_should_think:
-            system += "\n\n" + sponsorship_thinking_note(draft)
+            system += "\n\n" + sponsorship_thinking_note(draft, lookup_failed_city)
+        elif ordinary:
+            question = public_fact_question(message.get("content") or "")
+            if question:
+                found = await lookup_public(question)
+                if found:
+                    system += f"\n\nPublic lookup, use this and do not invent beyond it: {found}"
+                else:
+                    system += (
+                        "\n\nA public lookup did not return an answer. "
+                        "Say you could not look it up before you ask. Do not invent the fact."
+                    )
         reply = reply_as_jane(await complete_text(system, render_history(lines), lines), lines)
         decision["reply"] = sanitize_reply(reply).strip() or _BLOCKED
     await store.append_transcript(
