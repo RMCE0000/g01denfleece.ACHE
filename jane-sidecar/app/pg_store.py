@@ -1257,6 +1257,35 @@ class PostgresStore:
             {"id": property_id},
         )
 
+    async def inactive_sponsor_named(self, property_id: str, company_name: str) -> dict | None:
+        from app.sponsor_chat import sponsor_name_key
+
+        wanted = sponsor_name_key(company_name)
+        if not wanted:
+            return None
+        return await self._one(
+            f"""
+            SELECT {_SPONSOR} FROM g01_sponsors
+            WHERE property_id = CAST(:id AS uuid)
+              AND NOT is_active_sponsor
+              AND lower(regexp_replace(btrim(company_name), '\\s+', ' ', 'g')) = :name
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            {"id": property_id, "name": wanted},
+        )
+
+    async def latest_sponsor(self, property_id: str) -> dict | None:
+        return await self._one(
+            f"""
+            SELECT {_SPONSOR} FROM g01_sponsors
+            WHERE property_id = CAST(:id AS uuid)
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            {"id": property_id},
+        )
+
     async def sponsor_by_subscription(self, subscription_id: str) -> dict | None:
         return await self._one(
             f"SELECT {_SPONSOR} FROM g01_sponsors WHERE stripe_subscription_id = :subscription_id",

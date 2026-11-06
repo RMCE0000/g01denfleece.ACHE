@@ -20,12 +20,23 @@ _FIELD_ORDER = (
 )
 
 _PROMPTS = {
+    "listing_kind": "Is this sponsorship for your homestead, or for a separate local company?",
     "company_name": "What is the company name?",
     "founding_city": "What city was it founded in?",
     "founding_state": "What state was it founded in?",
     "sourcing_tier": "What type of company is it?",
     "service_tags": "What does it make or sell?",
     "capabilities_summary": "In one sentence, what does the business actually do?",
+    "is_franchise_or_chain": "Is it a franchise or a chain? Say yes or no.",
+    "billing_email": "What email should receive the payment link?",
+}
+
+_HOMESTEAD_PROMPTS = {
+    "company_name": "What should neighbors call this homestead?",
+    "founding_city": "What city is the homestead in?",
+    "founding_state": "What state is the homestead in?",
+    "service_tags": "What does the homestead offer?",
+    "capabilities_summary": "In one sentence, what does the homestead actually do?",
     "is_franchise_or_chain": "Is it a franchise or a chain? Say yes or no.",
     "billing_email": "What email should receive the payment link?",
 }
@@ -45,7 +56,62 @@ _SPONSOR_EMAIL_FOLLOWUP = re.compile(
 )
 
 
+def sponsor_name_key(value: str) -> str:
+    return " ".join(str(value or "").casefold().split())
+
+
+def listing_kind(answer: str) -> str | None:
+    """Tell a homestead listing from a separate local company without internal codes."""
+    cleaned = answer.strip().rstrip(".")
+    compact = " ".join(cleaned.casefold().split())
+    homestead = {
+        "homestead",
+        "my homestead",
+        "our homestead",
+        "the homestead",
+        "for my homestead",
+        "for our homestead",
+        "for the homestead",
+        "this homestead",
+    }
+    company = {
+        "company",
+        "a company",
+        "local company",
+        "a local company",
+        "separate company",
+        "a separate company",
+        "separate local company",
+        "a separate local company",
+        "for a company",
+        "for a local company",
+        "for a separate local company",
+    }
+    if compact in homestead:
+        return "homestead"
+    if compact in company:
+        return "company"
+    mentions_homestead = bool(re.search(r"\bhomestead\b", cleaned, re.I))
+    mentions_company = bool(re.search(r"\b(company|business|shop|store)\b", cleaned, re.I))
+    if mentions_homestead and not mentions_company:
+        return "homestead"
+    if mentions_company:
+        return "company"
+    return None
+
+
+def _resolved_kind(draft: dict) -> str | None:
+    kind = draft.get("listing_kind")
+    if kind in ("homestead", "company"):
+        return kind
+    if any(draft.get(key) not in (None, "", []) for key in ("company_name", "founding_city", "founding_state", "sourcing_tier", "service_tags")):
+        return "company"
+    return None
+
+
 def missing_fields(draft: dict) -> list[str]:
+    if _resolved_kind(draft) is None:
+        return ["listing_kind"]
     missing = []
     for key in _FIELD_ORDER:
         value = draft.get(key)
@@ -192,6 +258,21 @@ def message_has_email(text: str) -> bool:
     return bool(_EMAIL_FIND.search(text or ""))
 
 
+_SPONSOR_STATUS = re.compile(
+    r"\b(?:is )?(?:my |the |our )?(?:sponsorship|sponsor listing) (?:active|paid|on|live)\b|"
+    r"\b(?:did|has) (?:my |the )?(?:sponsorship|payment|invoice) (?:go through|been paid|clear(?:ed)?)\b|"
+    r"\bwas (?:the |my )?(?:sponsorship|invoice|payment) paid\b",
+    re.I,
+)
+
+
+def sponsorship_status_request(text: str) -> bool:
+    """A question about the stored listing, not a request to send the link again."""
+    if _SPONSOR_EMAIL_FOLLOWUP.search(text or ""):
+        return False
+    return bool(_SPONSOR_STATUS.search(text or ""))
+
+
 def payment_email_request(text: str) -> dict | None:
     """A homesteader asking for the payment message, with an address when they named one."""
     email = _EMAIL_FIND.search(text)
@@ -209,13 +290,27 @@ def payment_email_request(text: str) -> dict | None:
     return {"to": email.group(0).casefold() if email else None}
 
 
-def absorb_next_answer(text: str, draft: dict) -> dict:
+def absorb_next_answer(text: str, draft: dict, locality: dict | None = None) -> dict:
     """When Jane asked one question, the next message is that answer."""
     pending = missing_fields(draft)
     if not pending:
         return {}
     answer = text.strip()
     key = pending[0]
+    if key == "listing_kind":
+        kind = listing_kind(answer)
+        if not kind:
+            return {}
+        fields = {"listing_kind": kind}
+        if kind == "homestead" and locality:
+            city = str(locality.get("primary_city") or "").strip()
+            state = str(locality.get("state_code") or "").strip().upper()
+            if city:
+                fields["founding_city"] = city
+            if state:
+                fields["founding_state"] = state
+            fields["sourcing_tier"] = "local_service_or_stock"
+        return fields
     if key == "founding_state":
         state = _state_code(answer)
         return {"founding_state": state} if state else {}
@@ -226,9 +321,15 @@ def absorb_next_answer(text: str, draft: dict) -> dict:
         tag = _tag(answer.split(",")[0])
         if not tag:
             return {}
-        company = str(draft.get("company_name") or "The company").strip().rstrip(".")
-        summary = answer if len(answer) >= 8 else f"{company} makes or sells {answer.rstrip('.')}."
-        return {"service_tags": [tag], "capabilities_summary": summary}
+        company = str(draft.get("company_name") or "The homestead").strip().rstrip(".")
+        offered = "offers" if draft.get("listing_kind") == "homestead" else "makes or sells"
+        summary = answer if len(answer) >= 8 else f"{company} {offered} {answer.rstrip('.')}."
+        fields = {"service_tags": [tag], "capabilities_summary": summary}
+        if draft.get("listing_kind") == "homestead":
+            typed = company_type(answer)
+            if typed:
+                fields["sourcing_tier"] = typed
+        return fields
     if key == "is_franchise_or_chain" and re.fullmatch(r"yes|no|true|false", answer, re.I):
         return {"is_franchise_or_chain": answer.casefold() in ("yes", "true")}
     if key == "capabilities_summary" and len(answer) >= 8:
@@ -245,7 +346,10 @@ def next_prompt(draft: dict) -> str:
     missing = missing_fields(draft)
     if not missing:
         return ""
-    return _PROMPTS[missing[0]]
+    key = missing[0]
+    if _resolved_kind(draft) == "homestead":
+        return _HOMESTEAD_PROMPTS.get(key) or _PROMPTS[key]
+    return _PROMPTS[key]
 
 
 async def file_sponsor_application(store, prop: dict, locality: dict, draft: dict) -> str:
@@ -265,6 +369,7 @@ async def file_sponsor_application(store, prop: dict, locality: dict, draft: dic
         await store.save_sponsor_draft(prop["id"], None)
         return reason.rstrip(".") + ". I did not file the listing."
 
+    existing = await store.inactive_sponsor_named(prop["id"], draft["company_name"])
     promo = None
     if draft.get("promo_code"):
         promo = await store.get_promo(draft["promo_code"])
@@ -273,34 +378,43 @@ async def file_sponsor_application(store, prop: dict, locality: dict, draft: dic
         if promo.get("restricted_locality_id") and promo["restricted_locality_id"] != prop["locality_id"]:
             return "That promo code is for a different locality."
 
-    sponsor = await store.create_sponsor(
-        {
-            "property_id": prop["id"],
-            "locality_id": prop["locality_id"],
-            "company_name": draft["company_name"],
-            "founding_city": draft["founding_city"],
-            "founding_state": draft["founding_state"],
-            "is_franchise_or_chain": bool(draft["is_franchise_or_chain"]),
-            "sourcing_tier": draft["sourcing_tier"],
-            "service_tags": list(draft["service_tags"]),
-            "capabilities_summary": draft["capabilities_summary"],
-            "lat": float(latitude),
-            "lng": float(longitude),
-            "applied_promo_code": promo["code"] if promo else None,
-            "is_active_sponsor": False,
-        }
-    )
+    if existing:
+        sponsor = existing
+    else:
+        sponsor = await store.create_sponsor(
+            {
+                "property_id": prop["id"],
+                "locality_id": prop["locality_id"],
+                "company_name": draft["company_name"],
+                "founding_city": draft["founding_city"],
+                "founding_state": draft["founding_state"],
+                "is_franchise_or_chain": bool(draft["is_franchise_or_chain"]),
+                "sourcing_tier": draft["sourcing_tier"],
+                "service_tags": list(draft["service_tags"]),
+                "capabilities_summary": draft["capabilities_summary"],
+                "lat": float(latitude),
+                "lng": float(longitude),
+                "applied_promo_code": promo["code"] if promo else None,
+                "is_active_sponsor": False,
+            }
+        )
     await store.save_sponsor_draft(prop["id"], None)
     billing_email = str(draft.get("billing_email") or "").strip().casefold()
     try:
-        checkout = await create_sponsor_checkout(sponsor["id"], promo, customer_email=billing_email or None)
+        checkout = await create_sponsor_checkout(
+            sponsor["id"],
+            promo,
+            customer_email=billing_email or None,
+            customer_id=sponsor.get("stripe_customer_id"),
+            subscription_id=sponsor.get("stripe_subscription_id"),
+        )
     except G01Error as exc:
+        lead = _listing_lead(sponsor["company_name"], existing)
         if exc.status_code == 503:
             return (
-                f"I filed {sponsor['company_name']} as an inactive sponsor. "
-                "Stripe is not configured, so I did not open a payment page and the listing stays off the registry."
+                f"{lead} Stripe is not configured, so I did not open a payment page and the listing stays off the registry."
             )
-        return f"I filed {sponsor['company_name']} as an inactive sponsor. {exc.message}"
+        return f"{lead} {exc.message}"
     if checkout.get("customer_id") or checkout.get("subscription_id"):
         await store.remember_sponsor_billing(
             sponsor["id"],
@@ -319,7 +433,13 @@ async def file_sponsor_application(store, prop: dict, locality: dict, draft: dic
         checkout["url"],
         stripe_emailed=bool(checkout.get("stripe_emailed")),
     )
-    return f"I filed {sponsor['company_name']} as an inactive sponsor. {mailed}"
+    return f"{_listing_lead(sponsor['company_name'], existing)} {mailed}"
+
+
+def _listing_lead(name: str, existing: dict | None) -> str:
+    if existing:
+        return f"{name} already has an unpaid sponsorship, so I used that listing."
+    return f"I filed {name} as an inactive sponsor."
 
 
 async def _mailed_payment_sentence(email: str, company: str, url: str, stripe_emailed: bool = False) -> str:
@@ -360,7 +480,7 @@ async def resend_sponsor_payment(store, prop: dict, email: str | None) -> str:
             )
         return (
             "I checked. Stripe has no sponsorship invoice for this homestead, so nothing was emailed. "
-            'Say "start sponsorship" and I will collect the company details.'
+            'Say "start sponsorship" and I will ask whether it is for your homestead or a separate local company.'
         )
     target = (
         email
@@ -398,3 +518,24 @@ async def resend_sponsor_payment(store, prop: dict, email: str | None) -> str:
     if not url:
         return f"I could not send the payment email to {target}. Stripe has no payment link for this sponsorship yet."
     return await _mailed_payment_sentence(target, sponsor["company_name"] if sponsor else "this sponsorship", url)
+
+
+async def sponsorship_status(store, prop: dict) -> str:
+    """Read the stored listing. Do not invent a payment that Stripe has not recorded."""
+    sponsor = await store.latest_sponsor(prop["id"])
+    if sponsor is None:
+        return (
+            "I checked. This homestead does not have a sponsorship listing yet. "
+            'Say "start sponsorship" when you want to begin.'
+        )
+    name = sponsor["company_name"]
+    if sponsor.get("is_active_sponsor"):
+        return f"I checked. {name} is an active g01 sponsor. Stripe has marked the payment paid."
+    checkout = await store.latest_open_checkout(prop["id"])
+    url = (checkout or {}).get("url")
+    if url:
+        return (
+            f"I checked. {name} is filed, and Stripe has not marked the payment paid yet. "
+            f"The payment link is {url}"
+        )
+    return f"I checked. {name} is filed as an inactive sponsor. Stripe has no paid invoice for it yet."

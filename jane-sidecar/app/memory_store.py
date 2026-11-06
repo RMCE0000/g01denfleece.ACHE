@@ -877,6 +877,27 @@ class MemoryStore:
                 found = sponsor
         return deepcopy(found) if found else None
 
+    async def inactive_sponsor_named(self, property_id: str, company_name: str) -> dict | None:
+        from app.sponsor_chat import sponsor_name_key
+
+        wanted = sponsor_name_key(company_name)
+        if not wanted:
+            return None
+        found = None
+        for sponsor in self.sponsors:
+            if str(sponsor.get("property_id")) != str(property_id) or sponsor.get("is_active_sponsor"):
+                continue
+            if sponsor_name_key(sponsor.get("company_name") or "") == wanted:
+                found = sponsor
+        return deepcopy(found) if found else None
+
+    async def latest_sponsor(self, property_id: str) -> dict | None:
+        found = None
+        for sponsor in self.sponsors:
+            if str(sponsor.get("property_id")) == str(property_id):
+                found = sponsor
+        return deepcopy(found) if found else None
+
     async def sponsor_by_subscription(self, subscription_id: str) -> dict | None:
         for sponsor in self.sponsors:
             if sponsor.get("stripe_subscription_id") == subscription_id:

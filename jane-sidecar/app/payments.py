@@ -4,6 +4,7 @@ import logging
 from uuid import UUID
 
 from app.collaboration import refresh_matches_for_property
+from app.delivery import deliver
 from app.errors import G01Error
 
 log = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ async def _apply_stripe_event(store, event: dict) -> dict:
             data.get("customer"),
             data.get("subscription"),
         )
+        await _tell_homestead(store, sponsor, True)
         return {"ok": True, "sponsor_id": sponsor["id"], "active": True}
 
     if kind in ("customer.subscription.updated", "customer.subscription.deleted"):
@@ -59,6 +61,7 @@ async def _apply_stripe_event(store, event: dict) -> dict:
         sponsor = await store.set_sponsor_subscription_active(subscription_id, active)
         if sponsor is None:
             return {"ok": True, "ignored": "unknown_subscription"}
+        await _tell_homestead(store, sponsor, active)
         return {"ok": True, "sponsor_id": sponsor["id"], "active": active}
 
     if kind in ("invoice.payment_failed", "invoice.paid", "invoice.payment_succeeded"):
@@ -81,6 +84,7 @@ async def _apply_stripe_event(store, event: dict) -> dict:
                 sponsor = await store.set_sponsor_subscription_active(subscription_id, active)
         if sponsor is None:
             return {"ok": True, "ignored": "unknown_subscription"}
+        await _tell_homestead(store, sponsor, active)
         return {"ok": True, "sponsor_id": sponsor["id"], "active": active}
 
     if kind == "identity.verification_session.verified":
@@ -102,3 +106,28 @@ async def _apply_stripe_event(store, event: dict) -> dict:
         return {"ok": True, "property_id": prop["id"], "kyc_verified": True}
 
     return {"ok": True, "ignored": kind or "unknown"}
+
+
+async def _tell_homestead(store, sponsor: dict, active: bool) -> None:
+    """Tell the private thread what Stripe recorded. A failed post does not undo the record."""
+    property_id = sponsor.get("property_id")
+    if not property_id:
+        return
+    try:
+        prop = await store.get_property(property_id)
+        if not prop:
+            return
+        name = sponsor.get("company_name") or "This sponsorship"
+        if active:
+            note = (
+                f"{name} is now an active g01 sponsor. "
+                "Stripe marked the payment paid, so the listing can be recommended."
+            )
+        else:
+            note = (
+                f"Stripe reported that the payment for {name} did not go through. "
+                "The listing stays off until that invoice is paid."
+            )
+        await deliver(store, prop.get("primary_conversation_id"), note)
+    except Exception:
+        log.exception("could not post the sponsorship payment note")

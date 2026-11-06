@@ -149,6 +149,9 @@ def test_brand_assets_are_gold_and_white():
     assert 'title: "Messages, audio, and files"' in bootstrap
     assert 'title: "Community conversations"' in bootstrap
     assert 'title: "Local sponsors and recommendations"' in bootstrap
+    assert 'title: "Buying a sponsorship"' in bootstrap
+    assert "start sponsorship" in bootstrap
+    assert "turns on after Stripe marks the payment paid" in bootstrap
     assert 'title: "Your account and privacy"' in bootstrap
     assert "has not appeared earlier in your chat" in bootstrap
     assert "internal score" not in bootstrap.lower()

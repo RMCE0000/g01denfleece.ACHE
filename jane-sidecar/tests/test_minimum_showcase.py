@@ -71,6 +71,10 @@ def test_gemini_receives_real_chat_roles():
 def test_task_complexity_routes_planning_to_pro():
     assert task_complexity("Where do I get a liner?") == "standard"
     assert task_complexity("Compare three water systems and design a phased implementation plan.") == "complex"
+    source = (Path(__file__).resolve().parents[1] / "app" / "gemini_flow.py").read_text(encoding="utf-8")
+    assert 'thinking_level="low"' in source
+    assert 'thinking_level="high"' in source
+    assert "include_thoughts=False" in source
 
 
 async def test_langchain_flow_selects_the_model_for_task_complexity():

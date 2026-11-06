@@ -95,7 +95,7 @@ def build_gemini_chain(settings: Settings):
         settings,
         settings.gemini_chat_model,
         max_tokens=1000,
-        thinking_level="minimal",
+        thinking_level="low",
     ) | StrOutputParser()
     pro = messages | _model(
         settings,

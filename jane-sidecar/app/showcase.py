@@ -192,6 +192,7 @@ async def answer_with_effects(store, message: dict) -> str:
     if (
         not decision.get("sponsor_active")
         and not decision.get("resend_payment_email")
+        and not decision.get("sponsor_status")
         and not decision.get("reply")
         and not decision.get("report_scores")
         and not decision.get("service_tag")

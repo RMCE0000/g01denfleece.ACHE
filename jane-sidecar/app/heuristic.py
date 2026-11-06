@@ -26,6 +26,7 @@ from app.sponsor_chat import (
     missing_fields,
     parse_labeled_sponsor_fields,
     payment_email_request,
+    sponsorship_status_request,
 )
 from app.sourcing import normalize_service_tag
 
@@ -102,6 +103,7 @@ def _blank() -> dict:
         "match_decision": None,
         "sponsor_active": False,
         "cancel_sponsor": False,
+        "sponsor_status": False,
         "sponsor_fields": {},
         "report_scores": False,
         "request_kyc": False,
@@ -230,7 +232,7 @@ def heuristic_decision(state: dict) -> dict:
         decision["reply"] = (
             "You can purchase a g01 sponsorship directly in this chat. "
             "When you're ready, say \"start sponsorship.\" "
-            "I'll collect your company details and then email you a secure payment link."
+            "I'll ask whether it is for your homestead or a separate local company, then email you a secure payment link."
         )
         return decision
 
@@ -307,6 +309,14 @@ def heuristic_decision(state: dict) -> dict:
         labeled = parse_labeled_sponsor_fields(text)
         mail = payment_email_request(text)
         if (
+            sponsorship_status_request(text)
+            and not labeled
+            and not decision["request_kyc"]
+            and not decision["report_scores"]
+        ):
+            decision["sponsor_status"] = True
+            decision["reply"] = ""
+        elif (
             mail
             and not labeled
             and not (pending[:1] == ["billing_email"] and message_has_email(text))
@@ -327,7 +337,7 @@ def heuristic_decision(state: dict) -> dict:
                 and not sourcing_turn
                 and not decision["request_kyc"]
             ):
-                absorb = absorb_next_answer(text, draft)
+                absorb = absorb_next_answer(text, draft, locality)
             collecting = draft is not None and bool(missing_fields(draft))
             if not decision["request_kyc"] and not decision["report_scores"] and (
                 _BUSINESS.search(text) or labeled or absorb or collecting
@@ -337,7 +347,8 @@ def heuristic_decision(state: dict) -> dict:
                 if draft is None and not decision["reply"]:
                     decision["reply"] = (
                         "I can set up the g01 sponsorship with you here. "
-                        "I'll collect the company details first, then email you a secure payment link."
+                        "I'll ask whether this is your homestead or a separate local company, "
+                        "then email you a secure payment link."
                     )
                 elif absorb or (collecting and not decision["reply"]):
                     decision["reply"] = ""

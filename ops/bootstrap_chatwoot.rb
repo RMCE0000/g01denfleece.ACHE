@@ -219,6 +219,18 @@ help_categories = [
         HTML
       },
       {
+        slug: "g01-buy-a-sponsorship",
+        title: "Buying a sponsorship",
+        description: "Start a homestead or local-company sponsorship in chat.",
+        position: 25,
+        content: <<~HTML
+          <p>Say “start sponsorship” in your private conversation with Jane. She asks whether the listing is for your homestead or for a separate local company, then collects the details in ordinary words.</p>
+          <p>For a homestead, Jane uses your locality and asks what neighbors should call it, what it offers, whether it is a chain, and which email should receive the payment link. For a company, she asks the company name, where it was founded, what type of company it is, what it makes or sells, whether it is a chain, and the payment email.</p>
+          <p>Stripe emails the payment link to that address. Jane also posts the same link in the chat. The listing turns on after Stripe marks the payment paid. Jane says the email was sent only when Stripe or g01 actually accepted it. If no invoice exists, she says so.</p>
+          <p>Do not type a card number into the chat. Use the secure Stripe page. Ask Jane whether the sponsorship is active if you want her to read the payment record.</p>
+        HTML
+      },
+      {
         slug: "g01-account-privacy",
         title: "Your account and privacy",
         description: "Who can see conversations and how to protect your account.",

@@ -101,25 +101,32 @@ def test_sponsor_registration_keeps_each_answer_on_the_form(client, store):
             "/webhooks/chatwoot",
             json=_message("Okay, I want to register as a sponsor.", 8),
         )
+        chosen = client.post(
+            "/webhooks/chatwoot",
+            json=_message("a separate local company", 9),
+        )
         answered = client.post(
             "/webhooks/chatwoot",
-            json=_message("RackChess", 9),
+            json=_message("RackChess", 10),
         )
         described = client.post(
             "/webhooks/chatwoot",
-            json=_message("I am a clothing company.", 10),
+            json=_message("I am a clothing company.", 11),
         )
     finally:
         gemini_override.reset(token)
 
     assert opened.status_code == 200
-    assert "What is the company name?" in opened.json()["reply"]
+    assert "Is this sponsorship for your homestead, or for a separate local company?" in opened.json()["reply"]
     assert "clear" not in opened.json()["reply"].casefold()
+    assert chosen.status_code == 200
+    assert chosen.json()["reply"] == "What is the company name?"
     assert answered.status_code == 200
     reply = answered.json()["reply"]
     assert reply == "What city was it founded in?"
     assert "clear" not in reply.casefold()
     assert store.properties[0]["sponsor_draft"]["company_name"] == "RackChess"
+    assert store.properties[0]["sponsor_draft"]["listing_kind"] == "company"
     assert described.status_code == 200
     assert described.json()["reply"] == "What state was it founded in?"
     assert described.json()["reply"].casefold() != "clear"
@@ -127,7 +134,7 @@ def test_sponsor_registration_keeps_each_answer_on_the_form(client, store):
 
 
 def test_sponsorship_payment_link_is_emailed_to_the_address_jane_collected(client, store, monkeypatch):
-    async def fake_checkout(sponsor_id, promo, customer_email=None):
+    async def fake_checkout(sponsor_id, promo, customer_email=None, customer_id=None, subscription_id=None):
         assert customer_email == "rack@example.com"
         assert promo is None
         return {"id": "cs_rack", "url": "https://checkout.stripe.com/c/pay/cs_rack"}
@@ -256,6 +263,19 @@ def test_a_missing_mailbox_still_leaves_the_payment_link_in_chat(client, store, 
 def test_sponsorship_questions_use_plain_language():
     from app.sponsor_chat import absorb_next_answer, next_prompt
 
+    assert next_prompt({}) == "Is this sponsorship for your homestead, or for a separate local company?"
+    locality = {"primary_city": "Lake Charles", "state_code": "la"}
+    homestead = absorb_next_answer("my homestead", {}, locality)
+    assert homestead["listing_kind"] == "homestead"
+    assert homestead["founding_city"] == "Lake Charles"
+    assert homestead["founding_state"] == "LA"
+    assert homestead["sourcing_tier"] == "local_service_or_stock"
+    assert next_prompt(homestead) == "What should neighbors call this homestead?"
+    named = {**homestead, "company_name": "Rack Yard"}
+    assert next_prompt(named) == "What does the homestead offer?"
+    assert "local_manufacturer" not in next_prompt(named)
+    assert absorb_next_answer("a separate local company", {}) == {"listing_kind": "company"}
+
     located = {"company_name": "RackChess", "founding_city": "Lake Charles"}
     assert next_prompt(located) == "What state was it founded in?"
     assert absorb_next_answer("Louisiana", located) == {"founding_state": "LA"}
@@ -276,6 +296,121 @@ def test_sponsorship_questions_use_plain_language():
     assert next_prompt({**described, **saved}) == "Is it a franchise or a chain? Say yes or no."
 
 
+def test_homestead_sponsorship_uses_the_locality_and_plain_questions(client, store):
+    token = gemini_override.set(lambda _model, _messages, _complexity: "Let's plan raised garden beds.")
+    try:
+        client.post("/webhooks/chatwoot", json=_message("I want to start sponsorship.", 30))
+        chosen = client.post("/webhooks/chatwoot", json=_message("my homestead", 31))
+        named = client.post("/webhooks/chatwoot", json=_message("Rack Yard", 32))
+    finally:
+        gemini_override.reset(token)
+
+    draft = store.properties[0]["sponsor_draft"]
+    assert chosen.json()["reply"] == "What should neighbors call this homestead?"
+    assert "garden" not in chosen.json()["reply"].casefold()
+    assert draft["listing_kind"] == "homestead"
+    assert draft["founding_city"] == "Lake Charles"
+    assert draft["founding_state"] == "LA"
+    assert draft["sourcing_tier"] == "local_service_or_stock"
+    assert named.json()["reply"] == "What does the homestead offer?"
+    assert draft["company_name"] == "Rack Yard"
+    assert "local_manufacturer" not in named.json()["reply"]
+
+
+def test_a_second_application_reuses_the_unpaid_sponsor(client, store, monkeypatch):
+    calls = []
+
+    async def fake_checkout(sponsor_id, promo, customer_email=None, customer_id=None, subscription_id=None):
+        calls.append((sponsor_id, customer_email, customer_id, subscription_id))
+        return {
+            "id": "in_once",
+            "url": "https://invoice.stripe.com/i/once",
+            "customer_id": customer_id or "cus_once",
+            "subscription_id": subscription_id or "sub_once",
+            "stripe_emailed": True,
+        }
+
+    monkeypatch.setattr("app.sponsor_chat.create_sponsor_checkout", fake_checkout)
+    application = "\n".join(
+        [
+            "Register as a sponsor.",
+            "Company: RackChess",
+            "Founding city: Lake Charles",
+            "Founding state: LA",
+            "Tier: local_manufacturer",
+            "Tags: clothing",
+            "Summary: Makes work clothes for homesteaders in Lake Charles.",
+            "Franchise: no",
+            "Email: rack@example.com",
+        ]
+    )
+    first = client.post("/webhooks/chatwoot", json=_message(application, 40))
+    second = client.post("/webhooks/chatwoot", json=_message(application, 41))
+
+    names = [row["company_name"] for row in store.sponsors if row["company_name"] == "RackChess"]
+    assert names == ["RackChess"]
+    assert "I filed RackChess as an inactive sponsor." in first.json()["reply"]
+    assert "Stripe emailed the payment link to rack@example.com." in first.json()["reply"]
+    assert "already has an unpaid sponsorship" in second.json()["reply"]
+    assert calls[0][2] is None
+    assert calls[1][0] == calls[0][0]
+    assert calls[1][2] == "cus_once"
+    assert calls[1][3] == "sub_once"
+
+
+def test_sponsorship_status_reads_the_stored_listing(client, store):
+    token = gemini_override.set(lambda *_args: "The backend shows a paid garden sponsorship.")
+    try:
+        missing = client.post("/webhooks/chatwoot", json=_message("Is my sponsorship active?", 42))
+    finally:
+        gemini_override.reset(token)
+    assert "does not have a sponsorship listing yet" in missing.json()["reply"]
+    assert "garden" not in missing.json()["reply"].casefold()
+    assert "backend" not in missing.json()["reply"].casefold()
+
+    sponsor = store.sponsors[0]
+    sponsor["property_id"] = store.properties[0]["id"]
+    sponsor["company_name"] = "RackChess"
+    sponsor["is_active_sponsor"] = True
+    active = client.post("/webhooks/chatwoot", json=_message("Did my payment go through?", 43))
+    assert "RackChess is an active g01 sponsor. Stripe has marked the payment paid." in active.json()["reply"]
+
+
+def test_paid_and_failed_invoices_are_posted_in_the_thread(store):
+    sponsor = store.sponsors[0]
+    sponsor["property_id"] = store.properties[0]["id"]
+    sponsor["company_name"] = "RackChess"
+    sponsor["is_active_sponsor"] = False
+    sponsor["stripe_subscription_id"] = "sub_note"
+
+    paid = asyncio.run(
+        apply_stripe_event(
+            store,
+            {
+                "id": "evt_note_paid",
+                "type": "invoice.paid",
+                "data": {"object": {"subscription": "sub_note"}},
+            },
+        )
+    )
+    failed = asyncio.run(
+        apply_stripe_event(
+            store,
+            {
+                "id": "evt_note_failed",
+                "type": "invoice.payment_failed",
+                "data": {"object": {"subscription": "sub_note"}},
+            },
+        )
+    )
+
+    notes = [row["content"] for row in store.outbox]
+    assert paid["active"] is True
+    assert failed["active"] is False
+    assert "RackChess is now an active g01 sponsor." in notes[0]
+    assert "Stripe reported that the payment for RackChess did not go through." in notes[1]
+
+
 def test_buying_a_sponsorship_does_not_recommend_an_existing_sponsor(client, store):
     test_sponsor = store.sponsors[0]
     test_sponsor["company_name"] = "G01 Test Garden Works"
@@ -289,7 +424,7 @@ def test_buying_a_sponsorship_does_not_recommend_an_existing_sponsor(client, sto
     assert reply == (
         "You can purchase a g01 sponsorship directly in this chat. "
         'When you\'re ready, say "start sponsorship." '
-        "I'll collect your company details and then email you a secure payment link."
+        "I'll ask whether it is for your homestead or a separate local company, then email you a secure payment link."
     )
     assert "G01 Test Garden Works" not in reply
     assert store.properties[0].get("sponsor_draft") is None

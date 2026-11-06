@@ -196,6 +196,11 @@ def test_showcase_constitution_is_short_and_local():
         "Rogers, Arkansas",
         "said your name",
         "only here in this chat",
+        "Be a kind peer",
+        "water catchment",
+        "exact username",
+        "Do not mention tier weights",
+        "While a sponsorship application is open",
     ):
         assert phrase in JANE_CONSTITUTION
     assert "JSON object" not in JANE_CONSTITUTION
