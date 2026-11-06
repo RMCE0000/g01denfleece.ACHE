@@ -21,8 +21,8 @@ from app.epistemic import (
 )
 from app.northstar import view_from_property
 from app.sponsor_chat import (
-    absorb_next_answer,
     message_has_email,
+    read_sponsor_message,
     missing_fields,
     parse_labeled_sponsor_fields,
     payment_email_request,
@@ -328,30 +328,19 @@ def heuristic_decision(state: dict) -> dict:
             decision["reply"] = ""
         else:
             absorb = {}
-            sourcing_turn = bool(detect_service_tag(text))
             if (
-                draft is not None
-                and missing_fields(draft)
-                and not labeled
+                not labeled
                 and not decision["report_scores"]
-                and not sourcing_turn
                 and not decision["request_kyc"]
+                and (draft is not None or _BUSINESS.search(text))
             ):
-                absorb = absorb_next_answer(text, draft, locality)
+                absorb = read_sponsor_message(text, draft or {}, locality)
             collecting = draft is not None and bool(missing_fields(draft))
             if not decision["request_kyc"] and not decision["report_scores"] and (
                 _BUSINESS.search(text) or labeled or absorb or collecting
             ):
                 decision["sponsor_active"] = True
-                decision["sponsor_fields"] = {**labeled, **absorb}
-                if draft is None and not decision["reply"]:
-                    decision["reply"] = (
-                        "I can set up the g01 sponsorship with you here. "
-                        "I'll ask whether this is your homestead or a separate local company, "
-                        "then email you a secure payment link."
-                    )
-                elif absorb or (collecting and not decision["reply"]):
-                    decision["reply"] = ""
+                decision["sponsor_fields"] = {**absorb, **labeled}
 
     if _DEMAND.search(text):
         tag = detect_service_tag(text) or "local_demand"

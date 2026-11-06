@@ -6,6 +6,7 @@ import logging
 from app.chatwoot_client import ChatwootClient
 from app.config import get_settings
 from app.constitution import JANE_CONSTITUTION
+from app.sponsor_chat import missing_fields, sponsorship_thinking_note
 from app.delivery import deliver
 from app.effects import commit_decision
 from app.gemini_flow import complete_text
@@ -175,11 +176,6 @@ async def answer_with_effects(store, message: dict) -> str:
     if prop is None and message.get("user_id") is not None:
         prop = await store.get_property_by_user(int(message["user_id"]))
     locality = await store.get_locality(prop["locality_id"]) if prop else None
-    reply = reply_as_jane(
-        await complete_text(_grounded_system(prop, locality), render_history(lines), lines),
-        lines,
-    )
-    cleaned = sanitize_reply(reply).strip() or _BLOCKED
     decision = heuristic_decision(
         {
             "message": message,
@@ -189,15 +185,25 @@ async def answer_with_effects(store, message: dict) -> str:
             "matches": await store.matches_for_property(prop["id"]) if prop else [],
         }
     )
-    if (
+    draft = dict((prop or {}).get("sponsor_draft") or {})
+    draft.update(decision.get("sponsor_fields") or {})
+    jane_should_think = bool(
+        decision.get("sponsor_active") and prop is not None and missing_fields(draft) and not decision.get("reply")
+    )
+    ordinary = (
         not decision.get("sponsor_active")
         and not decision.get("resend_payment_email")
         and not decision.get("sponsor_status")
         and not decision.get("reply")
         and not decision.get("report_scores")
         and not decision.get("service_tag")
-    ):
-        decision["reply"] = cleaned
+    )
+    if jane_should_think or ordinary:
+        system = _grounded_system(prop, locality)
+        if jane_should_think:
+            system += "\n\n" + sponsorship_thinking_note(draft)
+        reply = reply_as_jane(await complete_text(system, render_history(lines), lines), lines)
+        decision["reply"] = sanitize_reply(reply).strip() or _BLOCKED
     await store.append_transcript(
         conversation_id=int(message["conversation_id"]),
         message_id=str(message.get("message_id") or "") or None,

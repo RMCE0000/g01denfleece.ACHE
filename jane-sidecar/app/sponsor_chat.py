@@ -342,6 +342,167 @@ def absorb_next_answer(text: str, draft: dict, locality: dict | None = None) -> 
     return {}
 
 
+def _rich_answer(text: str) -> bool:
+    stripped = text.strip()
+    return len(stripped) > 40 or stripped.count(" ") > 6
+
+
+def _company_name_from_text(text: str, locality: dict | None) -> str | None:
+    called = re.search(
+        r"\b(?:called|named|name is|name's)\s+([A-Z][\w'&-]*(?:\s+[A-Z][\w'&-]*){0,3})",
+        text,
+    )
+    if called:
+        return called.group(1).strip()
+    city = str((locality or {}).get("primary_city") or "").casefold()
+    for sentence in re.split(r"[.!?]+", text):
+        candidate = sentence.strip()
+        if not candidate or len(candidate.split()) > 4:
+            continue
+        if re.match(r"^(i|we|it|they|my|our|a|the)\b", candidate, re.I):
+            continue
+        if listing_kind(candidate):
+            continue
+        if city and candidate.casefold() == city:
+            continue
+        if re.match(r"^[A-Z0-9]", candidate):
+            return candidate
+    camel = re.search(r"\b[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)+\b", text)
+    return camel.group(0) if camel else None
+
+
+def _scan_sponsor_facts(text: str, draft: dict, locality: dict | None) -> dict:
+    """Read every sponsorship fact in the message, not only the next blank."""
+    fields: dict = {}
+    if not draft.get("listing_kind"):
+        kind = listing_kind(text)
+        if kind:
+            fields["listing_kind"] = kind
+            if kind == "homestead" and locality:
+                city = str(locality.get("primary_city") or "").strip()
+                state = str(locality.get("state_code") or "").strip().upper()
+                if city:
+                    fields["founding_city"] = city
+                if state:
+                    fields["founding_state"] = state
+                fields["sourcing_tier"] = "local_service_or_stock"
+    if not draft.get("billing_email") and "billing_email" not in fields:
+        email = _EMAIL_FIND.search(text)
+        if email and not re.search(r"(?:billing email|payment email|email):", text, re.I):
+            fields["billing_email"] = email.group(0).casefold()
+    if locality and not draft.get("founding_city") and "founding_city" not in fields:
+        city = str(locality.get("primary_city") or "").strip()
+        if city and city.casefold() in text.casefold():
+            fields["founding_city"] = city
+    if not draft.get("founding_state") and "founding_state" not in fields:
+        for name, code in _STATE_NAMES.items():
+            if re.search(rf"\b{re.escape(name)}\b", text, re.I):
+                fields["founding_state"] = code
+                break
+    offer = re.search(
+        r"\b(?:i|we)\s+(?:make|makes|making|grow|grows|growing|sell|sells|selling|sew|sews|mill|mills|build|builds|deliver|delivers|haul|hauls)\s+(.+)",
+        text,
+        re.I,
+    )
+    if offer and not draft.get("service_tags") and "service_tags" not in fields:
+        product = re.split(r"\b(?:here|in|at|for)\b", offer.group(1), maxsplit=1, flags=re.I)[0]
+        product = product.strip(" .!")
+        tag = _tag(product.split(",")[0])
+        if tag:
+            fields["service_tags"] = [tag]
+            fields["capabilities_summary"] = offer.group(0).strip().rstrip(".!")
+            typed = company_type(offer.group(0))
+            if typed and not draft.get("sourcing_tier"):
+                fields["sourcing_tier"] = typed
+    if not draft.get("company_name") and "company_name" not in fields:
+        name = _company_name_from_text(text, locality)
+        if name:
+            fields["company_name"] = name
+    if draft.get("is_franchise_or_chain") is None and "is_franchise_or_chain" not in fields:
+        if re.search(r"\b(not a franchise|not a chain|no franchise|independently owned)\b", text, re.I):
+            fields["is_franchise_or_chain"] = False
+        elif re.search(r"\b(is a franchise|is a chain|we're a franchise|we are a franchise)\b", text, re.I):
+            fields["is_franchise_or_chain"] = True
+    return fields
+
+
+def read_sponsor_message(text: str, draft: dict, locality: dict | None = None) -> dict:
+    """Keep every fact the homesteader already gave, then fill one short blank if needed."""
+    fields = _scan_sponsor_facts(text, draft, locality)
+    combined = {**draft, **fields}
+    if not missing_fields(combined):
+        return fields
+    extra = absorb_next_answer(text, combined, locality)
+    for key, value in extra.items():
+        if key in fields:
+            continue
+        if key in ("company_name", "founding_city") and _rich_answer(text):
+            continue
+        if key == "company_name" and listing_kind(str(value)):
+            continue
+        fields[key] = value
+    return fields
+
+
+_MISSING_WORDS = {
+    "listing_kind": "whether this is their homestead or a separate local company",
+    "company_name": "what it is called",
+    "founding_city": "the city where it was founded",
+    "founding_state": "the state where it was founded",
+    "sourcing_tier": "what type of company it is",
+    "service_tags": "what it makes or sells",
+    "capabilities_summary": "what it actually does",
+    "is_franchise_or_chain": "whether it is a franchise or a chain",
+    "billing_email": "the email that should receive the payment link",
+}
+
+
+def sponsorship_thinking_note(draft: dict) -> str:
+    """Private context so Jane can think about the answer instead of reciting a form."""
+    recorded = []
+    if draft.get("listing_kind") == "homestead":
+        recorded.append("This listing is the homesteader's own homestead.")
+    elif draft.get("listing_kind") == "company":
+        recorded.append("This listing is a separate local company.")
+    if draft.get("company_name"):
+        recorded.append(f"Name: {draft['company_name']}.")
+    if draft.get("founding_city"):
+        recorded.append(f"City: {draft['founding_city']}.")
+    if draft.get("founding_state"):
+        recorded.append(f"State: {draft['founding_state']}.")
+    if draft.get("capabilities_summary"):
+        recorded.append(f"What they do: {draft['capabilities_summary']}.")
+    elif draft.get("service_tags"):
+        words = ", ".join(str(tag).replace("_", " ") for tag in draft["service_tags"])
+        recorded.append(f"What they offer: {words}.")
+    if draft.get("is_franchise_or_chain") is True:
+        recorded.append("They said it is a franchise or a chain.")
+    elif draft.get("is_franchise_or_chain") is False:
+        recorded.append("They said it is not a franchise or a chain.")
+    if draft.get("billing_email"):
+        recorded.append(f"Payment email: {draft['billing_email']}.")
+    missing_words = []
+    for key in missing_fields(draft):
+        if key == "company_name" and draft.get("listing_kind") == "homestead":
+            missing_words.append("what neighbors should call the homestead")
+        elif key == "service_tags" and draft.get("listing_kind") == "homestead":
+            missing_words.append("what the homestead offers")
+        else:
+            missing_words.append(_MISSING_WORDS.get(key, key.replace("_", " ")))
+    known = " ".join(recorded) if recorded else "nothing yet."
+    return (
+        "The homesteader is in the middle of a g01 sponsorship. "
+        "Think about their latest answer before you reply. "
+        f"Recorded so far: {known} "
+        "Still needed, in this order: " + "; ".join(missing_words) + ". "
+        "Reply in your own words. Acknowledge what they just told you. "
+        "Ask only for the first thing still needed. "
+        "Do not ask again for anything already recorded. "
+        "Do not mention tier codes, scores, weights, distance, or referral rotation. "
+        "Do not change the subject away from the sponsorship."
+    )
+
+
 def next_prompt(draft: dict) -> str:
     missing = missing_fields(draft)
     if not missing:
@@ -474,10 +635,7 @@ async def resend_sponsor_payment(store, prop: dict, email: str | None) -> str:
     if checkout is None and sponsor is None:
         draft = prop.get("sponsor_draft") if isinstance(prop.get("sponsor_draft"), dict) else None
         if draft is not None and missing_fields(draft):
-            return (
-                "I checked. Stripe has no sponsorship invoice yet, so nothing was emailed. "
-                + next_prompt(draft)
-            )
+            return "I checked. Stripe has no sponsorship invoice yet, so nothing was emailed."
         return (
             "I checked. Stripe has no sponsorship invoice for this homestead, so nothing was emailed. "
             'Say "start sponsorship" and I will ask whether it is for your homestead or a separate local company.'

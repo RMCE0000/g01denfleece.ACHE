@@ -19,13 +19,7 @@ from app.epistemic import (
 from app.heuristic import heuristic_decision, status_reply
 from app.sanitize import sanitize_reply
 from app.sourcing import format_ladder, haversine_miles
-from app.sponsor_chat import (
-    file_sponsor_application,
-    missing_fields,
-    next_prompt,
-    resend_sponsor_payment,
-    sponsorship_status,
-)
+from app.sponsor_chat import file_sponsor_application, missing_fields, resend_sponsor_payment, sponsorship_status
 from app.stripe_service import create_identity_session
 
 
@@ -211,7 +205,6 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
         sponsor_locality = locality or await store.get_locality(prop["locality_id"])
         if missing_fields(draft):
             prop = await store.save_sponsor_draft(prop["id"], draft)
-            notes.append(next_prompt(draft))
         else:
             notes.append(await file_sponsor_application(store, prop, sponsor_locality, draft))
             prop = await store.get_property(prop["id"])

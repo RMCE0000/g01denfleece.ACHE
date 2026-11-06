@@ -95,42 +95,40 @@ def test_jane_knows_verified_sponsors_do_not_need_prior_chat_mentions(client, st
 
 
 def test_sponsor_registration_keeps_each_answer_on_the_form(client, store):
-    token = gemini_override.set(lambda _model, _messages, _complexity: "clear")
+    seen = {}
+
+    def think(_model, messages, _complexity):
+        seen["system"] = messages[0].content
+        return "RackChess in Lake Charles, making clothing. Which state was the company founded in?"
+
+    token = gemini_override.set(think)
     try:
         opened = client.post(
             "/webhooks/chatwoot",
             json=_message("Okay, I want to register as a sponsor.", 8),
         )
-        chosen = client.post(
-            "/webhooks/chatwoot",
-            json=_message("a separate local company", 9),
-        )
-        answered = client.post(
-            "/webhooks/chatwoot",
-            json=_message("RackChess", 10),
-        )
         described = client.post(
             "/webhooks/chatwoot",
-            json=_message("I am a clothing company.", 11),
+            json=_message("A separate local company. RackChess! I make clothing here in lake charles!", 9),
         )
     finally:
         gemini_override.reset(token)
 
     assert opened.status_code == 200
-    assert "Is this sponsorship for your homestead, or for a separate local company?" in opened.json()["reply"]
-    assert "clear" not in opened.json()["reply"].casefold()
-    assert chosen.status_code == 200
-    assert chosen.json()["reply"] == "What is the company name?"
-    assert answered.status_code == 200
-    reply = answered.json()["reply"]
-    assert reply == "What city was it founded in?"
-    assert "clear" not in reply.casefold()
-    assert store.properties[0]["sponsor_draft"]["company_name"] == "RackChess"
-    assert store.properties[0]["sponsor_draft"]["listing_kind"] == "company"
+    assert opened.json()["reply"] == "RackChess in Lake Charles, making clothing. Which state was the company founded in?"
+    assert "What is the company name?" not in opened.json()["reply"]
+    draft = store.properties[0]["sponsor_draft"]
     assert described.status_code == 200
-    assert described.json()["reply"] == "What state was it founded in?"
-    assert described.json()["reply"].casefold() != "clear"
-    assert store.properties[0]["sponsor_draft"]["founding_city"] == "I am a clothing company"
+    assert described.json()["reply"] == "RackChess in Lake Charles, making clothing. Which state was the company founded in?"
+    assert "What is the company name?" not in described.json()["reply"]
+    assert draft["listing_kind"] == "company"
+    assert draft["company_name"] == "RackChess"
+    assert draft["founding_city"] == "Lake Charles"
+    assert draft["service_tags"] == ["clothing"]
+    assert draft["sourcing_tier"] == "local_manufacturer"
+    assert "Name: RackChess." in seen["system"]
+    assert "local_manufacturer" not in seen["system"]
+    assert "Do not ask again" in seen["system"]
 
 
 def test_sponsorship_payment_link_is_emailed_to_the_address_jane_collected(client, store, monkeypatch):
@@ -212,7 +210,7 @@ def test_resend_and_status_questions_read_the_payment_record(client, store):
         gemini_override.reset(token)
     pending_reply = pending.json()["reply"]
     assert "Stripe has no sponsorship invoice yet, so nothing was emailed." in pending_reply
-    assert "What city was it founded in?" in pending_reply
+    assert "What city was it founded in?" not in pending_reply
     assert "backend workflow" not in pending_reply.casefold()
 
 
@@ -275,6 +273,17 @@ def test_sponsorship_questions_use_plain_language():
     assert next_prompt(named) == "What does the homestead offer?"
     assert "local_manufacturer" not in next_prompt(named)
     assert absorb_next_answer("a separate local company", {}) == {"listing_kind": "company"}
+    from app.sponsor_chat import read_sponsor_message
+
+    rich = read_sponsor_message(
+        "A separate local company. RackChess! I make clothing here in lake charles!",
+        {},
+        {"primary_city": "Lake Charles", "state_code": "LA"},
+    )
+    assert rich["company_name"] == "RackChess"
+    assert rich["founding_city"] == "Lake Charles"
+    assert rich["service_tags"] == ["clothing"]
+    assert rich["listing_kind"] == "company"
 
     located = {"company_name": "RackChess", "founding_city": "Lake Charles"}
     assert next_prompt(located) == "What state was it founded in?"
@@ -297,7 +306,9 @@ def test_sponsorship_questions_use_plain_language():
 
 
 def test_homestead_sponsorship_uses_the_locality_and_plain_questions(client, store):
-    token = gemini_override.set(lambda _model, _messages, _complexity: "Let's plan raised garden beds.")
+    token = gemini_override.set(
+        lambda _model, _messages, _complexity: "Your homestead in Lake Charles. What should neighbors call it?"
+    )
     try:
         client.post("/webhooks/chatwoot", json=_message("I want to start sponsorship.", 30))
         chosen = client.post("/webhooks/chatwoot", json=_message("my homestead", 31))
@@ -306,13 +317,13 @@ def test_homestead_sponsorship_uses_the_locality_and_plain_questions(client, sto
         gemini_override.reset(token)
 
     draft = store.properties[0]["sponsor_draft"]
-    assert chosen.json()["reply"] == "What should neighbors call this homestead?"
-    assert "garden" not in chosen.json()["reply"].casefold()
+    assert chosen.json()["reply"] == "Your homestead in Lake Charles. What should neighbors call it?"
+    assert "Is this sponsorship for your homestead" not in chosen.json()["reply"]
     assert draft["listing_kind"] == "homestead"
     assert draft["founding_city"] == "Lake Charles"
     assert draft["founding_state"] == "LA"
     assert draft["sourcing_tier"] == "local_service_or_stock"
-    assert named.json()["reply"] == "What does the homestead offer?"
+    assert named.json()["reply"] == "Your homestead in Lake Charles. What should neighbors call it?"
     assert draft["company_name"] == "Rack Yard"
     assert "local_manufacturer" not in named.json()["reply"]
 
