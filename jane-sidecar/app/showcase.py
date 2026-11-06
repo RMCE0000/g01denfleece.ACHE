@@ -12,7 +12,7 @@ from app.gemini_flow import complete_text
 from app.homesteaders import conversation_url
 from app.heuristic import heuristic_decision
 from app.northstar import view_from_property
-from app.sanitize import sanitize_reply
+from app.sanitize import sanitize_reply, strip_jane_thought
 
 log = logging.getLogger(__name__)
 
@@ -44,14 +44,14 @@ def _collapse_repeats(text: str) -> str:
 
 def reply_as_jane(text: str, lines: list[dict]) -> str:
     """Drop a copied speaker label and a line the model repeated back to itself."""
-    cleaned = str(text or "").strip()
+    cleaned = strip_jane_thought(str(text or "")).strip()
     for line in lines:
         speaker = str(line.get("speaker") or "").strip()
         prefix = f"{speaker}:"
         if speaker and cleaned.startswith(prefix):
             cleaned = cleaned[len(prefix) :].strip()
             break
-    cleaned = _collapse_repeats(cleaned)
+    cleaned = strip_jane_thought(_collapse_repeats(cleaned)).strip()
     if cleaned.casefold() in _GENERIC_NON_ANSWERS:
         return _GROUNDED_QUESTION
     return cleaned
@@ -60,7 +60,7 @@ def reply_as_jane(text: str, lines: list[dict]) -> str:
 def render_history(lines: list[dict]) -> str:
     parts: list[str] = []
     for line in lines:
-        content = str(line.get("content") or "").strip()
+        content = strip_jane_thought(str(line.get("content") or "")).strip()
         if not content:
             continue
         speaker = str(line.get("speaker") or "").strip()
@@ -219,7 +219,7 @@ def _person(prop: dict) -> dict:
 def _public_messages(lines: list[dict]) -> list[dict]:
     visible = []
     for line in lines[-_HISTORY_LIMIT:]:
-        content = str(line.get("content") or "").strip()
+        content = strip_jane_thought(str(line.get("content") or "")).strip()
         if not content:
             continue
         visible.append(

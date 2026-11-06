@@ -13,6 +13,7 @@ from langchain_core.runnables import RunnableBranch, RunnableLambda
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.config import Settings, get_settings
+from app.sanitize import strip_jane_thought
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ def chat_messages(system: str, user: str, history: list[dict] | None = None) -> 
     if not history:
         return [*messages, HumanMessage(content=user)]
     for line in history:
-        content = str(line.get("content") or "").strip()
+        content = strip_jane_thought(str(line.get("content") or "")).strip()
         if not content:
             continue
         speaker = str(line.get("speaker") or "").strip()
@@ -81,6 +82,7 @@ def _model(
         temperature=0.2,
         max_tokens=max_tokens,
         thinking_level=thinking_level,
+        include_thoughts=False,
         retries=2,
         request_timeout=90,
     )
@@ -117,7 +119,7 @@ async def complete_text(system: str, user: str, history: list[dict] | None = Non
         result = override(model_name, messages, complexity)
         if hasattr(result, "__await__"):
             result = await result
-        return str(result or "").strip() or UNREACHABLE
+        return strip_jane_thought(str(result or "")).strip() or UNREACHABLE
     if not settings.gemini_api_key:
         log.error("G01_GEMINI_API_KEY is not configured")
         return UNREACHABLE
@@ -128,7 +130,7 @@ async def complete_text(system: str, user: str, history: list[dict] | None = Non
     except Exception:
         log.exception("Gemini did not answer Jane's %s turn", complexity)
         return UNREACHABLE
-    return str(result or "").strip() or UNREACHABLE
+    return strip_jane_thought(str(result or "")).strip() or UNREACHABLE
 
 
 async def transcribe_audio(data: bytes, mime_type: str) -> str:

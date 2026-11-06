@@ -209,6 +209,26 @@ def test_resend_and_status_questions_read_the_payment_record(client, store):
     assert "backend workflow" not in pending_reply.casefold()
 
 
+def test_send_the_link_again_checks_the_payment_record(client, store):
+    token = gemini_override.set(
+        lambda _model, _messages, _complexity: (
+            "Jane_thoughtI do not have a tool to trigger or resend the payment link from my end."
+        )
+    )
+    try:
+        response = client.post(
+            "/webhooks/chatwoot",
+            json=_message("Okay, please try to send the link again", 18),
+        )
+    finally:
+        gemini_override.reset(token)
+
+    reply = response.json()["reply"]
+    assert "jane_thought" not in reply.casefold()
+    assert "I do not have a tool" not in reply
+    assert "I checked. No sponsorship payment link has been created, so nothing was emailed." in reply
+
+
 def test_a_missing_mailbox_still_leaves_the_payment_link_in_chat(client, store, monkeypatch):
     monkeypatch.delenv("SMTP_ADDRESS", raising=False)
     sponsor = store.sponsors[0]

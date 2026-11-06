@@ -37,10 +37,10 @@ _PAYMENT_ASK = re.compile(
     re.I,
 )
 _SPONSOR_EMAIL_FOLLOWUP = re.compile(
-    r"\b(?:send|resend) (?:that|the|this|my) e-?mail\b|"
-    r"\b(?:check|confirm|verify) (?:that |if |whether )?(?:it|that|the e-?mail|this) was sent\b|"
-    r"\bwas (?:it|that|the e-?mail) sent\b|"
-    r"\bdid you send (?:it|that|the e-?mail)\b",
+    r"\b(?:send|resend) (?:that|the|this|my) (?:e-?mail|link)\b|"
+    r"\b(?:check|confirm|verify) (?:that |if |whether )?(?:it|that|the e-?mail|the link|this) was sent\b|"
+    r"\bwas (?:it|that|the e-?mail|the link) sent\b|"
+    r"\bdid you send (?:it|that|the e-?mail|the link)\b",
     re.I,
 )
 

@@ -35,6 +35,15 @@ def _message(content, message_id, **extra):
     }
 
 
+def test_a_thought_label_is_not_posted():
+    from app.showcase import reply_as_jane
+
+    assert reply_as_jane("Jane_thoughtI do not have a tool to resend the payment link.", []) == (
+        "I do not have a tool to resend the payment link."
+    )
+    assert "jane_thought" not in reply_as_jane("Jane: Jane_thoughtThe cistern can be repaired.", [{"speaker": "Jane"}]).casefold()
+
+
 def test_a_copied_speaker_label_is_not_posted():
     from app.showcase import reply_as_jane
 
