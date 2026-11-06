@@ -954,15 +954,15 @@
 
   function collapsedConversationTrigger(node) {
     if (!node || !node.closest || !node.closest("nav")) return null;
-    var link = node.matches && node.matches("a[title], button[title]") ? node : null;
-    if (!link && node.querySelector) {
-      link = node.querySelector(":scope > a[title], :scope > button[title]");
+    var link = node.closest("a[title], button[title]");
+    if (!link || !link.closest("nav")) {
+      link = node.querySelector ? node.querySelector(":scope > a[title], :scope > button[title]") : null;
     }
     if (!link || !link.closest("nav")) return null;
     var title = (link.getAttribute("title") || "").replace(/\s+/g, " ").trim().toLowerCase();
     if (title !== "conversations") return null;
-    var className = typeof link.className === "string" ? link.className : "";
-    if (className.indexOf("size-10") === -1) return null;
+    var label = (link.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+    if (label === "conversations") return null;
     return link;
   }
 
@@ -981,7 +981,9 @@
     document.querySelectorAll("div.fixed").forEach(function (panel) {
       if (!isCollapsedConversationFlyout(panel)) return;
       panel.classList.add("g01-hidden-conversation-flyout");
+      panel.setAttribute("hidden", "");
       panel.style.setProperty("display", "none", "important");
+      panel.style.setProperty("visibility", "hidden", "important");
       panel.style.setProperty("pointer-events", "none", "important");
     });
   }

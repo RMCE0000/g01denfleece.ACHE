@@ -65,12 +65,14 @@ def test_brand_assets_are_gold_and_white():
     assert 'assigneeTabLabel(link) === "All"' in script
     assert "all.click()" in script
     assert 'event.code === "KeyN"' in script
-    assert "v=43" in initializer
+    assert "v=44" in initializer
     assert "function installCollapsedConversationMenuGuard" in script
     assert 'title !== "conversations"' in script
+    assert 'label === "conversations"' in script
     assert 'indexOf("all conversations")' in script
     assert "g01-hidden-conversation-flyout" in script
     assert ".g01-hidden-conversation-flyout" in css
+    assert ".fixed.z-\\[100\\].min-w-\\[200px\\]:has(.uppercase.tracking-wider)" in css
     assert "function ensureMessageMenuTrimmed" in script
     assert "function installMessageMenuGuard" in script
     assert '"add to canned responses"' in script

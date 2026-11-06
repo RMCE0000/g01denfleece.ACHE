@@ -453,8 +453,11 @@ nav ul.items-center .g01-community-label {
 
 .g01-hidden-conversation-tool,
 .g01-hidden-captain,
-.g01-hidden-conversation-flyout {
+.g01-hidden-conversation-flyout,
+.fixed.z-\[100\].min-w-\[200px\]:has(.uppercase.tracking-wider),
+.fixed.z-\[100\]:has(> .w-56 > .uppercase.tracking-wider) {
   display: none !important;
+  visibility: hidden !important;
   pointer-events: none !important;
 }
 
