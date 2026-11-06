@@ -508,7 +508,8 @@ button:has(.i-woot-captain),
 
 .g01-hidden-companies,
 .g01-hidden-settings,
-.g01-hidden-help-center-control {
+.g01-hidden-help-center-control,
+.g01-hidden-canned-response {
   display: none !important;
 }
 

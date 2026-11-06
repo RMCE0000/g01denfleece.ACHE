@@ -979,6 +979,15 @@
     });
   }
 
+  function ensureCannedResponseHidden() {
+    document.querySelectorAll(".menu-container .menu-label").forEach(function (label) {
+      if (label.textContent.trim().toLocaleLowerCase() !== "add to canned responses") return;
+      var item = label.closest(".menu");
+      if (!item || !item.closest(".menu-container")) return;
+      item.classList.add("g01-hidden-canned-response");
+    });
+  }
+
   function ensureHelpCenterGuide() {
     document.querySelectorAll('nav a[href*="/portals"]').forEach(function (link) {
       var item = link.closest("li") || link;
@@ -1043,6 +1052,20 @@
     ensureContactsHidden();
     ensureBusinessToolsHidden();
     ensureHelpCenterGuide();
+    ensureCannedResponseHidden();
+    document.addEventListener(
+      "click",
+      function (event) {
+        var source = event.target && event.target.closest ? event.target : event.target && event.target.parentElement;
+        var item = source && source.closest && source.closest(".menu-container .menu");
+        if (!item) return;
+        var label = item.querySelector(".menu-label");
+        if (!label || label.textContent.trim().toLocaleLowerCase() !== "add to canned responses") return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      },
+      true
+    );
     new MutationObserver(function () {
       ensureCommunityButton();
       ensureCommunitySearch();
@@ -1053,6 +1076,7 @@
       ensureContactsHidden();
       ensureBusinessToolsHidden();
       ensureHelpCenterGuide();
+      ensureCannedResponseHidden();
     }).observe(document.body, { childList: true, subtree: true });
     window.addEventListener("popstate", ensureCommunityButton);
     document.addEventListener("keydown", function (event) {
