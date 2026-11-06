@@ -65,12 +65,13 @@ def test_brand_assets_are_gold_and_white():
     assert 'assigneeTabLabel(link) === "All"' in script
     assert "all.click()" in script
     assert 'event.code === "KeyN"' in script
-    assert "v=40" in initializer
-    assert "function ensureCannedResponseHidden" in script
-    assert '!== "add to canned responses"' in script
-    assert ".menu-container .menu-label" in script
-    assert "g01-hidden-canned-response" in script
-    assert ".g01-hidden-canned-response" in css
+    assert "v=41" in initializer
+    assert "function ensureMessageMenuTrimmed" in script
+    assert '"add to canned responses"' in script
+    assert "translate: true" in script
+    assert "reply to this message" in script
+    assert "g01-hidden-message-menu-item" in script
+    assert ".g01-hidden-message-menu-item" in css
     assert ".conversations-list-wrap" in css
     assert "> .flex.items-center.gap-2.flex-shrink-0" in css
     assert "> .absolute:has(> .flex.items-center.justify-between)" in css
