@@ -297,6 +297,18 @@ def payment_email_request(text: str) -> dict | None:
     return {"to": email.group(0).casefold() if email else None}
 
 
+def _yes_no(text: str) -> bool | None:
+    """A yes or no that opens the message, even when the sentence continues."""
+    cleaned = text.strip()
+    if re.fullmatch(r"(?:yes|yeah|yep|yup|sure|no|nope|nah|true|false)", cleaned, re.I):
+        return cleaned.casefold() in ("yes", "yeah", "yep", "yup", "sure", "true")
+    if re.match(r"^(?:no|nope|nah|not)\b", cleaned, re.I):
+        return False
+    if re.match(r"^(?:yes|yeah|yep|yup|sure)\b", cleaned, re.I):
+        return True
+    return None
+
+
 def absorb_next_answer(text: str, draft: dict, locality: dict | None = None) -> dict:
     """When Jane asked one question, the next message is that answer."""
     pending = missing_fields(draft)
@@ -337,8 +349,9 @@ def absorb_next_answer(text: str, draft: dict, locality: dict | None = None) -> 
             if typed:
                 fields["sourcing_tier"] = typed
         return fields
-    if key == "is_franchise_or_chain" and re.fullmatch(r"yes|no|true|false", answer, re.I):
-        return {"is_franchise_or_chain": answer.casefold() in ("yes", "true")}
+    if key == "is_franchise_or_chain":
+        answered = _yes_no(answer)
+        return {"is_franchise_or_chain": answered} if answered is not None else {}
     if key == "capabilities_summary" and len(answer) >= 8:
         return {"capabilities_summary": answer}
     if key == "billing_email":
@@ -531,7 +544,8 @@ def normalize_stated_facts(text: str, raw: dict) -> dict:
     if what and _stated(text, what):
         fields.update(_offer_fields(what))
     if "is_franchise_or_chain" in raw and re.search(r"\b(franchise|chain)\b", text, re.I):
-        fields["is_franchise_or_chain"] = raw.get("is_franchise_or_chain") in (True, "true", "yes", "Yes")
+        spoken = _yes_no(text)
+        fields["is_franchise_or_chain"] = spoken if spoken is not None else raw.get("is_franchise_or_chain") in (True, "true", "yes", "Yes")
     email = str(raw.get("billing_email") or "")
     found = _EMAIL_FIND.search(text)
     if found and email and found.group(0).casefold() == email.strip().casefold():

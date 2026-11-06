@@ -212,6 +212,46 @@ def test_become_a_sponsor_does_not_choose_homestead_or_company(client, store):
     assert "whether this is their homestead or a separate local company" in seen["system"]
 
 
+def test_a_leading_no_is_kept_when_jane_asked_about_a_franchise(client, store):
+    seen = {}
+
+    def think(_model, messages, _complexity):
+        seen.setdefault("system", messages[0].content)
+        return "What email address should receive the payment link?"
+
+    store.properties[0]["sponsor_draft"] = {
+        "listing_kind": "company",
+        "company_name": "RackChess",
+        "founding_city": "Lake Charles",
+        "founding_state": "LA",
+        "sourcing_tier": "local_service_or_stock",
+        "service_tags": ["clothing"],
+        "capabilities_summary": "clothing brand",
+    }
+    token = gemini_override.set(think)
+    try:
+        answered = client.post(
+            "/webhooks/chatwoot",
+            json=_message("No... I founded it in lake charles.", 85),
+        )
+        draft = store.properties[0]["sponsor_draft"]
+        paid = client.post(
+            "/webhooks/chatwoot",
+            json=_message("robert@g01denfleece.com", 86),
+        )
+    finally:
+        gemini_override.reset(token)
+
+    assert answered.status_code == 200
+    assert draft["is_franchise_or_chain"] is False
+    assert draft.get("billing_email") in (None, "")
+    assert "They said it is not a franchise or a chain." in seen["system"]
+    assert "whether it is a franchise or a chain" not in seen["system"]
+    assert paid.status_code == 200
+    assert "franchise" not in paid.json()["reply"].casefold()
+    assert store.properties[0].get("sponsor_draft") is None
+
+
 def test_an_unclear_state_lookup_is_not_stored(client, store):
     seen = {}
 
