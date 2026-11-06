@@ -198,8 +198,11 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
     if decision.get("cancel_sponsor"):
         prop = await store.save_sponsor_draft(prop["id"], None)
     elif decision.get("sponsor_active"):
-        draft = dict(prop.get("sponsor_draft") or {})
-        draft.update(decision.get("sponsor_fields") or {})
+        if decision.get("sponsor_from_thread"):
+            draft = dict(decision.get("sponsor_fields") or {"open": True})
+        else:
+            draft = dict(prop.get("sponsor_draft") or {})
+            draft.update(decision.get("sponsor_fields") or {})
         if "promo_code" in draft and str(draft["promo_code"]).casefold() == "none":
             draft.pop("promo_code", None)
         sponsor_locality = locality or await store.get_locality(prop["locality_id"])

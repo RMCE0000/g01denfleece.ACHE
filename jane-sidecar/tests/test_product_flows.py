@@ -122,12 +122,8 @@ def test_sponsor_registration_keeps_each_answer_on_the_form(client, store):
     assert described.status_code == 200
     assert described.json()["reply"] == "RackChess in Lake Charles, making clothing. Which state was the company founded in?"
     assert "What is the company name?" not in described.json()["reply"]
-    assert draft["listing_kind"] == "company"
-    assert draft["company_name"] == "RackChess"
-    assert draft["founding_city"] == "Lake Charles"
-    assert draft["service_tags"] == ["clothing"]
-    assert draft["sourcing_tier"] == "local_manufacturer"
-    assert "Name: RackChess." in seen["system"]
+    assert draft == {"open": True}
+    assert "The conversation thread is the only record" in seen["system"]
     assert "local_manufacturer" not in seen["system"]
     assert "Do not ask again" in seen["system"]
 
@@ -154,8 +150,10 @@ def test_the_whole_message_is_read_and_the_city_state_is_looked_up(client, store
         assert "street" not in question.casefold()
         return "Louisiana"
 
-    def think(_model, messages, _complexity):
+    def think(_model, messages, complexity):
         seen["system"] = messages[0].content
+        seen["complexity"] = complexity
+        seen["thread"] = [message.content for message in messages[1:]]
         return "RackChess is a clothing brand in Lake Charles, Louisiana. Is this for your homestead or a separate company?"
 
     read_token = message_read_override.set(read_message)
@@ -174,15 +172,13 @@ def test_the_whole_message_is_read_and_the_city_state_is_looked_up(client, store
 
     assert opened.status_code == 200
     draft = store.properties[0]["sponsor_draft"]
-    assert draft.get("listing_kind") is None
+    assert draft == {"open": True}
     assert described.json()["reply"].startswith("RackChess is a clothing brand")
-    assert draft["company_name"] == "RackChess"
-    assert draft["founding_city"] == "Lake Charles"
-    assert draft["service_tags"] == ["clothing"]
-    assert draft["founding_state"] == "LA"
+    assert seen["complexity"] == "complex"
+    assert any("I want to become a sponsor." in line for line in seen["thread"])
     assert seen["question"] == "Which single US state is Lake Charles in?"
-    assert "State: LA." in seen["system"]
-    assert "clothing brand" in seen["system"]
+    assert "Lake Charles is in Louisiana." in seen["system"]
+    assert "The conversation thread is the only record" in seen["system"]
     assert "the state where it was founded" not in seen["system"]
 
 
@@ -206,49 +202,55 @@ def test_become_a_sponsor_does_not_choose_homestead_or_company(client, store):
 
     draft = store.properties[0]["sponsor_draft"]
     assert opened.status_code == 200
-    assert draft.get("listing_kind") is None
-    assert draft.get("company_name") is None
+    assert draft == {"open": True}
     assert "This listing is a separate local company." not in seen["system"]
-    assert "whether this is their homestead or a separate local company" in seen["system"]
+    assert "Do not say they chose a homestead or a company unless their words did." in seen["system"]
 
 
-def test_a_leading_no_is_kept_when_jane_asked_about_a_franchise(client, store):
-    seen = {}
+def test_the_thread_keeps_a_no_and_files_when_the_application_is_complete(client, store):
+    seen = {"calls": []}
 
-    def think(_model, messages, _complexity):
-        seen.setdefault("system", messages[0].content)
-        return "What email address should receive the payment link?"
+    def think(_model, messages, complexity):
+        seen["calls"].append({"complexity": complexity, "thread": [message.content for message in messages[1:]]})
+        turn = len(seen["calls"])
+        if turn == 1:
+            return "Is this for your homestead or a separate local company?"
+        if turn == 2:
+            return "RackChess is a clothing brand in Lake Charles, Louisiana. Is RackChess a franchise or a chain?"
+        return "Not a franchise. What email should receive the payment link?"
 
-    store.properties[0]["sponsor_draft"] = {
-        "listing_kind": "company",
-        "company_name": "RackChess",
-        "founding_city": "Lake Charles",
-        "founding_state": "LA",
-        "sourcing_tier": "local_service_or_stock",
-        "service_tags": ["clothing"],
-        "capabilities_summary": "clothing brand",
-    }
-    token = gemini_override.set(think)
+    def search(question):
+        assert "Lake Charles" in question
+        assert "@" not in question
+        return "Louisiana"
+
+    search_token = search_override.set(search)
+    think_token = gemini_override.set(think)
     try:
-        answered = client.post(
+        client.post("/webhooks/chatwoot", json=_message("I want to become a sponsor.", 85))
+        described = client.post(
             "/webhooks/chatwoot",
-            json=_message("No... I founded it in lake charles.", 85),
+            json=_message(
+                "A separate local company. It is called RackChess. We are a clothing brand in Lake Charles.",
+                86,
+            ),
         )
-        draft = store.properties[0]["sponsor_draft"]
-        paid = client.post(
-            "/webhooks/chatwoot",
-            json=_message("robert@g01denfleece.com", 86),
-        )
+        open_draft = store.properties[0]["sponsor_draft"]
+        declined = client.post("/webhooks/chatwoot", json=_message("No.", 87))
+        paid = client.post("/webhooks/chatwoot", json=_message("robert@g01denfleece.com", 88))
     finally:
-        gemini_override.reset(token)
+        search_override.reset(search_token)
+        gemini_override.reset(think_token)
 
-    assert answered.status_code == 200
-    assert draft["is_franchise_or_chain"] is False
-    assert draft.get("billing_email") in (None, "")
-    assert "They said it is not a franchise or a chain." in seen["system"]
-    assert "whether it is a franchise or a chain" not in seen["system"]
+    assert described.status_code == 200
+    assert any("I want to become a sponsor." in line for line in seen["calls"][1]["thread"])
+    assert seen["calls"][1]["complexity"] == "complex"
+    assert open_draft == {"open": True}
+    assert declined.status_code == 200
+    assert declined.json()["reply"] == "Not a franchise. What email should receive the payment link?"
     assert paid.status_code == 200
-    assert "franchise" not in paid.json()["reply"].casefold()
+    assert "Stripe is not configured" in paid.json()["reply"]
+    assert "franchise or a chain" not in paid.json()["reply"].casefold()
     assert store.properties[0].get("sponsor_draft") is None
 
 
@@ -281,8 +283,7 @@ def test_an_unclear_state_lookup_is_not_stored(client, store):
 
     draft = store.properties[0]["sponsor_draft"]
     assert described.status_code == 200
-    assert draft["founding_city"] == "Springfield"
-    assert draft.get("founding_state") is None
+    assert draft == {"open": True}
     assert "could not look it up" in seen["system"]
 
 
@@ -474,12 +475,8 @@ def test_homestead_sponsorship_uses_the_locality_and_plain_questions(client, sto
     draft = store.properties[0]["sponsor_draft"]
     assert chosen.json()["reply"] == "Your homestead in Lake Charles. What should neighbors call it?"
     assert "Is this sponsorship for your homestead" not in chosen.json()["reply"]
-    assert draft["listing_kind"] == "homestead"
-    assert draft["founding_city"] == "Lake Charles"
-    assert draft["founding_state"] == "LA"
-    assert draft["sourcing_tier"] == "local_service_or_stock"
+    assert draft == {"open": True}
     assert named.json()["reply"] == "Your homestead in Lake Charles. What should neighbors call it?"
-    assert draft["company_name"] == "Rack Yard"
     assert "local_manufacturer" not in named.json()["reply"]
 
 

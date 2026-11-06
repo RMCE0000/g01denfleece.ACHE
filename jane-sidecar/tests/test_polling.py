@@ -171,7 +171,7 @@ def test_pending_poll_does_not_interrupt_a_sponsor_application(client, store):
     assert response.status_code == 200
     assert response.json().get("poll") is None
     assert store.community_poll_answers == []
-    assert store.properties[0]["sponsor_draft"]["founding_city"] == "Lake Charles"
+    assert store.properties[0]["sponsor_draft"] is not None
 
 
 async def test_compilation_and_atomic_close_are_grounded_in_recorded_answers(store):

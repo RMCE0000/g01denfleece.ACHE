@@ -424,6 +424,13 @@ def _scan_sponsor_facts(text: str, draft: dict, locality: dict | None) -> dict:
         text,
         re.I,
     )
+    brand = re.search(
+        r"\b(?:we are|we're|i am)\s+(?:a|an)\s+([a-z0-9][a-z0-9 ]{0,40}?)\s+brand\b",
+        text,
+        re.I,
+    )
+    if brand and not draft.get("service_tags") and "service_tags" not in fields:
+        fields.update(_offer_fields(f"{brand.group(1).strip()} brand"))
     if offer and not draft.get("service_tags") and "service_tags" not in fields:
         product = re.split(r"\b(?:here|in|at|for)\b", offer.group(1), maxsplit=1, flags=re.I)[0]
         product = product.strip(" .!")
@@ -581,6 +588,71 @@ async def lookup_state_for_city(city: str) -> str | None:
     return sole_state_code(found)
 
 
+def _speaker_text(lines: list[dict], *, jane: bool) -> str:
+    parts = []
+    for line in lines:
+        content = " ".join(str(line.get("content") or "").split())
+        if not content:
+            continue
+        is_jane = line.get("role") == "jane"
+        if is_jane == jane:
+            parts.append(content)
+    return "\n".join(parts)
+
+
+def franchise_from_thread(lines: list[dict]) -> bool | None:
+    """A yes or no counts when it answers the franchise question already in the thread."""
+    waiting = False
+    for line in lines:
+        text = str(line.get("content") or "").strip()
+        if not text:
+            continue
+        if line.get("role") == "jane":
+            if re.search(r"\b(franchise|chain)\b", text, re.I):
+                waiting = True
+            continue
+        if not waiting:
+            continue
+        answer = _yes_no(text)
+        if answer is not None:
+            return answer
+        if re.search(r"\b(not a franchise|not a chain|no franchise|independently owned)\b", text, re.I):
+            return False
+        if re.search(r"\b(is a franchise|is a chain|we're a franchise|we are a franchise)\b", text, re.I):
+            return True
+    return None
+
+
+async def application_from_thread(lines: list[dict], locality: dict | None = None) -> tuple[dict, str | None]:
+    """Read the whole thread once, for filing. Jane's reply does not come from this form."""
+    homesteader = _speaker_text(lines, jane=False)
+    fields = _scan_sponsor_facts(homesteader, {}, locality)
+    for key, value in parse_labeled_sponsor_fields(homesteader).items():
+        if fields.get(key) in (None, "", []):
+            fields[key] = value
+    for key, value in (await extract_stated_facts(homesteader)).items():
+        if fields.get(key) in (None, "", []):
+            fields[key] = value
+    franchise = franchise_from_thread(lines)
+    if franchise is not None and fields.get("is_franchise_or_chain") is None:
+        fields["is_franchise_or_chain"] = franchise
+    lookup_note = None
+    city = fields.get("founding_city")
+    if city and not fields.get("founding_state"):
+        public_city = _public_city(str(city))
+        found = await lookup_public(f"Which single US state is {public_city} in?") if public_city else None
+        state = sole_state_code(found or "")
+        if state:
+            fields["founding_state"] = state
+            lookup_note = f"Public lookup, use this and do not invent beyond it: {public_city} is in {found}."
+        else:
+            lookup_note = (
+                f"A public lookup for the state of {public_city or city} did not return one clear answer. "
+                "If you need the state, say you could not look it up and ask."
+            )
+    return fields, lookup_note
+
+
 async def enrich_sponsor_fields(text: str, draft: dict, locality: dict | None = None) -> tuple[dict, str | None]:
     """Add facts the whole message stated, then look up a missing state for a known city."""
     combined = {**draft, **read_sponsor_message(text, draft, locality)}
@@ -613,6 +685,20 @@ _MISSING_WORDS = {
     "is_franchise_or_chain": "whether it is a franchise or a chain",
     "billing_email": "the email that should receive the payment link",
 }
+
+
+def sponsorship_thread_note(lookup_note: str | None = None) -> str:
+    """The thread is the sponsorship record. Jane thinks over it instead of a parsed form."""
+    lookup = f" {lookup_note}" if lookup_note else ""
+    return (
+        "A sponsorship application is open. The conversation thread is the only record of what they have said. "
+        "Read every message above before you answer. Think about the whole thread, not only the latest line. "
+        "Acknowledge what they just said. Ask one thing the thread still does not answer. "
+        "Do not ask again for anything already said, including a yes or no that answered your previous question. "
+        "Do not say they chose a homestead or a company unless their words did. "
+        "Do not mention tier codes, scores, weights, distance, or referral rotation."
+        + lookup
+    )
 
 
 def sponsorship_thinking_note(draft: dict, lookup_failed_city: str | None = None) -> str:

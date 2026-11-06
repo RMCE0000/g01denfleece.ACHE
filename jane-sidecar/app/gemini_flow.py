@@ -173,9 +173,14 @@ async def lookup_public(question: str) -> str | None:
     return None if not text or text.casefold() == "unknown" else text
 
 
-async def complete_text(system: str, user: str, history: list[dict] | None = None) -> str:
+async def complete_text(
+    system: str,
+    user: str,
+    history: list[dict] | None = None,
+    complexity: str | None = None,
+) -> str:
     settings = get_settings()
-    complexity = task_complexity(user, history)
+    complexity = complexity or task_complexity(user, history)
     model_name = settings.gemini_deliberation_model if complexity == "complex" else settings.gemini_chat_model
     messages = chat_messages(system, user, history)
     override = gemini_override.get()

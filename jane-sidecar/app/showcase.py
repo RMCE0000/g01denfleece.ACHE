@@ -6,7 +6,7 @@ import logging
 from app.chatwoot_client import ChatwootClient
 from app.config import get_settings
 from app.constitution import JANE_CONSTITUTION
-from app.sponsor_chat import enrich_sponsor_fields, missing_fields, sponsorship_thinking_note
+from app.sponsor_chat import application_from_thread, missing_fields, sponsorship_thread_note
 from app.delivery import deliver
 from app.effects import commit_decision
 from app.gemini_flow import complete_text, lookup_public, public_fact_question
@@ -77,6 +77,8 @@ def _grounded_system(prop: dict | None, locality: dict | None) -> str:
     record = {
         "homesteader": prop.get("display_name"),
         "locality": locality.get("name") if locality else None,
+        "locality_city": locality.get("primary_city") if locality else None,
+        "locality_state": locality.get("state_code") if locality else None,
         "known_facts": prop.get("known_facts_ledger") or {},
         "north_star": view_from_property(prop).get("northstar"),
     }
@@ -186,13 +188,19 @@ async def answer_with_effects(store, message: dict) -> str:
         }
     )
     draft = dict((prop or {}).get("sponsor_draft") or {})
-    draft.update(decision.get("sponsor_fields") or {})
-    lookup_failed_city = None
-    if decision.get("sponsor_active") and prop is not None:
-        added, lookup_failed_city = await enrich_sponsor_fields(message.get("content") or "", draft, locality)
-        if added:
-            decision["sponsor_fields"] = {**(decision.get("sponsor_fields") or {}), **added}
-            draft.update(added)
+    incoming = dict(decision.get("sponsor_fields") or {})
+    labeled_complete = bool(incoming) and not missing_fields({**draft, **incoming})
+    lookup_note = None
+    if decision.get("sponsor_active") and prop is not None and not decision.get("reply") and not labeled_complete:
+        fields, lookup_note = await application_from_thread(lines, locality)
+        if fields and not missing_fields(fields):
+            decision["sponsor_fields"] = fields
+        else:
+            decision["sponsor_fields"] = {"open": True}
+        decision["sponsor_from_thread"] = True
+        draft = dict(decision["sponsor_fields"])
+    else:
+        draft.update(incoming)
     jane_should_think = bool(
         decision.get("sponsor_active") and prop is not None and missing_fields(draft) and not decision.get("reply")
     )
@@ -207,7 +215,7 @@ async def answer_with_effects(store, message: dict) -> str:
     if jane_should_think or ordinary:
         system = _grounded_system(prop, locality)
         if jane_should_think:
-            system += "\n\n" + sponsorship_thinking_note(draft, lookup_failed_city)
+            system += "\n\n" + sponsorship_thread_note(lookup_note)
         elif ordinary:
             question = public_fact_question(message.get("content") or "")
             if question:
@@ -219,7 +227,15 @@ async def answer_with_effects(store, message: dict) -> str:
                         "\n\nA public lookup did not return an answer. "
                         "Say you could not look it up before you ask. Do not invent the fact."
                     )
-        reply = reply_as_jane(await complete_text(system, render_history(lines), lines), lines)
+        reply = reply_as_jane(
+            await complete_text(
+                system,
+                render_history(lines),
+                lines,
+                complexity="complex" if jane_should_think else None,
+            ),
+            lines,
+        )
         decision["reply"] = sanitize_reply(reply).strip() or _BLOCKED
     await store.append_transcript(
         conversation_id=int(message["conversation_id"]),
