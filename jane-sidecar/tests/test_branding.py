@@ -62,6 +62,9 @@ def test_brand_assets_are_gold_and_white():
     assert ".actions--container > .resolve-actions" in css
     assert ".conversations-list-wrap" in css
     assert "> .flex.items-center.gap-2.flex-shrink-0" in css
+    assert "> .absolute:has(> .flex.items-center.justify-between)" in css
+    assert "> .bg-n-amber-2" in css
+    assert "width: fit-content !important" in css
     assert ".reply-box button:has(.i-ph-sparkle-fill)" in css
     assert "button:has(.i-woot-captain)" in css
     assert ".reply-box .copilot-editor-menu" in css

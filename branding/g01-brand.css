@@ -471,6 +471,27 @@ nav ul.items-center .g01-community-label {
   display: none !important;
 }
 
+.conversations-list-wrap
+  > .absolute:has(> .flex.items-center.justify-between) {
+  width: fit-content !important;
+  max-width: calc(100% - 1rem);
+  padding-inline: 0 !important;
+}
+
+.conversations-list-wrap
+  > .absolute
+  > .bg-n-amber-2 {
+  display: none !important;
+}
+
+.conversations-list-wrap
+  > .absolute
+  > .flex.items-center.justify-between {
+  width: fit-content;
+  justify-content: flex-start !important;
+  padding-inline: 0.75rem !important;
+}
+
 .reply-box button:has(.i-ph-sparkle-fill),
 button:has(.i-woot-captain),
 .reply-box .copilot-editor-menu {
