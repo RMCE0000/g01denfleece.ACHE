@@ -1231,6 +1231,32 @@ class PostgresStore:
             )
             return _clean(dict(updated.mappings().one()))
 
+    async def remember_sponsor_billing(self, sponsor_id: str, customer_id: str | None, subscription_id: str | None) -> dict:
+        rows = await self._write(
+            f"""
+            UPDATE g01_sponsors
+            SET stripe_customer_id = COALESCE(:customer_id, stripe_customer_id),
+                stripe_subscription_id = COALESCE(:subscription_id, stripe_subscription_id)
+            WHERE id = CAST(:id AS uuid)
+            RETURNING {_SPONSOR}
+            """,
+            {"id": sponsor_id, "customer_id": customer_id, "subscription_id": subscription_id},
+        )
+        if not rows:
+            raise G01Error("sponsor not found", 404)
+        return rows[0]
+
+    async def latest_inactive_sponsor(self, property_id: str) -> dict | None:
+        return await self._one(
+            f"""
+            SELECT {_SPONSOR} FROM g01_sponsors
+            WHERE property_id = CAST(:id AS uuid) AND NOT is_active_sponsor
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            {"id": property_id},
+        )
+
     async def sponsor_by_subscription(self, subscription_id: str) -> dict | None:
         return await self._one(
             f"SELECT {_SPONSOR} FROM g01_sponsors WHERE stripe_subscription_id = :subscription_id",

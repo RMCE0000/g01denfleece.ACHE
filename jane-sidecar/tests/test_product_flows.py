@@ -189,7 +189,7 @@ def test_resend_and_status_questions_read_the_payment_record(client, store):
 
     for response in (resend, checked):
         reply = response.json()["reply"]
-        assert "I checked. No sponsorship payment link has been created, so nothing was emailed." in reply
+        assert "I checked. Stripe has no sponsorship invoice for this homestead, so nothing was emailed." in reply
         assert "garden" not in reply.casefold()
         assert "backend" not in reply.casefold()
         assert "robert@" not in reply
@@ -204,7 +204,7 @@ def test_resend_and_status_questions_read_the_payment_record(client, store):
     finally:
         gemini_override.reset(token)
     pending_reply = pending.json()["reply"]
-    assert "No payment link has been created, so nothing was emailed." in pending_reply
+    assert "Stripe has no sponsorship invoice yet, so nothing was emailed." in pending_reply
     assert "What city was it founded in?" in pending_reply
     assert "backend workflow" not in pending_reply.casefold()
 
@@ -226,7 +226,7 @@ def test_send_the_link_again_checks_the_payment_record(client, store):
     reply = response.json()["reply"]
     assert "jane_thought" not in reply.casefold()
     assert "I do not have a tool" not in reply
-    assert "I checked. No sponsorship payment link has been created, so nothing was emailed." in reply
+    assert "I checked. Stripe has no sponsorship invoice for this homestead, so nothing was emailed." in reply
 
 
 def test_a_missing_mailbox_still_leaves_the_payment_link_in_chat(client, store, monkeypatch):
@@ -521,6 +521,113 @@ def test_sponsor_registry_is_a_conversation(client, store):
     )
     assert "Walmart" in rogers.json()["reply"]
     assert "ui/hud" not in rogers.json()["reply"]
+
+
+def test_stripe_emails_a_sponsorship_invoice(monkeypatch):
+    from app.config import get_settings
+    from app.stripe_service import create_sponsor_checkout
+
+    calls = []
+
+    class _Stripe:
+        class Customer:
+            @staticmethod
+            def create(**kwargs):
+                calls.append(("customer", kwargs["email"]))
+                return {"id": "cus_rack"}
+
+            @staticmethod
+            def modify(customer_id, **kwargs):
+                calls.append(("customer_email", customer_id, kwargs["email"]))
+                return {"id": customer_id}
+
+        class Subscription:
+            @staticmethod
+            def create(**kwargs):
+                calls.append(("subscription", kwargs["collection_method"], kwargs["items"][0]["price"]))
+                return {
+                    "id": "sub_rack",
+                    "latest_invoice": {"id": "in_rack", "status": "open", "hosted_invoice_url": "https://invoice.stripe.com/i/rack"},
+                }
+
+            @staticmethod
+            def retrieve(subscription_id, **kwargs):
+                calls.append(("retrieve", subscription_id))
+                return {
+                    "id": subscription_id,
+                    "latest_invoice": {"id": "in_rack", "status": "open", "hosted_invoice_url": "https://invoice.stripe.com/i/rack"},
+                }
+
+        class Invoice:
+            @staticmethod
+            def modify(invoice_id, **kwargs):
+                calls.append(("metadata", kwargs["metadata"]["sponsor_id"]))
+                return {"id": invoice_id}
+
+            @staticmethod
+            def send_invoice(invoice_id):
+                calls.append(("send_invoice", invoice_id))
+                return {"id": invoice_id, "hosted_invoice_url": "https://invoice.stripe.com/i/rack"}
+
+            @staticmethod
+            def finalize_invoice(invoice_id):
+                calls.append(("finalize", invoice_id))
+                return {"id": invoice_id, "status": "open", "hosted_invoice_url": "https://invoice.stripe.com/i/rack"}
+
+    monkeypatch.setenv("G01_STRIPE_SECRET_KEY", "sk_test_invoice")
+    monkeypatch.setenv("G01_STRIPE_SPONSOR_PRICE_ID", "price_sponsor")
+    get_settings.cache_clear()
+    monkeypatch.setattr("app.stripe_service._client", lambda: _Stripe)
+    try:
+        opened = asyncio.run(create_sponsor_checkout("sponsor-1", None, customer_email="robert@g01denfleece.com"))
+        again = asyncio.run(
+            create_sponsor_checkout(
+                "sponsor-1",
+                None,
+                customer_email="robert@g01denfleece.com",
+                customer_id="cus_rack",
+                subscription_id="sub_rack",
+            )
+        )
+    finally:
+        get_settings.cache_clear()
+
+    assert opened["stripe_emailed"] is True
+    assert opened["url"] == "https://invoice.stripe.com/i/rack"
+    assert opened["subscription_id"] == "sub_rack"
+    assert ("customer", "robert@g01denfleece.com") in calls
+    assert ("subscription", "send_invoice", "price_sponsor") in calls
+    assert calls.count(("send_invoice", "in_rack")) == 2
+    assert again["id"] == "in_rack"
+    assert ("retrieve", "sub_rack") in calls
+
+
+def test_invoice_paid_links_the_sponsor_from_metadata(store):
+    sponsor = store.sponsors[0]
+    sponsor["is_active_sponsor"] = False
+    sponsor["stripe_subscription_id"] = None
+    paid = asyncio.run(
+        apply_stripe_event(
+            store,
+            {
+                "id": "evt_invoice_paid",
+                "type": "invoice.paid",
+                "data": {
+                    "object": {
+                        "id": "in_paid",
+                        "customer": "cus_paid",
+                        "subscription": "sub_paid",
+                        "metadata": {"sponsor_id": sponsor["id"]},
+                    }
+                },
+            },
+        )
+    )
+
+    assert paid["active"] is True
+    assert paid["sponsor_id"] == sponsor["id"]
+    assert store.sponsors[0]["is_active_sponsor"] is True
+    assert store.sponsors[0]["stripe_subscription_id"] == "sub_paid"
 
 
 def test_stripe_event_retries_are_idempotent(store):

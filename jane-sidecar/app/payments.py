@@ -70,6 +70,16 @@ async def _apply_stripe_event(store, event: dict) -> dict:
         active = kind != "invoice.payment_failed"
         sponsor = await store.set_sponsor_subscription_active(subscription_id, active)
         if sponsor is None:
+            sponsor_id = (data.get("metadata") or {}).get("sponsor_id")
+            if sponsor_id:
+                try:
+                    sponsor_id = str(UUID(str(sponsor_id)))
+                except (TypeError, ValueError):
+                    sponsor_id = None
+            if sponsor_id and await store.get_sponsor(sponsor_id):
+                await store.remember_sponsor_billing(sponsor_id, data.get("customer"), subscription_id)
+                sponsor = await store.set_sponsor_subscription_active(subscription_id, active)
+        if sponsor is None:
             return {"ok": True, "ignored": "unknown_subscription"}
         return {"ok": True, "sponsor_id": sponsor["id"], "active": active}
 

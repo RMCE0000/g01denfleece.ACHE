@@ -215,57 +215,101 @@ async def file_sponsor_application(store, prop: dict, locality: dict, draft: dic
                 f"I filed {sponsor['company_name']} as an inactive sponsor. "
                 "Stripe is not configured, so I did not open a payment page and the listing stays off the registry."
             )
-        raise
+        return f"I filed {sponsor['company_name']} as an inactive sponsor. {exc.message}"
+    if checkout.get("customer_id") or checkout.get("subscription_id"):
+        await store.remember_sponsor_billing(
+            sponsor["id"],
+            checkout.get("customer_id"),
+            checkout.get("subscription_id"),
+        )
     await store.attach_checkout(
         checkout["id"],
         sponsor["id"],
         url=checkout["url"],
         billing_email=billing_email or None,
     )
-    mailed = await _mailed_payment_sentence(billing_email, sponsor["company_name"], checkout["url"])
+    mailed = await _mailed_payment_sentence(
+        billing_email,
+        sponsor["company_name"],
+        checkout["url"],
+        stripe_emailed=bool(checkout.get("stripe_emailed")),
+    )
     return f"I filed {sponsor['company_name']} as an inactive sponsor. {mailed}"
 
 
-async def _mailed_payment_sentence(email: str, company: str, url: str) -> str:
+async def _mailed_payment_sentence(email: str, company: str, url: str, stripe_emailed: bool = False) -> str:
     if not email:
         return f"Tell me the email address that should receive the payment link: {url}"
+    smtp_sent = False
     try:
         await asyncio.to_thread(send_sponsor_payment_link, to=email, company=company, url=url)
+        smtp_sent = True
     except G01Error:
-        return f"I could not send the payment email to {email}. Use this secure payment link: {url}"
-    return (
-        f"I sent the payment link to {email}. "
-        f"The listing turns on after Stripe marks this payment paid: {url}"
-    )
+        smtp_sent = False
+    if stripe_emailed:
+        copy = " I also sent a copy from g01." if smtp_sent else ""
+        return (
+            f"Stripe emailed the payment link to {email}.{copy} "
+            f"The listing turns on after Stripe marks this payment paid: {url}"
+        )
+    if smtp_sent:
+        return (
+            f"I sent the payment link to {email}. "
+            f"The listing turns on after Stripe marks this payment paid: {url}"
+        )
+    return f"I could not send the payment email to {email}. Use this secure payment link: {url}"
 
 
 async def resend_sponsor_payment(store, prop: dict, email: str | None) -> str:
     """Email an existing sponsorship payment link to the address the homesteader names."""
     checkout = await store.latest_open_checkout(prop["id"])
-    if checkout is None:
+    sponsor = await store.get_sponsor(checkout["sponsor_id"]) if checkout else None
+    if sponsor is None:
+        sponsor = await store.latest_inactive_sponsor(prop["id"])
+    if checkout is None and sponsor is None:
         draft = prop.get("sponsor_draft") if isinstance(prop.get("sponsor_draft"), dict) else None
         if draft is not None and missing_fields(draft):
             return (
-                "I checked. No payment link has been created, so nothing was emailed. "
+                "I checked. Stripe has no sponsorship invoice yet, so nothing was emailed. "
                 + next_prompt(draft)
             )
         return (
-            "I checked. No sponsorship payment link has been created, so nothing was emailed. "
+            "I checked. Stripe has no sponsorship invoice for this homestead, so nothing was emailed. "
             'Say "start sponsorship" and I will collect the company details.'
         )
-    target = (email or checkout.get("billing_email") or prop.get("email") or "").strip().casefold()
+    target = (
+        email
+        or (checkout or {}).get("billing_email")
+        or prop.get("email")
+        or ""
+    ).strip().casefold()
     if not target:
         return "Tell me the email address that should receive the payment link."
-    url = checkout.get("url")
-    session_id = checkout.get("session_id")
+    if stripe_ready() and sponsor is not None:
+        try:
+            fresh = await create_sponsor_checkout(
+                sponsor["id"],
+                None,
+                customer_email=target,
+                customer_id=sponsor.get("stripe_customer_id"),
+                subscription_id=sponsor.get("stripe_subscription_id"),
+            )
+        except G01Error as exc:
+            return exc.message
+        await store.remember_sponsor_billing(sponsor["id"], fresh.get("customer_id"), fresh.get("subscription_id"))
+        await store.attach_checkout(fresh["id"], sponsor["id"], url=fresh["url"], billing_email=target)
+        return await _mailed_payment_sentence(
+            target,
+            sponsor["company_name"],
+            fresh["url"],
+            stripe_emailed=bool(fresh.get("stripe_emailed")),
+        )
+    url = (checkout or {}).get("url")
+    session_id = (checkout or {}).get("session_id")
     if not url and session_id:
         url = await retrieve_checkout_url(session_id)
-    if not url and stripe_ready():
-        fresh = await create_sponsor_checkout(checkout["sponsor_id"], None, customer_email=target)
-        url = fresh["url"]
-        session_id = fresh["id"]
-    if session_id and url:
-        await store.attach_checkout(session_id, checkout["sponsor_id"], url=url, billing_email=target)
+    if session_id and url and sponsor is not None:
+        await store.attach_checkout(session_id, sponsor["id"], url=url, billing_email=target)
     if not url:
         return f"I could not send the payment email to {target}. Stripe has no payment link for this sponsorship yet."
-    return await _mailed_payment_sentence(target, checkout["company_name"], url)
+    return await _mailed_payment_sentence(target, sponsor["company_name"] if sponsor else "this sponsorship", url)

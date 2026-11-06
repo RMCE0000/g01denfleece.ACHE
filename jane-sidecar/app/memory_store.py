@@ -859,6 +859,24 @@ class MemoryStore:
             return deepcopy(sponsor)
         raise G01Error("sponsor not found", 404)
 
+    async def remember_sponsor_billing(self, sponsor_id: str, customer_id: str | None, subscription_id: str | None) -> dict:
+        for sponsor in self.sponsors:
+            if sponsor["id"] != sponsor_id:
+                continue
+            if customer_id:
+                sponsor["stripe_customer_id"] = customer_id
+            if subscription_id:
+                sponsor["stripe_subscription_id"] = subscription_id
+            return deepcopy(sponsor)
+        raise G01Error("sponsor not found", 404)
+
+    async def latest_inactive_sponsor(self, property_id: str) -> dict | None:
+        found = None
+        for sponsor in self.sponsors:
+            if str(sponsor.get("property_id")) == str(property_id) and not sponsor.get("is_active_sponsor"):
+                found = sponsor
+        return deepcopy(found) if found else None
+
     async def sponsor_by_subscription(self, subscription_id: str) -> dict | None:
         for sponsor in self.sponsors:
             if sponsor.get("stripe_subscription_id") == subscription_id:
