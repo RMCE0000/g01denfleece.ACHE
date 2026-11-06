@@ -909,6 +909,42 @@
     });
   }
 
+  function assigneeTabLabel(link) {
+    var label = "";
+    link.childNodes.forEach(function (node) {
+      if (node.nodeType === 3) label += node.textContent;
+    });
+    return label.trim();
+  }
+
+  var allConversationTabs = null;
+  var allConversationChosen = false;
+
+  function ensureAllConversations() {
+    var tabs = document.querySelector(".conversations-list-wrap > .h-10.w-full.px-3.-mt-1");
+    if (!tabs) {
+      allConversationTabs = null;
+      allConversationChosen = false;
+      return;
+    }
+    if (tabs !== allConversationTabs) {
+      allConversationTabs = tabs;
+      allConversationChosen = false;
+    }
+    var all = null;
+    tabs.querySelectorAll("a").forEach(function (link) {
+      if (assigneeTabLabel(link) === "All") all = link;
+    });
+    if (!all) return;
+    if (all.classList.contains("text-n-blue-11")) {
+      allConversationChosen = true;
+      return;
+    }
+    if (allConversationChosen) return;
+    allConversationChosen = true;
+    all.click();
+  }
+
   function ensureConversationToolsHidden() {
     hideSidebarEntries(
       ["Mentions", "Participating", "Unattended", "Folders", "Teams", "Channels", "Labels"],
@@ -1001,6 +1037,7 @@
     ensureCommunityButton();
     ensureCommunitySearch();
     ensureCallsHidden();
+    ensureAllConversations();
     ensureConversationToolsHidden();
     ensureCaptainHidden();
     ensureContactsHidden();
@@ -1010,6 +1047,7 @@
       ensureCommunityButton();
       ensureCommunitySearch();
       ensureCallsHidden();
+      ensureAllConversations();
       ensureConversationToolsHidden();
       ensureCaptainHidden();
       ensureContactsHidden();
@@ -1019,6 +1057,11 @@
     window.addEventListener("popstate", ensureCommunityButton);
     document.addEventListener("keydown", function (event) {
       if (event.key === "Escape") closeCommunity();
+      var typing = event.target && (event.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName));
+      if (!typing && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey && event.code === "KeyN") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
       if (
         event.key.toLocaleLowerCase() === "k" &&
         (event.metaKey || event.ctrlKey) &&

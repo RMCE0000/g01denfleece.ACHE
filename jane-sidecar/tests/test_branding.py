@@ -60,6 +60,12 @@ def test_brand_assets_are_gold_and_white():
     assert '.reply-box .empty-node::before' in css
     assert 'content: "Shift + enter for new line."' in css
     assert ".actions--container > .resolve-actions" in css
+    assert ".conversations-list-wrap > .h-10.w-full.px-3.-mt-1" in css
+    assert "function ensureAllConversations" in script
+    assert 'assigneeTabLabel(link) === "All"' in script
+    assert "all.click()" in script
+    assert 'event.code === "KeyN"' in script
+    assert "v=39" in initializer
     assert ".conversations-list-wrap" in css
     assert "> .flex.items-center.gap-2.flex-shrink-0" in css
     assert "> .absolute:has(> .flex.items-center.justify-between)" in css
