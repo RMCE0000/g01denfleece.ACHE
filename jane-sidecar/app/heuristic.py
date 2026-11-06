@@ -28,7 +28,14 @@ _YES = re.compile(r"\b(yes|accept|i accept)\b", re.I)
 _NO = re.compile(r"\b(no|decline)\b", re.I)
 _DEMAND = re.compile(r"\b(demand|would (people|neighbors) buy|local market|is there a market)\b", re.I)
 _BUSINESS = re.compile(
-    r"started a business|starting a business|my new business|register as a (local )?sponsor|become a sponsor|sponsorship",
+    r"started a business|starting a business|my new business|register as a (local )?sponsor|"
+    r"become a sponsor|start (?:a )?sponsorship|apply for (?:a )?sponsorship",
+    re.I,
+)
+_SPONSOR_PURCHASE_QUESTION = re.compile(
+    r"\b(?:how (?:do|can) i |where can i )?(?:buy|purchase|get) (?:a |the )?(?:g01 )?sponsorship\b|"
+    r"\bhow (?:does|do) (?:g01 )?sponsorship work\b|"
+    r"\b(?:sponsorship|sponsor) (?:price|pricing|cost|plans?)\b",
     re.I,
 )
 _CANCEL_SPONSOR = re.compile(r"\bcancel (the |my )?sponsor", re.I)
@@ -117,6 +124,8 @@ def detect_service_tag(text: str) -> str | None:
         product = re.sub(r"[?.!,;:]+$", "", found.group(1).strip())
         product = re.sub(r"^(?:a|an|some|the)\s+", "", product, flags=re.I)
         product = re.split(r"\b(?:near me|locally|around here|please)\b", product, maxsplit=1, flags=re.I)[0].strip()
+        if normalize_service_tag(product) in {"sponsor", "sponsors", "sponsorship", "g01_sponsorship"}:
+            return None
         if product:
             return normalize_service_tag(product)
     return None
@@ -211,6 +220,14 @@ def heuristic_decision(state: dict) -> dict:
             )
         return decision
 
+    if _SPONSOR_PURCHASE_QUESTION.search(text):
+        decision["reply"] = (
+            "You can purchase a g01 sponsorship directly in this chat. "
+            "When you're ready, say \"start sponsorship.\" "
+            "I'll collect your company details and then provide a secure payment link."
+        )
+        return decision
+
     if _RECOMMEND_LOCAL.search(text) and detect_service_tag(text) is None:
         decision["reply"] = (
             "Yes. I can build the plan with you and recommend active g01 sponsors in your locality; "
@@ -288,7 +305,10 @@ def heuristic_decision(state: dict) -> dict:
             decision["sponsor_active"] = True
             decision["sponsor_fields"] = {**labeled, **absorb}
             if not decision["reply"]:
-                decision["reply"] = "We can file that sponsor from this thread. I only list a local company, and it stays inactive until Stripe says the payment is complete."
+                decision["reply"] = (
+                    "I can set up the g01 sponsorship with you here. "
+                    "I'll collect the company details first, then provide the secure payment link."
+                )
 
     if _DEMAND.search(text):
         tag = detect_service_tag(text) or "local_demand"

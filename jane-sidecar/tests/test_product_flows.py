@@ -92,6 +92,26 @@ def test_jane_knows_verified_sponsors_do_not_need_prior_chat_mentions(client, st
     assert "do not have any listed" not in reply
 
 
+def test_buying_a_sponsorship_does_not_recommend_an_existing_sponsor(client, store):
+    test_sponsor = store.sponsors[0]
+    test_sponsor["company_name"] = "G01 Test Garden Works"
+    test_sponsor["service_tags"] = ["sponsorship"]
+    referrals_before = test_sponsor["referrals_last_14d"]
+
+    response = ledger_reply(store, _message("How do I buy a sponsorship?", 7))
+
+    assert response.status_code == 200
+    reply = response.json()["reply"]
+    assert reply == (
+        "You can purchase a g01 sponsorship directly in this chat. "
+        'When you\'re ready, say "start sponsorship." '
+        "I'll collect your company details and then provide a secure payment link."
+    )
+    assert "G01 Test Garden Works" not in reply
+    assert store.properties[0].get("sponsor_draft") is None
+    assert test_sponsor["referrals_last_14d"] == referrals_before
+
+
 def test_chat_turn_ranks_without_retailers_and_ignores_jane(client, store):
     token = llm_override.set(lambda model, system, user: {"reply": "Buy it at https://www.amazon.com/dp/example today."})
     try:
