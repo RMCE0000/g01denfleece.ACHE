@@ -465,6 +465,10 @@ nav ul.items-center .g01-community-label {
   content: "Shift + enter for new line." !important;
 }
 
+.woot-banner.secondary {
+  display: none !important;
+}
+
 .actions--container > .resolve-actions {
   display: none !important;
 }
