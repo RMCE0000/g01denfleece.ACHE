@@ -53,6 +53,7 @@ def test_brand_assets_are_gold_and_white():
     assert ".g01-hidden-mentions" in css
     assert 'element.textContent.trim() === "All Conversations"' in script
     assert 'label.textContent = "Conversations"' in script
+    assert 'if (label.textContent !== "Conversations")' in script
     assert "g01-hidden-conversation-filter" in script
     assert ".g01-conversations-single" in css
     assert ".g01-conversations-primary" in css

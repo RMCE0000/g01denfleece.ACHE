@@ -926,7 +926,7 @@
       });
     if (label) {
       label.dataset.g01ConversationsLabel = "true";
-      label.textContent = "Conversations";
+      if (label.textContent !== "Conversations") label.textContent = "Conversations";
     }
     link.dataset.g01ConversationsButton = "true";
     link.title = "Conversations";
