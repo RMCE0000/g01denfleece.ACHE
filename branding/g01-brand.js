@@ -952,6 +952,56 @@
     );
   }
 
+  function collapsedConversationTrigger(node) {
+    if (!node || !node.closest || !node.closest("nav")) return null;
+    var link = node.matches && node.matches("a[title], button[title]") ? node : null;
+    if (!link && node.querySelector) {
+      link = node.querySelector(":scope > a[title], :scope > button[title]");
+    }
+    if (!link || !link.closest("nav")) return null;
+    var title = (link.getAttribute("title") || "").replace(/\s+/g, " ").trim().toLowerCase();
+    if (title !== "conversations") return null;
+    var className = typeof link.className === "string" ? link.className : "";
+    if (className.indexOf("size-10") === -1) return null;
+    return link;
+  }
+
+  function isCollapsedConversationFlyout(panel) {
+    if (!panel || !panel.closest || panel.closest("nav, aside")) return false;
+    var header = null;
+    panel.querySelectorAll("div").forEach(function (item) {
+      if (header || item.children.length) return;
+      if (item.textContent.replace(/\s+/g, " ").trim().toLowerCase() === "conversations") header = item;
+    });
+    if (!header || !panel.querySelector("ul")) return false;
+    return panel.textContent.replace(/\s+/g, " ").toLowerCase().indexOf("all conversations") !== -1;
+  }
+
+  function ensureCollapsedConversationMenuHidden() {
+    document.querySelectorAll("div.fixed").forEach(function (panel) {
+      if (!isCollapsedConversationFlyout(panel)) return;
+      panel.classList.add("g01-hidden-conversation-flyout");
+      panel.style.setProperty("display", "none", "important");
+      panel.style.setProperty("pointer-events", "none", "important");
+    });
+  }
+
+  var collapsedConversationMenuGuardInstalled = false;
+
+  function installCollapsedConversationMenuGuard() {
+    ensureCollapsedConversationMenuHidden();
+    if (collapsedConversationMenuGuardInstalled) return;
+    collapsedConversationMenuGuardInstalled = true;
+    document.addEventListener(
+      "mouseenter",
+      function (event) {
+        if (!collapsedConversationTrigger(event.target)) return;
+        event.stopPropagation();
+      },
+      true
+    );
+  }
+
   function ensureCaptainHidden() {
     document.querySelectorAll("nav .i-woot-captain").forEach(function (icon) {
       var item = icon.closest("li");
@@ -1132,6 +1182,7 @@
       ensureBusinessToolsHidden,
       ensureHelpCenterGuide,
       ensureMessageMenuTrimmed,
+      ensureCollapsedConversationMenuHidden,
     ];
     new MutationObserver(function () {
       communityPasses.forEach(function (pass) {
@@ -1161,6 +1212,9 @@
   }
 
   function bootCommunity() {
+    try {
+      installCollapsedConversationMenuGuard();
+    } catch (error) {}
     try {
       installMessageMenuGuard();
     } catch (error) {}

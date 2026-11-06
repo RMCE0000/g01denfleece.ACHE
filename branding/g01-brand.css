@@ -452,8 +452,10 @@ nav ul.items-center .g01-community-label {
 }
 
 .g01-hidden-conversation-tool,
-.g01-hidden-captain {
+.g01-hidden-captain,
+.g01-hidden-conversation-flyout {
   display: none !important;
+  pointer-events: none !important;
 }
 
 .reply-box .empty-node::before {
