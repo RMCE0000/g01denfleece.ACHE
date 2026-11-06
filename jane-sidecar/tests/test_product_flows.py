@@ -121,7 +121,7 @@ def test_sponsor_registration_keeps_each_answer_on_the_form(client, store):
     assert "clear" not in reply.casefold()
     assert store.properties[0]["sponsor_draft"]["company_name"] == "RackChess"
     assert described.status_code == 200
-    assert described.json()["reply"] == "What state was it founded in? Two letters, such as LA."
+    assert described.json()["reply"] == "What state was it founded in?"
     assert described.json()["reply"].casefold() != "clear"
     assert store.properties[0]["sponsor_draft"]["founding_city"] == "I am a clothing company"
 
@@ -251,6 +251,29 @@ def test_a_missing_mailbox_still_leaves_the_payment_link_in_chat(client, store, 
     reply = response.json()["reply"]
     assert "I could not send the payment email to old@example.com" in reply
     assert "https://checkout.stripe.com/c/pay/cs_saved" in reply
+
+
+def test_sponsorship_questions_use_plain_language():
+    from app.sponsor_chat import absorb_next_answer, next_prompt
+
+    located = {"company_name": "RackChess", "founding_city": "Lake Charles"}
+    assert next_prompt(located) == "What state was it founded in?"
+    assert absorb_next_answer("Louisiana", located) == {"founding_state": "LA"}
+
+    typed = {**located, "founding_state": "LA"}
+    assert next_prompt(typed) == "What type of company is it?"
+    assert "local_manufacturer" not in next_prompt(typed)
+    assert absorb_next_answer("a clothing company", typed) == {"sourcing_tier": "local_service_or_stock"}
+    assert absorb_next_answer("it makes clothes", typed) == {"sourcing_tier": "local_manufacturer"}
+    assert absorb_next_answer("we deliver supplies", typed) == {"sourcing_tier": "local_logistics_proxy"}
+
+    described = {**typed, "sourcing_tier": "local_service_or_stock"}
+    assert next_prompt(described) == "What does it make or sell?"
+    assert "rain_catch" not in next_prompt(described)
+    saved = absorb_next_answer("work clothes", described)
+    assert saved["service_tags"] == ["work_clothes"]
+    assert saved["capabilities_summary"] == "work clothes"
+    assert next_prompt({**described, **saved}) == "Is it a franchise or a chain? Say yes or no."
 
 
 def test_buying_a_sponsorship_does_not_recommend_an_existing_sponsor(client, store):

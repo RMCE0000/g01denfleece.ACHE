@@ -22,9 +22,9 @@ _FIELD_ORDER = (
 _PROMPTS = {
     "company_name": "What is the company name?",
     "founding_city": "What city was it founded in?",
-    "founding_state": "What state was it founded in? Two letters, such as LA.",
-    "sourcing_tier": "Which tier is it: local_manufacturer, local_service_or_stock, or local_logistics_proxy?",
-    "service_tags": "What should I tag it as? One tag is enough, such as rain_catch or grow_lights.",
+    "founding_state": "What state was it founded in?",
+    "sourcing_tier": "What type of company is it?",
+    "service_tags": "What does it make or sell?",
     "capabilities_summary": "In one sentence, what does the business actually do?",
     "is_franchise_or_chain": "Is it a franchise or a chain? Say yes or no.",
     "billing_email": "What email should receive the payment link?",
@@ -62,6 +62,85 @@ def missing_fields(draft: dict) -> list[str]:
 
 def _tag(raw: str) -> str | None:
     return normalize_service_tag(raw)
+
+
+_STATE_NAMES = {
+    "alabama": "AL",
+    "alaska": "AK",
+    "arizona": "AZ",
+    "arkansas": "AR",
+    "california": "CA",
+    "colorado": "CO",
+    "connecticut": "CT",
+    "delaware": "DE",
+    "district of columbia": "DC",
+    "florida": "FL",
+    "georgia": "GA",
+    "hawaii": "HI",
+    "idaho": "ID",
+    "illinois": "IL",
+    "indiana": "IN",
+    "iowa": "IA",
+    "kansas": "KS",
+    "kentucky": "KY",
+    "louisiana": "LA",
+    "maine": "ME",
+    "maryland": "MD",
+    "massachusetts": "MA",
+    "michigan": "MI",
+    "minnesota": "MN",
+    "mississippi": "MS",
+    "missouri": "MO",
+    "montana": "MT",
+    "nebraska": "NE",
+    "nevada": "NV",
+    "new hampshire": "NH",
+    "new jersey": "NJ",
+    "new mexico": "NM",
+    "new york": "NY",
+    "north carolina": "NC",
+    "north dakota": "ND",
+    "ohio": "OH",
+    "oklahoma": "OK",
+    "oregon": "OR",
+    "pennsylvania": "PA",
+    "rhode island": "RI",
+    "south carolina": "SC",
+    "south dakota": "SD",
+    "tennessee": "TN",
+    "texas": "TX",
+    "utah": "UT",
+    "vermont": "VT",
+    "virginia": "VA",
+    "washington": "WA",
+    "west virginia": "WV",
+    "wisconsin": "WI",
+    "wyoming": "WY",
+}
+
+
+def _state_code(answer: str) -> str | None:
+    cleaned = answer.strip().rstrip(".")
+    if re.fullmatch(r"[A-Za-z]{2}", cleaned):
+        return cleaned.upper()
+    return _STATE_NAMES.get(cleaned.casefold())
+
+
+def company_type(answer: str) -> str | None:
+    """Map a plain description to a sourcing tier. The homesteader never types the tier code."""
+    cleaned = answer.strip().rstrip(".")
+    compact = re.sub(r"[\s-]+", "_", cleaned.casefold())
+    if compact in SPONSOR_TIERS:
+        return compact
+    if re.search(r"\b(deliver(?:y|ies)?|logistics|hauls?|trucking)\b", cleaned, re.I):
+        return "local_logistics_proxy"
+    if re.search(r"\b(manufactur\w*|makes?|making|grows?|growing|mills?|sews?|builds?|fabricat\w*|produces?|production)\b", cleaned, re.I):
+        return "local_manufacturer"
+    if re.search(r"\b(store|shop|stock|service|retail|sells?|selling|company|business|farm)\b", cleaned, re.I):
+        return "local_service_or_stock"
+    if re.fullmatch(r"[A-Za-z][A-Za-z0-9 &'.,-]{2,120}", cleaned):
+        return "local_service_or_stock"
+    return None
 
 
 def parse_labeled_sponsor_fields(text: str) -> dict:
@@ -137,13 +216,19 @@ def absorb_next_answer(text: str, draft: dict) -> dict:
         return {}
     answer = text.strip()
     key = pending[0]
-    if key == "founding_state" and re.fullmatch(r"[A-Za-z]{2}", answer):
-        return {"founding_state": answer.upper()}
-    if key == "sourcing_tier" and answer in SPONSOR_TIERS:
-        return {"sourcing_tier": answer}
+    if key == "founding_state":
+        state = _state_code(answer)
+        return {"founding_state": state} if state else {}
+    if key == "sourcing_tier":
+        tier = company_type(answer)
+        return {"sourcing_tier": tier} if tier else {}
     if key == "service_tags":
         tag = _tag(answer.split(",")[0])
-        return {"service_tags": [tag]} if tag else {}
+        if not tag:
+            return {}
+        company = str(draft.get("company_name") or "The company").strip().rstrip(".")
+        summary = answer if len(answer) >= 8 else f"{company} makes or sells {answer.rstrip('.')}."
+        return {"service_tags": [tag], "capabilities_summary": summary}
     if key == "is_franchise_or_chain" and re.fullmatch(r"yes|no|true|false", answer, re.I):
         return {"is_franchise_or_chain": answer.casefold() in ("yes", "true")}
     if key == "capabilities_summary" and len(answer) >= 8:
