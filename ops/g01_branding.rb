@@ -6,7 +6,7 @@ require "net/http"
 require "uri"
 
 class G01Branding
-  SNIPPET = '<link rel="icon" type="image/png" href="/g01-favicon.png?v=47"><link rel="stylesheet" href="/g01-brand.css?v=47"><script src="/g01-brand.js?v=47"></script>'
+  SNIPPET = '<link rel="icon" type="image/png" href="/g01-favicon.png?v=48"><link rel="stylesheet" href="/g01-brand.css?v=48"><script src="/g01-brand.js?v=48"></script>'
   SIGNUP_PATH = "/g01/signup"
 
   def initialize(app)
@@ -27,12 +27,24 @@ class G01Branding
     body.close if body.respond_to?(:close)
     return [status, headers, [raw]] unless raw.include?("</head>") && !raw.include?("g01-brand.css")
 
-    branded = raw.gsub("Login to Chatwoot", "Sign in to g01")
-                 .sub("</head>", "#{SNIPPET}</head>")
+    branded = resize_with_keyboard(raw.gsub("Login to Chatwoot", "Sign in to g01")
+                                      .sub("</head>", "#{SNIPPET}</head>"))
     headers = headers.dup
     headers["Content-Length"] = branded.bytesize.to_s
     headers.delete("Transfer-Encoding")
     [status, headers, [branded]]
+  end
+
+  def resize_with_keyboard(html)
+    html.gsub(/<meta\b[^>]*name=["']viewport["'][^>]*>/i) do |tag|
+      next tag if tag.include?("interactive-widget=")
+
+      tag.sub(/content\s*=\s*(["'])(.*?)\1/i) do
+        quote = Regexp.last_match(1)
+        value = Regexp.last_match(2)
+        %(content=#{quote}#{value}, interactive-widget=resizes-content#{quote})
+      end
+    end
   end
 
   def proxy_signup(env)

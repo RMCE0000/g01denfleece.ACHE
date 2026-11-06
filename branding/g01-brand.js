@@ -380,12 +380,41 @@
     light();
   }).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
+  function composerElement(node) {
+    if (!node) return null;
+    return node.nodeType === 1 ? node : node.parentElement;
+  }
+
+  function insideComposer(node) {
+    var element = composerElement(node);
+    return !!(element && element.closest && element.closest(".ProseMirror, .reply-box"));
+  }
+
+  // Typing rewrites the editor on every character. A detached node was removed
+  // from an editor parent, so it still belongs to that keystroke.
+  function composerOnly(records) {
+    if (!records || !records.length) return false;
+    return records.every(function (record) {
+      if (!insideComposer(record.target)) return false;
+      var outside = false;
+      function visit(node) {
+        if (outside || insideComposer(node)) return;
+        var element = composerElement(node);
+        if (element && element.isConnected) outside = true;
+      }
+      record.addedNodes.forEach(visit);
+      if (record.removedNodes) record.removedNodes.forEach(visit);
+      return !outside;
+    });
+  }
+
   function watch() {
     brandImages(document);
     classifyMessages(document);
     enhanceAudioPlayers(document);
     installFastAudioRecorder();
     new MutationObserver(function (records) {
+      if (composerOnly(records)) return;
       records.forEach(function (record) {
         record.addedNodes.forEach(function (node) {
           if (node.nodeType === 1) {
@@ -1134,7 +1163,8 @@
       },
       true
     );
-    new MutationObserver(function () {
+    new MutationObserver(function (records) {
+      if (composerOnly(records)) return;
       try {
         ensureMessageMenuTrimmed();
       } catch (error) {}
@@ -1221,12 +1251,22 @@
       ensureCollapsedConversationMenuHidden,
       ensureContactSectionsHidden,
     ];
-    new MutationObserver(function () {
-      communityPasses.forEach(function (pass) {
-        try {
-          pass();
-        } catch (error) {}
+    var communityPassQueued = false;
+    function scheduleCommunityPasses() {
+      if (communityPassQueued) return;
+      communityPassQueued = true;
+      window.requestAnimationFrame(function () {
+        communityPassQueued = false;
+        communityPasses.forEach(function (pass) {
+          try {
+            pass();
+          } catch (error) {}
+        });
       });
+    }
+    new MutationObserver(function (records) {
+      if (composerOnly(records)) return;
+      scheduleCommunityPasses();
     }).observe(document.body, { childList: true, subtree: true });
     window.addEventListener("popstate", ensureCommunityButton);
     document.addEventListener("keydown", function (event) {

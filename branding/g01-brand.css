@@ -46,6 +46,11 @@ body,
   color: #2a2418;
 }
 
+#app {
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+}
+
 body::before {
   content: "";
   position: fixed;

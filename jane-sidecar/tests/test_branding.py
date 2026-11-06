@@ -65,7 +65,17 @@ def test_brand_assets_are_gold_and_white():
     assert 'assigneeTabLabel(link) === "All"' in script
     assert "all.click()" in script
     assert 'event.code === "KeyN"' in script
-    assert "v=47" in initializer
+    assert "function insideComposer" in script
+    assert "function composerOnly" in script
+    assert "function scheduleCommunityPasses" in script
+    assert '.ProseMirror, .reply-box' in script
+    assert "composerOnly(records)" in script
+    assert "height: 100dvh !important" in css
+    assert "max-height: 100dvh !important" in css
+    assert "def resize_with_keyboard" in initializer
+    assert "interactive-widget=resizes-content" in initializer
+    assert "v=48" in initializer
+    assert "v=47" not in initializer
     assert "function contactListItem" in script
     assert "function ensureContactSectionsHidden" in script
     assert '"conversation actions": true' in script
