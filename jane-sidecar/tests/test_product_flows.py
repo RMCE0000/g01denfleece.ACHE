@@ -604,7 +604,7 @@ def test_buying_a_sponsorship_does_not_recommend_an_existing_sponsor(client, sto
     reply = response.json()["reply"]
     assert reply == (
         "You can purchase a g01 sponsorship directly in this chat. "
-        'When you\'re ready, say "start sponsorship." '
+        "When you're ready, say you want to become a sponsor. "
         "I'll ask whether it is for your homestead or a separate local company, then email you a secure payment link."
     )
     assert "G01 Test Garden Works" not in reply

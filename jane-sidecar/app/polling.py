@@ -43,18 +43,46 @@ def _local_day(now: datetime, settings: Settings):
     return now.astimezone(ZoneInfo(settings.poll_timezone)).date()
 
 
+_POLL_STATUS = re.compile(
+    r"\b(?:do you have|got any|any polls?|polls? for me|what polls?)\b",
+    re.I,
+)
+_COMMUNITY_ASK = re.compile(
+    r"\b(?:does|do|would)\s+(?:anybody|anyone|any of you)\b"
+    r"|\bwho\s+(?:wants|needs)\b"
+    r"|\bask\s+(?:the\s+)?(?:community|neighbors|other homesteads|homesteads)\b"
+    r"|\b(?:take|run|start)\s+a\s+poll\b"
+    r"|\bpoll\s+the\b",
+    re.I,
+)
+_LEADING_YES = re.compile(r"^(?:yeah|yes|yep|yup|sure)(?:\s*\.{2,}|\s*[,.]|\s+)\s*", re.I)
+
+
+def community_question(text: str) -> str | None:
+    """The question for other homesteads, with a leading yes removed."""
+    cleaned = " ".join((text or "").split())
+    if not cleaned or not _COMMUNITY_ASK.search(cleaned):
+        return None
+    rest = _LEADING_YES.sub("", cleaned).strip()
+    if not rest:
+        return None
+    return rest[:1].upper() + rest[1:]
+
+
 def _poll_prompt(question: str) -> str:
-    return (
-        f"Jane poll: {question}\n"
-        "Reply naturally in this private thread with your answer. "
-        "You can also start the answer with “POLL:”. "
-        "To ask for something else and leave this poll pending, start your message with “Jane,”."
-    )
+    return f"{question}\nYou can answer here."
+
+
+def _asked_confirmation(question: str) -> str:
+    return f"I asked the other homesteads: {question}"
 
 
 async def _deliver_added(store, poll: dict, recipients: list[dict]) -> None:
     prompt = _poll_prompt(poll["question"])
+    requester = poll.get("requester_property_id")
     for recipient in recipients:
+        if requester and recipient.get("property_id") == requester:
+            continue
         conversation_id = recipient.get("conversation_id")
         if conversation_id is not None:
             await deliver(store, int(conversation_id), prompt)
@@ -240,7 +268,8 @@ async def handle_private_poll_message(store, message: dict) -> str | None:
         return None
     content = str(message.get("content") or "").strip()
     command = _POLL_MODE.fullmatch(content)
-    if command:
+    asked = None if command else community_question(content)
+    if command or asked:
         await store.append_transcript(
             conversation_id=conversation_id,
             message_id=str(message.get("message_id") or "") or None,
@@ -248,11 +277,21 @@ async def handle_private_poll_message(store, message: dict) -> str | None:
             speaker=message.get("speaker") or "Homesteader",
             content=content,
         )
-        question = command.group(1) or DEFAULT_POLL_MODE_QUESTION
+        question = (command.group(1) if command else asked) or DEFAULT_POLL_MODE_QUESTION
         result = await create_requested_poll(store, prop, question)
         if result["recipients_added"]:
-            return _poll_prompt(result["poll"]["question"])
-        reply = "Poll mode could not find any private Jane threads to ask."
+            reply = _asked_confirmation(result["poll"]["question"])
+        else:
+            reply = "I could not find any private threads to ask."
+        await deliver(store, conversation_id, reply)
+        return reply
+
+    if _POLL_STATUS.search(content):
+        pending = await store.pending_community_polls(prop["id"])
+        if not pending:
+            reply = "I do not have a poll for you today."
+        else:
+            reply = f"Yes. {pending[-1]['question']}"
         await deliver(store, conversation_id, reply)
         return reply
 

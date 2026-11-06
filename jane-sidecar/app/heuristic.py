@@ -230,7 +230,7 @@ def heuristic_decision(state: dict) -> dict:
     if _SPONSOR_PURCHASE_QUESTION.search(text):
         decision["reply"] = (
             "You can purchase a g01 sponsorship directly in this chat. "
-            "When you're ready, say \"start sponsorship.\" "
+            "When you're ready, say you want to become a sponsor. "
             "I'll ask whether it is for your homestead or a separate local company, then email you a secure payment link."
         )
         return decision
@@ -284,7 +284,7 @@ def heuristic_decision(state: dict) -> dict:
                 decision["price_per_unit"] = price
                 decision["reply"] = "I logged that as your answer to the neighborhood question. I won't fold it into a demand figure until the 24 hours are up."
                 return decision
-            decision["reply"] = "I need both a weekly quantity and a price, for example: DEMAND poll-id: 2 dozen/week at $5 per dozen."
+            decision["reply"] = "I need both a weekly quantity and a price, for example 2 dozen a week at $5 a dozen."
             return decision
         decision["reply"] = "That demand poll is not open for this homestead, so I did not record a vote."
         return decision

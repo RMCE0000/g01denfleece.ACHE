@@ -76,7 +76,8 @@ def test_poll_mode_broadcasts_and_the_next_private_reply_is_an_answer(client, st
     )
     assert started.status_code == 200
     assert started.json()["poll"] is True
-    assert started.json()["reply"].startswith("Jane poll:")
+    assert started.json()["reply"] == "I asked the other homesteads: What should we build together?"
+    assert "poll mode" not in started.json()["reply"].casefold()
     assert {row["conversation_id"] for row in store.outbox} == {
         DEMO_CONVERSATION_ID,
         ROGERS_CONVERSATION_ID,
@@ -95,6 +96,41 @@ def test_poll_mode_broadcasts_and_the_next_private_reply_is_an_answer(client, st
     assert answered.json()["reply"] == "Thanks. Your poll answer is recorded."
     assert store.community_poll_answers[0]["property_id"] == ROGERS_PROPERTY_ID
     assert store.community_poll_answers[0]["answer"] == "A shared seed library and tool shed."
+
+
+def test_an_ordinary_question_is_posted_to_the_other_homesteads(client, store):
+    from app.constitution import JANE_CONSTITUTION
+
+    status = client.post(
+        "/webhooks/chatwoot",
+        json=_message(
+            "Do you have any polls for me?",
+            710,
+            user_id=DEMO_USER_ID,
+            conversation_id=DEMO_CONVERSATION_ID,
+        ),
+    )
+    assert status.json().get("poll") is True
+    assert status.json()["reply"] == "I do not have a poll for you today."
+    assert "poll mode" not in status.json()["reply"].casefold()
+    assert "poll mode" not in JANE_CONSTITUTION
+
+    asked = client.post(
+        "/webhooks/chatwoot",
+        json=_message(
+            "Yeah... does anybody want a dog? I have 5 up for adoption.",
+            711,
+            user_id=DEMO_USER_ID,
+            conversation_id=DEMO_CONVERSATION_ID,
+        ),
+    )
+    assert asked.json()["poll"] is True
+    assert asked.json()["reply"] == (
+        "I asked the other homesteads: Does anybody want a dog? I have 5 up for adoption."
+    )
+    assert "poll mode" not in asked.json()["reply"].casefold()
+    assert store.community_polls[-1]["question"] == "Does anybody want a dog? I have 5 up for adoption."
+    assert len(store.community_polls) == 1
 
 
 def test_plain_poll_mode_uses_the_community_action_question(client, store):

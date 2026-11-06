@@ -909,7 +909,7 @@ async def resend_sponsor_payment(store, prop: dict, email: str | None) -> str:
             return "I checked. Stripe has no sponsorship invoice yet, so nothing was emailed."
         return (
             "I checked. Stripe has no sponsorship invoice for this homestead, so nothing was emailed. "
-            'Say "start sponsorship" and I will ask whether it is for your homestead or a separate local company.'
+            "Tell me you want to become a sponsor and I will ask whether it is for your homestead or a separate local company."
         )
     target = (
         email
@@ -955,7 +955,7 @@ async def sponsorship_status(store, prop: dict) -> str:
     if sponsor is None:
         return (
             "I checked. This homestead does not have a sponsorship listing yet. "
-            'Say "start sponsorship" when you want to begin.'
+            "Tell me when you want to become a sponsor."
         )
     name = sponsor["company_name"]
     if sponsor.get("is_active_sponsor"):
