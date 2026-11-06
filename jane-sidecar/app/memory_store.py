@@ -175,7 +175,7 @@ class MemoryStore:
 
     async def save_sponsor_draft(self, property_id: str, draft: dict | None) -> dict:
         prop = self._mutate(property_id)
-        prop["sponsor_draft"] = deepcopy(draft) if draft else None
+        prop["sponsor_draft"] = deepcopy(draft) if draft is not None else None
         return deepcopy(prop)
 
     async def merge_ledger(self, property_id: str, ledger: dict) -> dict:

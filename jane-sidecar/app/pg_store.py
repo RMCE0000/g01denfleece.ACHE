@@ -258,7 +258,7 @@ class PostgresStore:
             WHERE id = CAST(:id AS uuid)
             RETURNING {_PROPERTY}
             """,
-            {"id": property_id, "draft": json.dumps(draft) if draft else None},
+            {"id": property_id, "draft": json.dumps(draft) if draft is not None else None},
         )
         if not rows:
             raise G01Error("property not found", 404)

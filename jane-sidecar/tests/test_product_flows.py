@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from langgraph.checkpoint.memory import MemorySaver
 
 from app.chatwoot_client import ChatwootClient
+from app.gemini_flow import gemini_override
 from app.jobs import mature_demand_polls, open_ready_collaborations, scan_neighbor_synergies
 from app.llm import llm_override
 from app.matchmaking import approve_match
@@ -90,6 +91,38 @@ def test_jane_knows_verified_sponsors_do_not_need_prior_chat_mentions(client, st
     assert "do not need to have been named earlier" in reply
     assert "What product or service" in reply
     assert "do not have any listed" not in reply
+
+
+def test_sponsor_registration_keeps_each_answer_on_the_form(client, store):
+    token = gemini_override.set(lambda _model, _messages, _complexity: "clear")
+    try:
+        opened = client.post(
+            "/webhooks/chatwoot",
+            json=_message("Okay, I want to register as a sponsor.", 8),
+        )
+        answered = client.post(
+            "/webhooks/chatwoot",
+            json=_message("RackChess", 9),
+        )
+        described = client.post(
+            "/webhooks/chatwoot",
+            json=_message("I am a clothing company.", 10),
+        )
+    finally:
+        gemini_override.reset(token)
+
+    assert opened.status_code == 200
+    assert "What is the company name?" in opened.json()["reply"]
+    assert "clear" not in opened.json()["reply"].casefold()
+    assert answered.status_code == 200
+    reply = answered.json()["reply"]
+    assert reply == "What city was it founded in?"
+    assert "clear" not in reply.casefold()
+    assert store.properties[0]["sponsor_draft"]["company_name"] == "RackChess"
+    assert described.status_code == 200
+    assert described.json()["reply"] == "What state was it founded in? Two letters, such as LA."
+    assert described.json()["reply"].casefold() != "clear"
+    assert store.properties[0]["sponsor_draft"]["founding_city"] == "I am a clothing company"
 
 
 def test_buying_a_sponsorship_does_not_recommend_an_existing_sponsor(client, store):

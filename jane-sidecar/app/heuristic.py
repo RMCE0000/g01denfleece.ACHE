@@ -295,20 +295,33 @@ def heuristic_decision(state: dict) -> dict:
         decision["sponsor_active"] = True
         decision["reply"] = "I cleared the sponsorship application."
     else:
-        draft = dict((prop or {}).get("sponsor_draft") or {})
+        raw_draft = (prop or {}).get("sponsor_draft")
+        draft = dict(raw_draft) if isinstance(raw_draft, dict) else None
         labeled = parse_labeled_sponsor_fields(text)
         absorb = {}
         sourcing_turn = bool(detect_service_tag(text))
-        if draft and missing_fields(draft) and not labeled and not decision["report_scores"] and not sourcing_turn and not decision["request_kyc"]:
+        if (
+            draft is not None
+            and missing_fields(draft)
+            and not labeled
+            and not decision["report_scores"]
+            and not sourcing_turn
+            and not decision["request_kyc"]
+        ):
             absorb = absorb_next_answer(text, draft)
-        if _BUSINESS.search(text) or labeled or absorb:
+        collecting = draft is not None and bool(missing_fields(draft))
+        if not decision["request_kyc"] and not decision["report_scores"] and (
+            _BUSINESS.search(text) or labeled or absorb or collecting
+        ):
             decision["sponsor_active"] = True
             decision["sponsor_fields"] = {**labeled, **absorb}
-            if not decision["reply"]:
+            if draft is None and not decision["reply"]:
                 decision["reply"] = (
                     "I can set up the g01 sponsorship with you here. "
                     "I'll collect the company details first, then provide the secure payment link."
                 )
+            elif absorb or (collecting and not decision["reply"]):
+                decision["reply"] = ""
 
     if _DEMAND.search(text):
         tag = detect_service_tag(text) or "local_demand"
@@ -332,7 +345,7 @@ def heuristic_decision(state: dict) -> dict:
             decision["street_address"] = street
 
     tag = detect_service_tag(text)
-    if tag and not decision["start_poll"]:
+    if tag and not decision["start_poll"] and not decision["sponsor_active"]:
         decision["service_tag"] = tag
 
     return decision
