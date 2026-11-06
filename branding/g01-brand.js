@@ -980,39 +980,80 @@
   }
 
   var HIDDEN_MESSAGE_MENU_LABELS = { translate: true, "add to canned responses": true };
+  var MESSAGE_MENU_ICON_PATHS = ["M16.953 5.303", "M12.022 3a6.473"];
+  var messageMenuGuardInstalled = false;
 
   function menuLabelText(node) {
     return (node && node.textContent ? node.textContent : "").replace(/\s+/g, " ").trim().toLocaleLowerCase();
   }
 
-  function isMessageContextMenu(node) {
-    if (!node || node === document.body || node === document.documentElement) return false;
-    var text = menuLabelText(node);
-    return text.indexOf("reply to this message") !== -1 && text.indexOf("delete") !== -1 && text.indexOf("copy") !== -1;
+  function ensureMessageMenuStyle() {
+    if (document.getElementById("g01-message-menu-style")) return;
+    var style = document.createElement("style");
+    style.id = "g01-message-menu-style";
+    style.textContent = [
+      ".menu-container .menu:has(path[d^=\"M16.953 5.303\"]),",
+      ".menu-container .menu:has(path[d^=\"M12.022 3a6.473\"]),",
+      ".g01-hidden-message-menu-item {",
+      "  display: none !important;",
+      "  pointer-events: none !important;",
+      "}",
+    ].join("\n");
+    (document.head || document.documentElement).appendChild(style);
   }
 
-  function messageMenuContainer(row) {
-    var node = row && row.parentElement;
-    for (var depth = 0; node && depth < 5; depth += 1) {
-      if (isMessageContextMenu(node)) return node;
-      node = node.parentElement;
-    }
-    return null;
+  function rowBlocksMessageMenu(row) {
+    if (!row || !row.closest || !row.closest(".menu-container")) return false;
+    var label = row.querySelector(".menu-label, p, span");
+    if (HIDDEN_MESSAGE_MENU_LABELS[menuLabelText(label || row)]) return true;
+    return MESSAGE_MENU_ICON_PATHS.some(function (prefix) {
+      return !!row.querySelector('path[d^="' + prefix + '"]');
+    });
   }
 
-  function hiddenMessageMenuRow(node) {
-    if (!node || !HIDDEN_MESSAGE_MENU_LABELS[menuLabelText(node)]) return null;
-    var row = node.closest ? node.closest(".menu, [role='button'], button, li") : null;
-    if (!row || isMessageContextMenu(row)) row = node;
-    if (!messageMenuContainer(row)) return null;
-    return row;
+  function hideMessageMenuRow(row) {
+    row.classList.add("g01-hidden-message-menu-item");
+    row.style.setProperty("display", "none", "important");
+    row.style.setProperty("pointer-events", "none", "important");
   }
 
   function ensureMessageMenuTrimmed() {
-    document.querySelectorAll(".menu-container .menu, .menu-container .menu-label, .menu-container p, .menu-container span, [role='button'], button").forEach(function (node) {
-      var row = hiddenMessageMenuRow(node);
-      if (row) row.classList.add("g01-hidden-message-menu-item");
+    ensureMessageMenuStyle();
+    document.querySelectorAll(".menu-container .menu, .menu-container [role='button']").forEach(function (row) {
+      if (rowBlocksMessageMenu(row)) hideMessageMenuRow(row);
     });
+  }
+
+  function installMessageMenuGuard() {
+    ensureMessageMenuTrimmed();
+    if (messageMenuGuardInstalled) return;
+    messageMenuGuardInstalled = true;
+    document.addEventListener(
+      "contextmenu",
+      function () {
+        ensureMessageMenuTrimmed();
+        requestAnimationFrame(ensureMessageMenuTrimmed);
+        setTimeout(ensureMessageMenuTrimmed, 0);
+        setTimeout(ensureMessageMenuTrimmed, 50);
+      },
+      true
+    );
+    document.addEventListener(
+      "click",
+      function (event) {
+        var source = event.target && event.target.closest ? event.target : event.target && event.target.parentElement;
+        var row = source && source.closest && source.closest(".menu-container .menu, .menu-container [role='button']");
+        if (!row || !rowBlocksMessageMenu(row)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      },
+      true
+    );
+    new MutationObserver(function () {
+      try {
+        ensureMessageMenuTrimmed();
+      } catch (error) {}
+    }).observe(document.documentElement, { childList: true, subtree: true });
   }
 
   function ensureHelpCenterGuide() {
@@ -1079,34 +1120,25 @@
     ensureContactsHidden();
     ensureBusinessToolsHidden();
     ensureHelpCenterGuide();
-    ensureMessageMenuTrimmed();
-    document.addEventListener(
-      "click",
-      function (event) {
-        var source = event.target && event.target.closest ? event.target : event.target && event.target.parentElement;
-        var node = source;
-        while (node && node !== document.body) {
-          if (hiddenMessageMenuRow(node)) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            return;
-          }
-          node = node.parentElement;
-        }
-      },
-      true
-    );
+    installMessageMenuGuard();
+    var communityPasses = [
+      ensureCommunityButton,
+      ensureCommunitySearch,
+      ensureCallsHidden,
+      ensureAllConversations,
+      ensureConversationToolsHidden,
+      ensureCaptainHidden,
+      ensureContactsHidden,
+      ensureBusinessToolsHidden,
+      ensureHelpCenterGuide,
+      ensureMessageMenuTrimmed,
+    ];
     new MutationObserver(function () {
-      ensureCommunityButton();
-      ensureCommunitySearch();
-      ensureCallsHidden();
-      ensureAllConversations();
-      ensureConversationToolsHidden();
-      ensureCaptainHidden();
-      ensureContactsHidden();
-      ensureBusinessToolsHidden();
-      ensureHelpCenterGuide();
-      ensureMessageMenuTrimmed();
+      communityPasses.forEach(function (pass) {
+        try {
+          pass();
+        } catch (error) {}
+      });
     }).observe(document.body, { childList: true, subtree: true });
     window.addEventListener("popstate", ensureCommunityButton);
     document.addEventListener("keydown", function (event) {
@@ -1128,6 +1160,15 @@
     }, true);
   }
 
-  if (document.body) watchCommunity();
-  else document.addEventListener("DOMContentLoaded", watchCommunity);
+  function bootCommunity() {
+    try {
+      installMessageMenuGuard();
+    } catch (error) {}
+    try {
+      watchCommunity();
+    } catch (error) {}
+  }
+
+  if (document.body) bootCommunity();
+  else document.addEventListener("DOMContentLoaded", bootCommunity);
 })();
