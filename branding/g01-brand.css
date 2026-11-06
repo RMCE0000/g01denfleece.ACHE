@@ -471,6 +471,12 @@ nav ul.items-center .g01-community-label {
   display: none !important;
 }
 
+.reply-box button:has(.i-ph-sparkle-fill),
+button:has(.i-woot-captain),
+.reply-box .copilot-editor-menu {
+  display: none !important;
+}
+
 .g01-hidden-contacts {
   display: none !important;
 }
