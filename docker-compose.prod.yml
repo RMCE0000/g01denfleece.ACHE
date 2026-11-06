@@ -55,6 +55,11 @@ services:
     restart: unless-stopped
     ports: !override
       - "127.0.0.1:8000:8000"
+    environment:
+      SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-login}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_DOMAIN: ${SMTP_DOMAIN:-g01denfleece.com}
 
 volumes:
   caddy_data:

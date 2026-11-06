@@ -8,6 +8,7 @@ from app.chatwoot_client import ChatwootClient
 from app.gemini_flow import gemini_override
 from app.jobs import mature_demand_polls, open_ready_collaborations, scan_neighbor_synergies
 from app.llm import llm_override
+from app.mail import mail_override
 from app.matchmaking import approve_match
 from app.payments import apply_stripe_event
 from app.runtime import current_checkpointer
@@ -125,6 +126,75 @@ def test_sponsor_registration_keeps_each_answer_on_the_form(client, store):
     assert store.properties[0]["sponsor_draft"]["founding_city"] == "I am a clothing company"
 
 
+def test_sponsorship_payment_link_is_emailed_to_the_address_jane_collected(client, store, monkeypatch):
+    async def fake_checkout(sponsor_id, promo, customer_email=None):
+        assert customer_email == "rack@example.com"
+        assert promo is None
+        return {"id": "cs_rack", "url": "https://checkout.stripe.com/c/pay/cs_rack"}
+
+    monkeypatch.setattr("app.sponsor_chat.create_sponsor_checkout", fake_checkout)
+    sent = []
+    token = mail_override.set(lambda to, company, url: sent.append((to, company, url)))
+    try:
+        filed = client.post(
+            "/webhooks/chatwoot",
+            json=_message(
+                "\n".join(
+                    [
+                        "Register as a sponsor.",
+                        "Company: RackChess",
+                        "Founding city: Lake Charles",
+                        "Founding state: LA",
+                        "Tier: local_manufacturer",
+                        "Tags: clothing",
+                        "Summary: Makes work clothes for homesteaders in Lake Charles.",
+                        "Franchise: no",
+                        "Email: rack@example.com",
+                    ]
+                ),
+                12,
+            ),
+        )
+        again = client.post(
+            "/webhooks/chatwoot",
+            json=_message("I didn't get the payment email. Send it to owner@rackchess.example.", 13),
+        )
+    finally:
+        mail_override.reset(token)
+
+    assert filed.status_code == 200
+    assert "I sent the payment link to rack@example.com" in filed.json()["reply"]
+    assert "https://checkout.stripe.com/c/pay/cs_rack" in filed.json()["reply"]
+    assert sent[0] == ("rack@example.com", "RackChess", "https://checkout.stripe.com/c/pay/cs_rack")
+    assert again.status_code == 200
+    assert "I sent the payment link to owner@rackchess.example" in again.json()["reply"]
+    assert sent[1] == ("owner@rackchess.example", "RackChess", "https://checkout.stripe.com/c/pay/cs_rack")
+
+
+def test_a_missing_mailbox_still_leaves_the_payment_link_in_chat(client, store, monkeypatch):
+    monkeypatch.delenv("SMTP_ADDRESS", raising=False)
+    sponsor = store.sponsors[0]
+    sponsor["property_id"] = store.properties[0]["id"]
+    sponsor["is_active_sponsor"] = False
+    asyncio.run(
+        store.attach_checkout(
+            "cs_saved",
+            sponsor["id"],
+            url="https://checkout.stripe.com/c/pay/cs_saved",
+            billing_email="old@example.com",
+        )
+    )
+
+    response = client.post(
+        "/webhooks/chatwoot",
+        json=_message("I didn't get the payment email.", 14),
+    )
+
+    reply = response.json()["reply"]
+    assert "I could not send the payment email to old@example.com" in reply
+    assert "https://checkout.stripe.com/c/pay/cs_saved" in reply
+
+
 def test_buying_a_sponsorship_does_not_recommend_an_existing_sponsor(client, store):
     test_sponsor = store.sponsors[0]
     test_sponsor["company_name"] = "G01 Test Garden Works"
@@ -138,7 +208,7 @@ def test_buying_a_sponsorship_does_not_recommend_an_existing_sponsor(client, sto
     assert reply == (
         "You can purchase a g01 sponsorship directly in this chat. "
         'When you\'re ready, say "start sponsorship." '
-        "I'll collect your company details and then provide a secure payment link."
+        "I'll collect your company details and then email you a secure payment link."
     )
     assert "G01 Test Garden Works" not in reply
     assert store.properties[0].get("sponsor_draft") is None
@@ -345,6 +415,7 @@ def test_sponsor_registry_is_a_conversation(client, store):
                     "Tags: general_goods",
                     "Summary: A national checkout counter for the parish.",
                     "Franchise: yes",
+                    "Email: walmart@example.com",
                 ]
             ),
             40,
@@ -369,6 +440,7 @@ def test_sponsor_registry_is_a_conversation(client, store):
                     "Lat: 30.22",
                     "Lng: -93.21",
                     "Franchise: no",
+                    "Email: prioux@example.com",
                 ]
             ),
             41,

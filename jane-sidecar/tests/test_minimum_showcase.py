@@ -198,6 +198,7 @@ def test_live_private_chat_files_a_homestead_sponsor_profile(client, store):
             "Tags: tomato, produce",
             "Summary: Grows tomatoes for nearby homesteads.",
             "Franchise: no",
+            "Email: ada@example.com",
         ]
     )
     response = client.post(

@@ -20,7 +20,7 @@ from app.epistemic import (
     extract_zip,
 )
 from app.northstar import view_from_property
-from app.sponsor_chat import absorb_next_answer, missing_fields, parse_labeled_sponsor_fields
+from app.sponsor_chat import absorb_next_answer, missing_fields, parse_labeled_sponsor_fields, payment_email_request
 from app.sourcing import normalize_service_tag
 
 _UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
@@ -224,7 +224,7 @@ def heuristic_decision(state: dict) -> dict:
         decision["reply"] = (
             "You can purchase a g01 sponsorship directly in this chat. "
             "When you're ready, say \"start sponsorship.\" "
-            "I'll collect your company details and then provide a secure payment link."
+            "I'll collect your company details and then email you a secure payment link."
         )
         return decision
 
@@ -297,31 +297,44 @@ def heuristic_decision(state: dict) -> dict:
     else:
         raw_draft = (prop or {}).get("sponsor_draft")
         draft = dict(raw_draft) if isinstance(raw_draft, dict) else None
+        pending = missing_fields(draft) if draft is not None else []
         labeled = parse_labeled_sponsor_fields(text)
-        absorb = {}
-        sourcing_turn = bool(detect_service_tag(text))
+        mail = payment_email_request(text)
         if (
-            draft is not None
-            and missing_fields(draft)
+            mail
             and not labeled
-            and not decision["report_scores"]
-            and not sourcing_turn
+            and pending[:1] != ["billing_email"]
             and not decision["request_kyc"]
+            and not decision["report_scores"]
         ):
-            absorb = absorb_next_answer(text, draft)
-        collecting = draft is not None and bool(missing_fields(draft))
-        if not decision["request_kyc"] and not decision["report_scores"] and (
-            _BUSINESS.search(text) or labeled or absorb or collecting
-        ):
-            decision["sponsor_active"] = True
-            decision["sponsor_fields"] = {**labeled, **absorb}
-            if draft is None and not decision["reply"]:
-                decision["reply"] = (
-                    "I can set up the g01 sponsorship with you here. "
-                    "I'll collect the company details first, then provide the secure payment link."
-                )
-            elif absorb or (collecting and not decision["reply"]):
-                decision["reply"] = ""
+            decision["resend_payment_email"] = True
+            decision["payment_email"] = mail["to"]
+            decision["reply"] = ""
+        else:
+            absorb = {}
+            sourcing_turn = bool(detect_service_tag(text))
+            if (
+                draft is not None
+                and missing_fields(draft)
+                and not labeled
+                and not decision["report_scores"]
+                and not sourcing_turn
+                and not decision["request_kyc"]
+            ):
+                absorb = absorb_next_answer(text, draft)
+            collecting = draft is not None and bool(missing_fields(draft))
+            if not decision["request_kyc"] and not decision["report_scores"] and (
+                _BUSINESS.search(text) or labeled or absorb or collecting
+            ):
+                decision["sponsor_active"] = True
+                decision["sponsor_fields"] = {**labeled, **absorb}
+                if draft is None and not decision["reply"]:
+                    decision["reply"] = (
+                        "I can set up the g01 sponsorship with you here. "
+                        "I'll collect the company details first, then email you a secure payment link."
+                    )
+                elif absorb or (collecting and not decision["reply"]):
+                    decision["reply"] = ""
 
     if _DEMAND.search(text):
         tag = detect_service_tag(text) or "local_demand"
@@ -345,7 +358,7 @@ def heuristic_decision(state: dict) -> dict:
             decision["street_address"] = street
 
     tag = detect_service_tag(text)
-    if tag and not decision["start_poll"] and not decision["sponsor_active"]:
+    if tag and not decision["start_poll"] and not decision["sponsor_active"] and not decision.get("resend_payment_email"):
         decision["service_tag"] = tag
 
     return decision

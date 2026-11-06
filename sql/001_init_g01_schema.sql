@@ -332,8 +332,13 @@ CREATE TABLE IF NOT EXISTS g01_processed_webhook_events (
 CREATE TABLE IF NOT EXISTS g01_sponsor_checkouts (
     stripe_session_id VARCHAR(255) PRIMARY KEY,
     sponsor_id UUID NOT NULL REFERENCES g01_sponsors(id) ON DELETE CASCADE,
+    checkout_url TEXT,
+    billing_email TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE g01_sponsor_checkouts ADD COLUMN IF NOT EXISTS checkout_url TEXT;
+ALTER TABLE g01_sponsor_checkouts ADD COLUMN IF NOT EXISTS billing_email TEXT;
 
 CREATE TABLE IF NOT EXISTS g01_outbox (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

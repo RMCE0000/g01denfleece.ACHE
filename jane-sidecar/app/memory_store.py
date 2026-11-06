@@ -32,6 +32,7 @@ class MemoryStore:
         self.referrals: list[dict] = []
         self.events: set[str] = set()
         self.checkouts: dict[str, str] = {}
+        self.checkout_details: dict[str, dict] = {}
         self.outbox: list[dict] = []
         self.transcript: list[dict] = []
 
@@ -790,8 +791,37 @@ class MemoryStore:
     async def property_by_identity_session(self, session_id: str) -> dict | None:
         return self._find_property(lambda row: row.get("stripe_identity_session_id") == session_id)
 
-    async def attach_checkout(self, session_id: str, sponsor_id: str) -> None:
+    async def attach_checkout(
+        self,
+        session_id: str,
+        sponsor_id: str,
+        url: str | None = None,
+        billing_email: str | None = None,
+    ) -> None:
         self.checkouts[session_id] = sponsor_id
+        details = dict(self.checkout_details.get(session_id) or {})
+        if url:
+            details["url"] = url
+        if billing_email:
+            details["billing_email"] = billing_email
+        self.checkout_details[session_id] = details
+
+    async def latest_open_checkout(self, property_id: str) -> dict | None:
+        for session_id, sponsor_id in reversed(list(self.checkouts.items())):
+            sponsor = await self.get_sponsor(sponsor_id)
+            if not sponsor or str(sponsor.get("property_id")) != str(property_id):
+                continue
+            if sponsor.get("is_active_sponsor"):
+                continue
+            details = self.checkout_details.get(session_id) or {}
+            return {
+                "session_id": session_id,
+                "sponsor_id": sponsor_id,
+                "company_name": sponsor["company_name"],
+                "url": details.get("url"),
+                "billing_email": details.get("billing_email"),
+            }
+        return None
 
     async def sponsor_by_checkout(self, session_id: str) -> dict | None:
         sponsor_id = self.checkouts.get(session_id)

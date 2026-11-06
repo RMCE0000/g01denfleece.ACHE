@@ -1105,14 +1105,37 @@ class PostgresStore:
             {"session_id": session_id},
         )
 
-    async def attach_checkout(self, session_id: str, sponsor_id: str) -> None:
+    async def attach_checkout(
+        self,
+        session_id: str,
+        sponsor_id: str,
+        url: str | None = None,
+        billing_email: str | None = None,
+    ) -> None:
         await self._write(
             """
-            INSERT INTO g01_sponsor_checkouts (stripe_session_id, sponsor_id)
-            VALUES (:session_id, CAST(:sponsor_id AS uuid))
-            ON CONFLICT (stripe_session_id) DO NOTHING
+            INSERT INTO g01_sponsor_checkouts (stripe_session_id, sponsor_id, checkout_url, billing_email)
+            VALUES (:session_id, CAST(:sponsor_id AS uuid), :url, :email)
+            ON CONFLICT (stripe_session_id) DO UPDATE
+            SET checkout_url = COALESCE(EXCLUDED.checkout_url, g01_sponsor_checkouts.checkout_url),
+                billing_email = COALESCE(EXCLUDED.billing_email, g01_sponsor_checkouts.billing_email)
             """,
-            {"session_id": session_id, "sponsor_id": sponsor_id},
+            {"session_id": session_id, "sponsor_id": sponsor_id, "url": url, "email": billing_email},
+        )
+
+    async def latest_open_checkout(self, property_id: str) -> dict | None:
+        return await self._one(
+            """
+            SELECT c.stripe_session_id AS session_id, c.checkout_url AS url, c.billing_email,
+                   s.id AS sponsor_id, s.company_name
+            FROM g01_sponsor_checkouts c
+            JOIN g01_sponsors s ON s.id = c.sponsor_id
+            WHERE s.property_id = CAST(:property_id AS uuid)
+              AND NOT s.is_active_sponsor
+            ORDER BY c.created_at DESC
+            LIMIT 1
+            """,
+            {"property_id": property_id},
         )
 
     async def sponsor_by_checkout(self, session_id: str) -> dict | None:

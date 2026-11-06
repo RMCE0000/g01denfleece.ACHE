@@ -19,7 +19,7 @@ from app.epistemic import (
 from app.heuristic import heuristic_decision, status_reply
 from app.sanitize import sanitize_reply
 from app.sourcing import format_ladder, haversine_miles
-from app.sponsor_chat import file_sponsor_application, missing_fields, next_prompt
+from app.sponsor_chat import file_sponsor_application, missing_fields, next_prompt, resend_sponsor_payment
 from app.stripe_service import create_identity_session
 
 
@@ -209,6 +209,9 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
         else:
             notes.append(await file_sponsor_application(store, prop, sponsor_locality, draft))
             prop = await store.get_property(prop["id"])
+
+    if decision.get("resend_payment_email"):
+        notes.append(await resend_sponsor_payment(store, prop, decision.get("payment_email")))
 
     if decision.get("start_poll"):
         question = decision.get("poll_question") or "Would you buy any of this weekly, and at what price per unit?"

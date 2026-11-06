@@ -22,7 +22,7 @@ def stripe_ready() -> bool:
     return bool(settings.stripe_secret_key and settings.stripe_sponsor_price_id)
 
 
-async def create_sponsor_checkout(sponsor_id: str, promo: dict | None) -> dict:
+async def create_sponsor_checkout(sponsor_id: str, promo: dict | None, customer_email: str | None = None) -> dict:
     settings = get_settings()
     if not stripe_ready():
         raise G01Error("Stripe is not configured for sponsorship checkout", 503)
@@ -35,11 +35,30 @@ async def create_sponsor_checkout(sponsor_id: str, promo: dict | None) -> dict:
         "client_reference_id": sponsor_id,
         "metadata": {"sponsor_id": sponsor_id, "g01_kind": "sponsor"},
     }
+    if customer_email:
+        kwargs["customer_email"] = customer_email
     if promo:
         kwargs["discounts"] = [{"coupon": promo["stripe_coupon_id"]}]
 
     session = await asyncio.to_thread(lambda: stripe.checkout.Session.create(**kwargs))
     return {"id": session["id"], "url": session["url"]}
+
+
+async def retrieve_checkout_url(session_id: str) -> str | None:
+    """Return a still-open Checkout URL. An expired or missing session has no URL."""
+    if not stripe_ready() or not session_id:
+        return None
+    stripe = _client()
+    try:
+        session = await asyncio.to_thread(lambda: stripe.checkout.Session.retrieve(session_id))
+    except Exception:
+        log.warning("could not retrieve Stripe checkout %s", session_id)
+        return None
+    status = session.get("status") if isinstance(session, dict) else getattr(session, "status", None)
+    url = session.get("url") if isinstance(session, dict) else getattr(session, "url", None)
+    if status == "expired" or not url:
+        return None
+    return str(url)
 
 
 async def create_identity_session(property_id: str) -> dict:
