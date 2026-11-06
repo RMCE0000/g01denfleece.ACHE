@@ -469,6 +469,10 @@ nav ul.items-center .g01-community-label {
   display: none !important;
 }
 
+.g01-hidden-contact-section {
+  display: none !important;
+}
+
 .actions--container > .resolve-actions {
   display: none !important;
 }

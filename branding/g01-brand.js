@@ -945,6 +945,22 @@
     all.click();
   }
 
+  var HIDDEN_CONTACT_SECTIONS = { "conversation actions": true, macros: true };
+
+  function ensureContactSectionsHidden() {
+    document.querySelectorAll(".list-group h5").forEach(function (heading) {
+      var text = heading.textContent.replace(/\s+/g, " ").trim().toLowerCase();
+      if (!HIDDEN_CONTACT_SECTIONS[text]) return;
+      var accordion = heading.closest(".text-sm") || heading;
+      var block = accordion.closest(".conversation--actions") || accordion.parentElement || accordion;
+      if (block.classList && (block.classList.contains("list-group") || block.classList.contains("flex-col"))) {
+        block = accordion;
+      }
+      block.classList.add("g01-hidden-contact-section");
+      block.style.setProperty("display", "none", "important");
+    });
+  }
+
   function ensureConversationToolsHidden() {
     hideSidebarEntries(
       ["Mentions", "Participating", "Unattended", "Folders", "Teams", "Channels", "Labels"],
@@ -1173,6 +1189,7 @@
     ensureBusinessToolsHidden();
     ensureHelpCenterGuide();
     installMessageMenuGuard();
+    ensureContactSectionsHidden();
     var communityPasses = [
       ensureCommunityButton,
       ensureCommunitySearch,
@@ -1185,6 +1202,7 @@
       ensureHelpCenterGuide,
       ensureMessageMenuTrimmed,
       ensureCollapsedConversationMenuHidden,
+      ensureContactSectionsHidden,
     ];
     new MutationObserver(function () {
       communityPasses.forEach(function (pass) {

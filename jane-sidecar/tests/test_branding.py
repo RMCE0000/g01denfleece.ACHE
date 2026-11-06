@@ -65,7 +65,11 @@ def test_brand_assets_are_gold_and_white():
     assert 'assigneeTabLabel(link) === "All"' in script
     assert "all.click()" in script
     assert 'event.code === "KeyN"' in script
-    assert "v=45" in initializer
+    assert "v=46" in initializer
+    assert "function ensureContactSectionsHidden" in script
+    assert '"conversation actions": true' in script
+    assert "macros: true" in script
+    assert ".g01-hidden-contact-section" in css
     assert ".woot-banner.secondary" in css
     assert "function installCollapsedConversationMenuGuard" in script
     assert 'title !== "conversations"' in script
