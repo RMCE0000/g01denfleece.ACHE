@@ -70,6 +70,8 @@ def test_asking_jane_ranks_the_maker_ahead_of_logistics(client, store):
     response = ledger_reply(store, _message("Where can I get a grow light?", 5))
     reply = response.json()["reply"]
     assert reply.index("Calcasieu Glass & Lamp") < reply.index("Chenier Logistics")
+    assert reply.index("Chenier Logistics") < reply.index("another local source")
+    assert "encourage the relationship with the sponsor" in reply
     assert "Blows and wires small greenhouse lamps" in reply
     for internal in ("Tier 1", "weight", "score", "miles", "referrals", "local_manufacturer"):
         assert internal not in reply
@@ -77,6 +79,16 @@ def test_asking_jane_ranks_the_maker_ahead_of_logistics(client, store):
     assert "amazon" not in reply.casefold()
     assert store.sponsors[0]["referrals_last_14d"] == 1
     assert client.get(f"/api/properties/{DEMO_PROPERTY_ID}/sponsors").status_code == 404
+
+
+def test_an_egg_buyer_question_is_not_a_missing_chicken_coop_sponsor(client, store):
+    response = client.post(
+        "/webhooks/chatwoot",
+        json=_message("I am thinking about doing chickens... will anybody around here buy my eggs?", 62),
+    )
+    reply = response.json()["reply"]
+    assert "chicken coop" not in reply.casefold()
+    assert "I don't have an active g01 sponsor" not in reply
 
 
 def test_jane_knows_verified_sponsors_do_not_need_prior_chat_mentions(client, store):

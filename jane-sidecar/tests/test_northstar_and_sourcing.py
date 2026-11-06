@@ -77,6 +77,8 @@ def test_arbitrary_goods_and_services_are_detected_and_matched():
     }
 
     assert detect_service_tag("Where can I get tomatoes?") == "tomatoes"
+    assert detect_service_tag("Where can I get a chicken coop?") == "chicken_coop"
+    assert detect_service_tag("I am thinking about doing chickens... will anybody around here buy my eggs?") is None
     assert detect_service_tag("I need 3D printed widgets locally.") == "3d_printed_widgets"
     assert sponsor_matches_tag(profile, "tomatoes")
     assert sponsor_matches_tag(profile, "3d_printed_widgets")
@@ -166,9 +168,16 @@ def test_user_facing_sponsor_result_hides_internal_ranking():
             }
         ],
     )
-    assert reply == "G01 Test Garden Works — Provides locally made raised-bed materials."
+    assert reply.startswith("G01 Test Garden Works — Provides locally made raised-bed materials.")
+    assert "Start with this sponsor." in reply
+    assert "another local source" in reply
+    assert "encourage the relationship with the sponsor" in reply
     for internal in ("tier", "weight", "score", "miles", "referrals", "0.85"):
         assert internal not in reply.casefold()
+    empty = format_ladder("chicken coop", [])
+    assert empty.startswith("I don't have an active g01 sponsor for chicken coop")
+    assert "The best option is a locally owned source in your city" in empty
+    assert "encourage a sponsor relationship" in empty
 
 
 def test_retailer_sentences_are_removed_whole():

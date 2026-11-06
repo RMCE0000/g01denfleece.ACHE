@@ -50,6 +50,7 @@ _POLL_STATUS = re.compile(
 _COMMUNITY_ASK = re.compile(
     r"\b(?:does|do|would)\s+(?:anybody|anyone|any of you)\b"
     r"|\bwho\s+(?:wants|needs)\b"
+    r"|\bwill\s+(?:anybody|anyone)\b"
     r"|\bask\s+(?:the\s+)?(?:community|neighbors|other homesteads|homesteads)\b"
     r"|\b(?:take|run|start)\s+a\s+poll\b"
     r"|\bpoll\s+the\b",

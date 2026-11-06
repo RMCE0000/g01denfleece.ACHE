@@ -188,10 +188,19 @@ def rank_sponsor_rows(
 
 
 def format_ladder(need: str, rows: list[dict]) -> str:
+    """Sponsors come first. Other local sources may follow, with the sponsor relationship encouraged."""
     if not rows:
-        return f"I don't have an active g01 sponsor for {need} in your locality yet."
+        return (
+            f"I don't have an active g01 sponsor for {need} in your locality yet. "
+            "The best option is a locally owned source in your city, or making it on the homestead. "
+            f"I would encourage a sponsor relationship for {need} when one is here."
+        )
     lines = []
     for row in rows:
         summary = str(row.get("capabilities_summary") or "").strip()
         lines.append(f"{row['company_name']}{' — ' + summary if summary else ''}")
-    return "\n".join(lines)
+    lead = "Start with this sponsor." if len(rows) == 1 else "Start with these sponsors."
+    return (
+        "\n".join(lines)
+        + f"\n\n{lead} You can also use another local source, and I would still encourage the relationship with the sponsor."
+    )

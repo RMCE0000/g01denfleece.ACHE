@@ -115,6 +115,10 @@ def _blank() -> dict:
 
 
 def detect_service_tag(text: str) -> str | None:
+    from app.polling import wants_community
+
+    if wants_community(text):
+        return None
     lowered = text.casefold()
     for tag, phrases in _TAGS:
         if any(phrase in lowered for phrase in phrases):
