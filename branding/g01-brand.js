@@ -901,6 +901,13 @@
     });
   }
 
+  function ensureMentionsHidden() {
+    document.querySelectorAll('nav a[href*="/mentions/"]').forEach(function (link) {
+      var item = link.closest("li");
+      (item || link).classList.add("g01-hidden-mentions");
+    });
+  }
+
   function ensureContactsHidden() {
     document.querySelectorAll("nav .i-lucide-contact").forEach(function (icon) {
       var item = icon.closest("li");
@@ -978,6 +985,7 @@
     ensureCommunityButton();
     ensureCommunitySearch();
     ensureCallsHidden();
+    ensureMentionsHidden();
     ensureContactsHidden();
     ensureBusinessToolsHidden();
     ensureHelpCenterGuide();
@@ -985,6 +993,7 @@
       ensureCommunityButton();
       ensureCommunitySearch();
       ensureCallsHidden();
+      ensureMentionsHidden();
       ensureContactsHidden();
       ensureBusinessToolsHidden();
       ensureHelpCenterGuide();

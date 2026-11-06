@@ -49,6 +49,8 @@ def test_brand_assets_are_gold_and_white():
     assert ".g01-hidden-compose" in css
     assert 'document.querySelectorAll(\'a[href*="/calls"]\')' in script
     assert ".g01-hidden-calls" in css
+    assert 'document.querySelectorAll(\'nav a[href*="/mentions/"]\')' in script
+    assert ".g01-hidden-mentions" in css
     assert 'document.querySelectorAll("nav .i-lucide-contact")' in script
     assert ".g01-hidden-contacts" in css
     assert '".i-lucide-building-2", "g01-hidden-companies"' in script

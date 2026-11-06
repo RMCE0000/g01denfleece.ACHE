@@ -451,6 +451,10 @@ nav ul.items-center .g01-community-label {
   display: none !important;
 }
 
+.g01-hidden-mentions {
+  display: none !important;
+}
+
 .g01-hidden-contacts {
   display: none !important;
 }
