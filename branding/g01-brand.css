@@ -464,6 +464,13 @@ nav ul.items-center .g01-community-label {
   display: none !important;
 }
 
+.conversations-list-wrap
+  > .absolute
+  > .flex.items-center.justify-between
+  > .flex.items-center.gap-2.flex-shrink-0 {
+  display: none !important;
+}
+
 .g01-hidden-contacts {
   display: none !important;
 }
