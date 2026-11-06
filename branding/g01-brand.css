@@ -460,6 +460,10 @@ nav ul.items-center .g01-community-label {
   content: "Shift + enter for new line." !important;
 }
 
+.actions--container > .resolve-actions {
+  display: none !important;
+}
+
 .g01-hidden-contacts {
   display: none !important;
 }

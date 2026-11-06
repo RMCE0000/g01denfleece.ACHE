@@ -59,6 +59,7 @@ def test_brand_assets_are_gold_and_white():
     assert "ensureComposerHint" not in script
     assert '.reply-box .empty-node::before' in css
     assert 'content: "Shift + enter for new line."' in css
+    assert ".actions--container > .resolve-actions" in css
     assert 'document.querySelectorAll("nav .i-lucide-contact")' in script
     assert ".g01-hidden-contacts" in css
     assert '".i-lucide-building-2", "g01-hidden-companies"' in script
