@@ -36,6 +36,13 @@ _PAYMENT_ASK = re.compile(
     r"\b(send|resend|email|inbox|didn't|did not|never (?:got|received)|not (?:get|receive|received)|missing|link)\b",
     re.I,
 )
+_SPONSOR_EMAIL_FOLLOWUP = re.compile(
+    r"\b(?:send|resend) (?:that|the|this|my) e-?mail\b|"
+    r"\b(?:check|confirm|verify) (?:that |if |whether )?(?:it|that|the e-?mail|this) was sent\b|"
+    r"\bwas (?:it|that|the e-?mail) sent\b|"
+    r"\bdid you send (?:it|that|the e-?mail)\b",
+    re.I,
+)
 
 
 def missing_fields(draft: dict) -> list[str]:
@@ -102,14 +109,23 @@ def parse_labeled_sponsor_fields(text: str) -> dict:
     return fields
 
 
+def message_has_email(text: str) -> bool:
+    return bool(_EMAIL_FIND.search(text or ""))
+
+
 def payment_email_request(text: str) -> dict | None:
     """A homesteader asking for the payment message, with an address when they named one."""
-    if not _PAYMENT_MAIL.search(text):
-        return None
     email = _EMAIL_FIND.search(text)
-    if not _PAYMENT_ASK.search(text) and email is None:
+    if not _PAYMENT_MAIL.search(text) and not _SPONSOR_EMAIL_FOLLOWUP.search(text):
         return None
-    if not _PAYMENT_ASK.search(text) and not re.search(r"\b(link|email|inbox)\b", text, re.I):
+    if _PAYMENT_MAIL.search(text) and not _PAYMENT_ASK.search(text) and email is None:
+        return None
+    if (
+        _PAYMENT_MAIL.search(text)
+        and not _PAYMENT_ASK.search(text)
+        and not _SPONSOR_EMAIL_FOLLOWUP.search(text)
+        and not re.search(r"\b(link|email|inbox)\b", text, re.I)
+    ):
         return None
     return {"to": email.group(0).casefold() if email else None}
 
@@ -227,8 +243,14 @@ async def resend_sponsor_payment(store, prop: dict, email: str | None) -> str:
     """Email an existing sponsorship payment link to the address the homesteader names."""
     checkout = await store.latest_open_checkout(prop["id"])
     if checkout is None:
+        draft = prop.get("sponsor_draft") if isinstance(prop.get("sponsor_draft"), dict) else None
+        if draft is not None and missing_fields(draft):
+            return (
+                "I checked. No payment link has been created, so nothing was emailed. "
+                + next_prompt(draft)
+            )
         return (
-            "I don't have a sponsorship payment link for this homestead yet. "
+            "I checked. No sponsorship payment link has been created, so nothing was emailed. "
             'Say "start sponsorship" and I will collect the company details.'
         )
     target = (email or checkout.get("billing_email") or prop.get("email") or "").strip().casefold()

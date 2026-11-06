@@ -171,6 +171,44 @@ def test_sponsorship_payment_link_is_emailed_to_the_address_jane_collected(clien
     assert sent[1] == ("owner@rackchess.example", "RackChess", "https://checkout.stripe.com/c/pay/cs_rack")
 
 
+def test_resend_and_status_questions_read_the_payment_record(client, store):
+    token = gemini_override.set(
+        lambda _model, _messages, _complexity: "Would you like to return to planning your raised garden beds now?"
+    )
+    try:
+        resend = client.post(
+            "/webhooks/chatwoot",
+            json=_message("Could you try to send that email again?", 15),
+        )
+        checked = client.post(
+            "/webhooks/chatwoot",
+            json=_message("COuld you just check that it was sent?", 16),
+        )
+    finally:
+        gemini_override.reset(token)
+
+    for response in (resend, checked):
+        reply = response.json()["reply"]
+        assert "I checked. No sponsorship payment link has been created, so nothing was emailed." in reply
+        assert "garden" not in reply.casefold()
+        assert "backend" not in reply.casefold()
+        assert "robert@" not in reply
+
+    store.properties[0]["sponsor_draft"] = {"company_name": "RackChess"}
+    token = gemini_override.set(lambda _model, _messages, _complexity: "The backend workflow hasn't sent it yet.")
+    try:
+        pending = client.post(
+            "/webhooks/chatwoot",
+            json=_message("Could you try to send that email again?", 17),
+        )
+    finally:
+        gemini_override.reset(token)
+    pending_reply = pending.json()["reply"]
+    assert "No payment link has been created, so nothing was emailed." in pending_reply
+    assert "What city was it founded in?" in pending_reply
+    assert "backend workflow" not in pending_reply.casefold()
+
+
 def test_a_missing_mailbox_still_leaves_the_payment_link_in_chat(client, store, monkeypatch):
     monkeypatch.delenv("SMTP_ADDRESS", raising=False)
     sponsor = store.sponsors[0]

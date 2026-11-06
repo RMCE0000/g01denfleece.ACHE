@@ -20,7 +20,13 @@ from app.epistemic import (
     extract_zip,
 )
 from app.northstar import view_from_property
-from app.sponsor_chat import absorb_next_answer, missing_fields, parse_labeled_sponsor_fields, payment_email_request
+from app.sponsor_chat import (
+    absorb_next_answer,
+    message_has_email,
+    missing_fields,
+    parse_labeled_sponsor_fields,
+    payment_email_request,
+)
 from app.sourcing import normalize_service_tag
 
 _UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
@@ -303,7 +309,7 @@ def heuristic_decision(state: dict) -> dict:
         if (
             mail
             and not labeled
-            and pending[:1] != ["billing_email"]
+            and not (pending[:1] == ["billing_email"] and message_has_email(text))
             and not decision["request_kyc"]
             and not decision["report_scores"]
         ):
