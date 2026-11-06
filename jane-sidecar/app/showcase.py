@@ -6,7 +6,7 @@ import logging
 from app.chatwoot_client import ChatwootClient
 from app.config import get_settings
 from app.constitution import JANE_CONSTITUTION
-from app.sponsor_chat import application_from_thread, missing_fields, sponsorship_thread_note
+from app.sponsor_chat import application_from_thread, missing_fields, sponsorship_thinking_note
 from app.delivery import deliver
 from app.effects import commit_decision
 from app.gemini_flow import complete_text, lookup_public, public_fact_question
@@ -190,13 +190,12 @@ async def answer_with_effects(store, message: dict) -> str:
     draft = dict((prop or {}).get("sponsor_draft") or {})
     incoming = dict(decision.get("sponsor_fields") or {})
     labeled_complete = bool(incoming) and not missing_fields({**draft, **incoming})
-    lookup_note = None
+    lookup_found = None
+    lookup_failed_city = None
     if decision.get("sponsor_active") and prop is not None and not decision.get("reply") and not labeled_complete:
-        fields, lookup_note = await application_from_thread(lines, locality)
-        if fields and not missing_fields(fields):
-            decision["sponsor_fields"] = fields
-        else:
-            decision["sponsor_fields"] = {"open": True}
+        fields, lookup_found, lookup_failed_city = await application_from_thread(lines, locality)
+        kept = {key: value for key, value in fields.items() if value not in (None, "", [])}
+        decision["sponsor_fields"] = kept or {"open": True}
         decision["sponsor_from_thread"] = True
         draft = dict(decision["sponsor_fields"])
     else:
@@ -215,7 +214,7 @@ async def answer_with_effects(store, message: dict) -> str:
     if jane_should_think or ordinary:
         system = _grounded_system(prop, locality)
         if jane_should_think:
-            system += "\n\n" + sponsorship_thread_note(lookup_note)
+            system += "\n\n" + sponsorship_thinking_note(draft, lookup_failed_city, lookup_found)
         elif ordinary:
             question = public_fact_question(message.get("content") or "")
             if question:

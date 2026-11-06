@@ -195,7 +195,8 @@ _STATE_NAMES = {
 def _state_code(answer: str) -> str | None:
     cleaned = answer.strip().rstrip(".")
     if re.fullmatch(r"[A-Za-z]{2}", cleaned):
-        return cleaned.upper()
+        code = cleaned.upper()
+        return code if code in _STATE_NAMES.values() else None
     return _STATE_NAMES.get(cleaned.casefold())
 
 
@@ -513,7 +514,9 @@ def sole_state_code(text: str) -> str | None:
             found.add(code)
     stripped = (text or "").strip().rstrip(".")
     if re.fullmatch(r"[A-Za-z]{2}", stripped):
-        found.add(stripped.upper())
+        code = stripped.upper()
+        if code in _STATE_NAMES.values():
+            found.add(code)
     if len(found) != 1:
         return None
     return found.pop()
@@ -623,20 +626,30 @@ def franchise_from_thread(lines: list[dict]) -> bool | None:
     return None
 
 
-async def application_from_thread(lines: list[dict], locality: dict | None = None) -> tuple[dict, str | None]:
+async def application_from_thread(lines: list[dict], locality: dict | None = None) -> tuple[dict, str | None, str | None]:
     """Read the whole thread once, for filing. Jane's reply does not come from this form."""
+    fields: dict = {}
+    for line in lines:
+        if line.get("role") == "jane":
+            continue
+        text = str(line.get("content") or "")
+        if not text.strip():
+            continue
+        for key, value in read_sponsor_message(text, fields, locality).items():
+            if fields.get(key) in (None, "", []):
+                fields[key] = value
+        for key, value in parse_labeled_sponsor_fields(text).items():
+            if fields.get(key) in (None, "", []):
+                fields[key] = value
     homesteader = _speaker_text(lines, jane=False)
-    fields = _scan_sponsor_facts(homesteader, {}, locality)
-    for key, value in parse_labeled_sponsor_fields(homesteader).items():
-        if fields.get(key) in (None, "", []):
-            fields[key] = value
     for key, value in (await extract_stated_facts(homesteader)).items():
         if fields.get(key) in (None, "", []):
             fields[key] = value
     franchise = franchise_from_thread(lines)
     if franchise is not None and fields.get("is_franchise_or_chain") is None:
         fields["is_franchise_or_chain"] = franchise
-    lookup_note = None
+    found_note = None
+    failed_city = None
     city = fields.get("founding_city")
     if city and not fields.get("founding_state"):
         public_city = _public_city(str(city))
@@ -644,13 +657,13 @@ async def application_from_thread(lines: list[dict], locality: dict | None = Non
         state = sole_state_code(found or "")
         if state:
             fields["founding_state"] = state
-            lookup_note = f"Public lookup, use this and do not invent beyond it: {public_city} is in {found}."
-        else:
-            lookup_note = (
-                f"A public lookup for the state of {public_city or city} did not return one clear answer. "
-                "If you need the state, say you could not look it up and ask."
+            found_note = (
+                f"Public lookup, use this and do not invent beyond it: {public_city} is in {found}. "
+                "Do not ask which state."
             )
-    return fields, lookup_note
+        else:
+            failed_city = public_city or str(city)
+    return fields, found_note, failed_city
 
 
 async def enrich_sponsor_fields(text: str, draft: dict, locality: dict | None = None) -> tuple[dict, str | None]:
@@ -701,7 +714,11 @@ def sponsorship_thread_note(lookup_note: str | None = None) -> str:
     )
 
 
-def sponsorship_thinking_note(draft: dict, lookup_failed_city: str | None = None) -> str:
+def sponsorship_thinking_note(
+    draft: dict,
+    lookup_failed_city: str | None = None,
+    lookup_found: str | None = None,
+) -> str:
     """Private context so Jane can think about the answer instead of reciting a form."""
     recorded = []
     if draft.get("listing_kind") == "homestead":
@@ -735,7 +752,9 @@ def sponsorship_thinking_note(draft: dict, lookup_failed_city: str | None = None
             missing_words.append(_MISSING_WORDS.get(key, key.replace("_", " ")))
     known = " ".join(recorded) if recorded else "nothing yet."
     lookup = ""
-    if lookup_failed_city:
+    if lookup_found:
+        lookup = lookup_found.strip() + " "
+    elif lookup_failed_city:
         lookup = (
             f"A public lookup for the state of {lookup_failed_city} did not return one clear answer. "
             "Tell them you could not look it up, then ask which state. "

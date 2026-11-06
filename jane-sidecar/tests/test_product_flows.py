@@ -122,8 +122,11 @@ def test_sponsor_registration_keeps_each_answer_on_the_form(client, store):
     assert described.status_code == 200
     assert described.json()["reply"] == "RackChess in Lake Charles, making clothing. Which state was the company founded in?"
     assert "What is the company name?" not in described.json()["reply"]
-    assert draft == {"open": True}
-    assert "The conversation thread is the only record" in seen["system"]
+    assert draft["listing_kind"] == "company"
+    assert draft["company_name"] == "RackChess"
+    assert draft["founding_city"] == "Lake Charles"
+    assert draft["service_tags"] == ["clothing"]
+    assert "Name: RackChess." in seen["system"]
     assert "local_manufacturer" not in seen["system"]
     assert "Do not ask again" in seen["system"]
 
@@ -172,13 +175,19 @@ def test_the_whole_message_is_read_and_the_city_state_is_looked_up(client, store
 
     assert opened.status_code == 200
     draft = store.properties[0]["sponsor_draft"]
-    assert draft == {"open": True}
+    assert draft.get("listing_kind") is None
     assert described.json()["reply"].startswith("RackChess is a clothing brand")
+    assert draft["company_name"] == "RackChess"
+    assert draft["founding_city"] == "Lake Charles"
+    assert draft["service_tags"] == ["clothing"]
+    assert draft["founding_state"] == "LA"
     assert seen["complexity"] == "complex"
     assert any("I want to become a sponsor." in line for line in seen["thread"])
     assert seen["question"] == "Which single US state is Lake Charles in?"
+    assert "State: LA." in seen["system"]
     assert "Lake Charles is in Louisiana." in seen["system"]
-    assert "The conversation thread is the only record" in seen["system"]
+    assert "clothing brand" in seen["system"]
+    assert "Do not ask which state." in seen["system"]
     assert "the state where it was founded" not in seen["system"]
 
 
@@ -204,7 +213,8 @@ def test_become_a_sponsor_does_not_choose_homestead_or_company(client, store):
     assert opened.status_code == 200
     assert draft == {"open": True}
     assert "This listing is a separate local company." not in seen["system"]
-    assert "Do not say they chose a homestead or a company unless their words did." in seen["system"]
+    assert "whether this is their homestead or a separate local company" in seen["system"]
+    assert "Do not claim they chose a homestead or a company unless Recorded so far says which one." in seen["system"]
 
 
 def test_the_thread_keeps_a_no_and_files_when_the_application_is_complete(client, store):
@@ -245,7 +255,11 @@ def test_the_thread_keeps_a_no_and_files_when_the_application_is_complete(client
     assert described.status_code == 200
     assert any("I want to become a sponsor." in line for line in seen["calls"][1]["thread"])
     assert seen["calls"][1]["complexity"] == "complex"
-    assert open_draft == {"open": True}
+    assert open_draft["company_name"] == "RackChess"
+    assert open_draft["founding_city"] == "Lake Charles"
+    assert open_draft["founding_state"] == "LA"
+    assert open_draft["service_tags"] == ["clothing"]
+    assert open_draft.get("is_franchise_or_chain") is None
     assert declined.status_code == 200
     assert declined.json()["reply"] == "Not a franchise. What email should receive the payment link?"
     assert paid.status_code == 200
@@ -283,7 +297,8 @@ def test_an_unclear_state_lookup_is_not_stored(client, store):
 
     draft = store.properties[0]["sponsor_draft"]
     assert described.status_code == 200
-    assert draft == {"open": True}
+    assert draft["founding_city"] == "Springfield"
+    assert draft.get("founding_state") is None
     assert "could not look it up" in seen["system"]
 
 
@@ -475,7 +490,10 @@ def test_homestead_sponsorship_uses_the_locality_and_plain_questions(client, sto
     draft = store.properties[0]["sponsor_draft"]
     assert chosen.json()["reply"] == "Your homestead in Lake Charles. What should neighbors call it?"
     assert "Is this sponsorship for your homestead" not in chosen.json()["reply"]
-    assert draft == {"open": True}
+    assert draft["listing_kind"] == "homestead"
+    assert draft["founding_city"] == "Lake Charles"
+    assert draft["founding_state"] == "LA"
+    assert draft["company_name"] == "Rack Yard"
     assert named.json()["reply"] == "Your homestead in Lake Charles. What should neighbors call it?"
     assert "local_manufacturer" not in named.json()["reply"]
 
