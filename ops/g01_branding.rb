@@ -6,7 +6,7 @@ require "net/http"
 require "uri"
 
 class G01Branding
-  SNIPPET = '<link rel="icon" type="image/png" href="/g01-favicon.png?v=31"><link rel="stylesheet" href="/g01-brand.css?v=31"><script src="/g01-brand.js?v=31"></script>'
+  SNIPPET = '<link rel="icon" type="image/png" href="/g01-favicon.png?v=32"><link rel="stylesheet" href="/g01-brand.css?v=32"><script src="/g01-brand.js?v=32"></script>'
   SIGNUP_PATH = "/g01/signup"
 
   def initialize(app)

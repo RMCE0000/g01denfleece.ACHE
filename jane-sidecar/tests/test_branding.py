@@ -49,14 +49,13 @@ def test_brand_assets_are_gold_and_white():
     assert ".g01-hidden-compose" in css
     assert 'document.querySelectorAll(\'a[href*="/calls"]\')' in script
     assert ".g01-hidden-calls" in css
-    assert 'document.querySelectorAll(\'nav a[href*="/mentions/"]\')' in script
-    assert ".g01-hidden-mentions" in css
-    assert 'element.textContent.trim() === "All Conversations"' in script
-    assert 'label.textContent = "Conversations"' in script
-    assert 'if (label.textContent !== "Conversations")' in script
-    assert "g01-hidden-conversation-filter" in script
-    assert ".g01-conversations-single" in css
-    assert ".g01-conversations-primary" in css
+    assert '"Mentions", "Participating", "Unattended", "Folders", "Teams", "Channels", "Labels"' in script
+    assert "g01-hidden-conversation-tool" in script
+    assert ".g01-hidden-conversation-tool" in css
+    assert 'document.querySelectorAll("nav .i-woot-captain")' in script
+    assert 'hideSidebarEntries(["Captain", "Captain AI"], "g01-hidden-captain")' in script
+    assert ".g01-hidden-captain" in css
+    assert 'label.textContent = "Conversations"' not in script
     assert 'document.querySelectorAll("nav .i-lucide-contact")' in script
     assert ".g01-hidden-contacts" in css
     assert '".i-lucide-building-2", "g01-hidden-companies"' in script

@@ -901,51 +901,27 @@
     });
   }
 
-  function ensureMentionsHidden() {
-    document.querySelectorAll('nav a[href*="/mentions/"]').forEach(function (link) {
-      var item = link.closest("li");
-      (item || link).classList.add("g01-hidden-mentions");
+  function hideSidebarEntries(labels, className) {
+    document.querySelectorAll("nav span, nav div").forEach(function (element) {
+      if (element.children.length || labels.indexOf(element.textContent.trim()) === -1) return;
+      var item = element.closest("li");
+      if (item) item.classList.add(className);
     });
   }
 
-  function ensureSingleConversationButton() {
-    var link = document.querySelector('nav a[data-g01-conversations-button="true"]');
-    if (!link) {
-      link = Array.prototype.find.call(document.querySelectorAll("nav a"), function (candidate) {
-        return Array.prototype.some.call(candidate.querySelectorAll("span, div"), function (element) {
-          return !element.children.length && element.textContent.trim() === "All Conversations";
-        });
-      });
-    }
-    if (!link) return;
+  function ensureConversationToolsHidden() {
+    hideSidebarEntries(
+      ["Mentions", "Participating", "Unattended", "Folders", "Teams", "Channels", "Labels"],
+      "g01-hidden-conversation-tool"
+    );
+  }
 
-    var label =
-      link.querySelector('[data-g01-conversations-label="true"]') ||
-      Array.prototype.find.call(link.querySelectorAll("span, div"), function (element) {
-        return !element.children.length && element.textContent.trim() === "All Conversations";
-      });
-    if (label) {
-      label.dataset.g01ConversationsLabel = "true";
-      if (label.textContent !== "Conversations") label.textContent = "Conversations";
-    }
-    link.dataset.g01ConversationsButton = "true";
-    link.title = "Conversations";
-
-    var primaryItem = link.closest("li");
-    var group = primaryItem && primaryItem.parentElement;
-    while (group && group !== document.body) {
-      if (group.tagName === "LI" && group.classList.contains("group/sidebar-section")) break;
-      group = group.parentElement;
-    }
-    if (!group || group === document.body) return;
-
-    group.classList.add("g01-conversations-single");
-    primaryItem.classList.add("g01-conversations-primary");
-    group.querySelectorAll("li").forEach(function (item) {
-      if (item !== primaryItem && !item.contains(primaryItem)) {
-        item.classList.add("g01-hidden-conversation-filter");
-      }
+  function ensureCaptainHidden() {
+    document.querySelectorAll("nav .i-woot-captain").forEach(function (icon) {
+      var item = icon.closest("li");
+      if (item) item.classList.add("g01-hidden-captain");
     });
+    hideSidebarEntries(["Captain", "Captain AI"], "g01-hidden-captain");
   }
 
   function ensureContactsHidden() {
@@ -1025,8 +1001,8 @@
     ensureCommunityButton();
     ensureCommunitySearch();
     ensureCallsHidden();
-    ensureMentionsHidden();
-    ensureSingleConversationButton();
+    ensureConversationToolsHidden();
+    ensureCaptainHidden();
     ensureContactsHidden();
     ensureBusinessToolsHidden();
     ensureHelpCenterGuide();
@@ -1034,8 +1010,8 @@
       ensureCommunityButton();
       ensureCommunitySearch();
       ensureCallsHidden();
-      ensureMentionsHidden();
-      ensureSingleConversationButton();
+      ensureConversationToolsHidden();
+      ensureCaptainHidden();
       ensureContactsHidden();
       ensureBusinessToolsHidden();
       ensureHelpCenterGuide();
