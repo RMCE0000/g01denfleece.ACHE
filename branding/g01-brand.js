@@ -908,6 +908,46 @@
     });
   }
 
+  function ensureSingleConversationButton() {
+    var link = document.querySelector('nav a[data-g01-conversations-button="true"]');
+    if (!link) {
+      link = Array.prototype.find.call(document.querySelectorAll("nav a"), function (candidate) {
+        return Array.prototype.some.call(candidate.querySelectorAll("span, div"), function (element) {
+          return !element.children.length && element.textContent.trim() === "All Conversations";
+        });
+      });
+    }
+    if (!link) return;
+
+    var label =
+      link.querySelector('[data-g01-conversations-label="true"]') ||
+      Array.prototype.find.call(link.querySelectorAll("span, div"), function (element) {
+        return !element.children.length && element.textContent.trim() === "All Conversations";
+      });
+    if (label) {
+      label.dataset.g01ConversationsLabel = "true";
+      label.textContent = "Conversations";
+    }
+    link.dataset.g01ConversationsButton = "true";
+    link.title = "Conversations";
+
+    var primaryItem = link.closest("li");
+    var group = primaryItem && primaryItem.parentElement;
+    while (group && group !== document.body) {
+      if (group.tagName === "LI" && group.classList.contains("group/sidebar-section")) break;
+      group = group.parentElement;
+    }
+    if (!group || group === document.body) return;
+
+    group.classList.add("g01-conversations-single");
+    primaryItem.classList.add("g01-conversations-primary");
+    group.querySelectorAll("li").forEach(function (item) {
+      if (item !== primaryItem && !item.contains(primaryItem)) {
+        item.classList.add("g01-hidden-conversation-filter");
+      }
+    });
+  }
+
   function ensureContactsHidden() {
     document.querySelectorAll("nav .i-lucide-contact").forEach(function (icon) {
       var item = icon.closest("li");
@@ -986,6 +1026,7 @@
     ensureCommunitySearch();
     ensureCallsHidden();
     ensureMentionsHidden();
+    ensureSingleConversationButton();
     ensureContactsHidden();
     ensureBusinessToolsHidden();
     ensureHelpCenterGuide();
@@ -994,6 +1035,7 @@
       ensureCommunitySearch();
       ensureCallsHidden();
       ensureMentionsHidden();
+      ensureSingleConversationButton();
       ensureContactsHidden();
       ensureBusinessToolsHidden();
       ensureHelpCenterGuide();

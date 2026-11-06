@@ -455,6 +455,22 @@ nav ul.items-center .g01-community-label {
   display: none !important;
 }
 
+.g01-hidden-conversation-filter,
+.g01-conversations-single > :not(ul) {
+  display: none !important;
+}
+
+.g01-conversations-single > ul,
+.g01-conversations-primary {
+  margin-inline-start: 0 !important;
+  padding-inline-start: 0 !important;
+}
+
+.g01-conversations-primary::before,
+.g01-conversations-primary::after {
+  display: none !important;
+}
+
 .g01-hidden-contacts {
   display: none !important;
 }
