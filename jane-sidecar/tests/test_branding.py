@@ -56,6 +56,9 @@ def test_brand_assets_are_gold_and_white():
     assert 'hideSidebarEntries(["Captain", "Captain AI"], "g01-hidden-captain")' in script
     assert ".g01-hidden-captain" in css
     assert 'label.textContent = "Conversations"' not in script
+    assert ".reply-box [data-placeholder]" in script
+    assert 'value.indexOf("Canned Response") === -1' in script
+    assert "to select a Canned Response" in script
     assert 'document.querySelectorAll("nav .i-lucide-contact")' in script
     assert ".g01-hidden-contacts" in css
     assert '".i-lucide-building-2", "g01-hidden-companies"' in script

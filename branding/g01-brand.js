@@ -924,6 +924,23 @@
     hideSidebarEntries(["Captain", "Captain AI"], "g01-hidden-captain");
   }
 
+  function ensureComposerHint() {
+    [".reply-box [data-placeholder]", ".reply-box [placeholder]", ".reply-box [aria-placeholder]"].forEach(
+      function (selector) {
+        document.querySelectorAll(selector).forEach(function (element) {
+          ["data-placeholder", "placeholder", "aria-placeholder"].forEach(function (attribute) {
+            var value = element.getAttribute(attribute);
+            if (!value || value.indexOf("Canned Response") === -1) return;
+            element.setAttribute(
+              attribute,
+              value.replace(/\s*Start with ['"]?\/['"]? to select a Canned Response\.?/i, "").trim()
+            );
+          });
+        });
+      }
+    );
+  }
+
   function ensureContactsHidden() {
     document.querySelectorAll("nav .i-lucide-contact").forEach(function (icon) {
       var item = icon.closest("li");
@@ -1003,6 +1020,7 @@
     ensureCallsHidden();
     ensureConversationToolsHidden();
     ensureCaptainHidden();
+    ensureComposerHint();
     ensureContactsHidden();
     ensureBusinessToolsHidden();
     ensureHelpCenterGuide();
@@ -1012,6 +1030,7 @@
       ensureCallsHidden();
       ensureConversationToolsHidden();
       ensureCaptainHidden();
+      ensureComposerHint();
       ensureContactsHidden();
       ensureBusinessToolsHidden();
       ensureHelpCenterGuide();
