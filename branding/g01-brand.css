@@ -735,6 +735,8 @@ button:has(.i-woot-captain),
 .g01-hidden-profile-docs,
 .n-dropdown-item:has(.i-lucide-book),
 .n-dropdown-item:has(a[href*="chatwoot.com/hc"]),
+.n-dropdown-item:has(.i-lucide-scroll-text),
+.n-dropdown-item:has(a[href*="chatwoot.com/changelog"]),
 .g01-hidden-message-menu-item,
 .menu-container .menu:has(path[d^="M16.953 5.303"]),
 .menu-container .menu:has(path[d^="M12.022 3a6.473"]) {

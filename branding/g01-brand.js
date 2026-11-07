@@ -1111,7 +1111,14 @@
     var element = eventElement(node);
     var item = element && element.closest ? element.closest(".n-dropdown-item") : null;
     if (!item) return null;
-    if (item.querySelector(".i-lucide-book") || item.querySelector('a[href*="chatwoot.com/hc"]')) return item;
+    if (
+      item.querySelector(".i-lucide-book") ||
+      item.querySelector('a[href*="chatwoot.com/hc"]') ||
+      item.querySelector(".i-lucide-scroll-text") ||
+      item.querySelector('a[href*="chatwoot.com/changelog"]')
+    ) {
+      return item;
+    }
     return null;
   }
 

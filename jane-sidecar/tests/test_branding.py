@@ -102,8 +102,10 @@ def test_brand_assets_are_gold_and_white():
     assert ".g01-hidden-profile-docs" in css
     assert ".n-dropdown-item:has(.i-lucide-book)" in css
     assert 'a[href*="chatwoot.com/hc"]' in css
-    assert "v=52" in initializer
-    assert "v=51" not in initializer
+    assert ".n-dropdown-item:has(.i-lucide-scroll-text)" in css
+    assert 'a[href*="chatwoot.com/changelog"]' in css
+    assert "v=53" in initializer
+    assert "v=52" not in initializer
     assert "function contactListItem" in script
     assert "function ensureContactSectionsHidden" in script
     assert '"conversation actions": true' in script
