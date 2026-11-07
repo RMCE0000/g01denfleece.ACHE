@@ -82,7 +82,10 @@
   --label-background: 43 36 29;
 }
 
-html,
+html {
+  background: #7a5e24 !important;
+}
+
 body,
 #app,
 .v3-app {

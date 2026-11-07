@@ -74,6 +74,9 @@ def test_brand_assets_are_gold_and_white():
     assert "max-height: 100dvh !important" in css
     assert "def resize_with_keyboard" in initializer
     assert "interactive-widget=resizes-content" in initializer
+    assert "def paint_phone_chrome" in initializer
+    assert 'name="theme-color" content="#7a5e24"' in initializer
+    assert "html {\n  background: #7a5e24 !important;\n}" in css
     assert 'font-family: "G01 Login"' in css
     assert "/g01-login-serif-500.woff2?v=49" in css
     assert "/g01-login-serif-600.woff2?v=49" in css
@@ -117,8 +120,8 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=56" in initializer
-    assert "v=55" not in initializer
+    assert "v=57" in initializer
+    assert "v=56" not in initializer
     assert "function contactListItem" in script
     assert "function ensureContactSectionsHidden" in script
     assert '"conversation actions": true' in script
