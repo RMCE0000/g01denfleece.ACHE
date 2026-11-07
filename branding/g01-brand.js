@@ -28,6 +28,7 @@
   }
 
   var g01Silent = null;
+  var allowDashboardSoundUntil = 0;
   var nativeAudioPlay = window.Audio && Audio.prototype.play;
   if (nativeAudioPlay) {
     Audio.prototype.play = function () {
@@ -35,10 +36,26 @@
       try {
         src = this.currentSrc || this.src || "";
       } catch (error) {}
-      if (dashboardSoundIsSilent() && /\/audio\/dashboard\//.test(src)) return Promise.resolve();
+      if (
+        dashboardSoundIsSilent() &&
+        Date.now() > allowDashboardSoundUntil &&
+        /\/audio\/dashboard\//.test(src)
+      ) {
+        return Promise.resolve();
+      }
       return nativeAudioPlay.apply(this, arguments);
     };
   }
+  document.addEventListener(
+    "click",
+    function (event) {
+      var element = event.target && event.target.nodeType === 1 ? event.target : event.target && event.target.parentElement;
+      var button = element && element.closest && element.closest("button");
+      if (!button || !button.querySelector(".i-lucide-volume-2")) return;
+      allowDashboardSoundUntil = Date.now() + 1500;
+    },
+    true
+  );
 
   function isBrandLogo(src) {
     return /brand-assets\/logo|logo_dark|logo_thumbnail|\/logo\.svg(?:$|\?)|\/g01-(?:mark|favicon)/i.test(src || "");
@@ -1164,9 +1181,10 @@
   }
 
   function dashboardSoundIsSilent() {
+    if (g01Silent !== null) return g01Silent === true;
     var boxes = eventInputs();
     if (boxes.length) return boxes.every(function (input) { return !input.checked; });
-    return g01Silent === true;
+    return false;
   }
 
   function sectionHeading(section) {
@@ -1182,26 +1200,93 @@
     return null;
   }
 
-  function alignAudioChecks(silent, done) {
-    var steps = [];
-    if (!silent) {
-      var inactive = eventInput("condition-tab_is_inactive");
-      if (inactive && inactive.checked) steps.push(inactive);
+  function audioNotificationSetup() {
+    var root = document.querySelector("#app");
+    var app = root && root.__vue_app__;
+    var instance = app && app._instance;
+    var found = null;
+    var seen = [];
+    function visit(vnode) {
+      if (!vnode || found || seen.indexOf(vnode) !== -1) return;
+      seen.push(vnode);
+      var component = vnode.component;
+      if (component && seen.indexOf(component) === -1) {
+        seen.push(component);
+        var state = component.setupState;
+        if (state && (state.handleAudioConfigChange || state.handAudioAlertChange)) {
+          found = state;
+          return;
+        }
+        visit(component.subTree);
+      }
+      var children = vnode.children;
+      if (Array.isArray(children)) children.forEach(visit);
+      else if (children && typeof children === "object") visit(children);
     }
-    eventInputs().forEach(function (input) {
-      if (input.checked === silent) steps.push(input);
+    if (instance) visit(instance.subTree);
+    return found;
+  }
+
+  function hideNotificationBanners() {
+    document.querySelectorAll("[popover]").forEach(function (popover) {
+      if (!/notification preferences are updated/i.test(popover.textContent || "")) return;
+      if (popover.hidePopover) popover.hidePopover();
+      popover.style.setProperty("display", "none", "important");
     });
-    var index = 0;
-    function next() {
-      if (index >= steps.length) {
-        if (done) done();
+  }
+
+  function withoutNotificationBanners(work) {
+    var observer = document.body
+      ? new MutationObserver(hideNotificationBanners)
+      : null;
+    if (observer) observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    try {
+      work();
+    } finally {
+      window.setTimeout(hideNotificationBanners, 0);
+      window.setTimeout(function () {
+        hideNotificationBanners();
+        if (observer) observer.disconnect();
+      }, 800);
+    }
+  }
+
+  function saveSilentRequest(silent) {
+    var headers = authHeaders();
+    fetch("/api/v1/profile", { headers: headers, credentials: "same-origin" })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (profile) {
+        if (!profile) return null;
+        var settings = Object.assign({}, profile.ui_settings || (profile.data && profile.data.ui_settings) || {});
+        settings.enable_audio_alerts = silent ? "none" : "all";
+        settings.always_play_audio_alert = !silent;
+        return fetch("/api/v1/profile", {
+          method: "PUT",
+          credentials: "same-origin",
+          headers: headers,
+          body: JSON.stringify({ profile: { ui_settings: settings } }),
+        });
+      })
+      .catch(function () {});
+  }
+
+  function saveSilent(silent) {
+    var setup = audioNotificationSetup();
+    withoutNotificationBanners(function () {
+      if (setup && setup.handleAudioConfigChange) {
+        setup.handleAudioConfigChange({
+          enable_audio_alerts: silent ? "none" : "all",
+          always_play_audio_alert: !silent,
+        });
         return;
       }
-      steps[index].click();
-      index += 1;
-      window.setTimeout(next, 60);
-    }
-    next();
+      if (setup && setup.handAudioAlertChange) {
+        setup.handAudioAlertChange(silent ? "none" : "all");
+        if (!silent && setup.handleAudioAlertConditions) setup.handleAudioAlertConditions("tab_is_inactive", false);
+        return;
+      }
+      saveSilentRequest(silent);
+    });
   }
 
   var silentProfileRequested = false;
@@ -1255,9 +1340,14 @@
     var heading = section.querySelector("h4");
     if (heading && heading.textContent.trim() !== "Notifications") heading.textContent = "Notifications";
     var note = section.querySelector("header p");
-    if (note) note.textContent = "Silent turns message sounds off.";
+    if (note) note.textContent = "Choose a notification sound, or turn Silent on to mute it.";
     var form = section.querySelector("#profile-settings-notifications");
-    if (form) form.classList.add("g01-hidden-notification-form");
+    if (form) {
+      Array.prototype.forEach.call(form.children, function (child) {
+        if (child.querySelector(".i-lucide-volume-2")) return;
+        child.classList.add("g01-hidden-notification-form");
+      });
+    }
     var row = section.querySelector("#g01-silent-row");
     if (!row) {
       row = document.createElement("label");
@@ -1278,9 +1368,10 @@
       input.addEventListener("change", function () {
         g01Silent = input.checked;
         silentApplying = true;
-        alignAudioChecks(input.checked, function () {
+        saveSilent(input.checked);
+        window.setTimeout(function () {
           silentApplying = false;
-        });
+        }, 300);
       });
       control.appendChild(input);
       control.appendChild(document.createElement("i"));
