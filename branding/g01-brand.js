@@ -1,6 +1,6 @@
 (function () {
   var LOGO = "/g01-logo.png";
-  var MARK = "/g01-favicon.png?v=6";
+  var MARK = "/g01-favicon.png?v=58";
 
   function savedColorScheme() {
     try {
@@ -70,10 +70,34 @@
       img.src = /thumbnail|g01-(?:mark|favicon)/i.test(src) ? MARK : LOGO;
       img.alt = "g01";
     });
-    document.querySelectorAll('link[rel~="icon"]').forEach(function (link) {
+    pinTabIcons();
+  }
+
+  function tabIcon(link) {
+    if (!link || !link.tagName || link.tagName !== "LINK") return false;
+    var rel = (link.getAttribute("rel") || "").toLowerCase();
+    return link.classList.contains("favicon") || rel.indexOf("icon") !== -1;
+  }
+
+  // Chatwoot rewrites .favicon to /favicon-*.png when the tab is shown again
+  // and to /favicon-badge-*.png when a notification arrives.
+  function pinTabIcon(link) {
+    if (!tabIcon(link)) return;
+    if ((link.getAttribute("href") || "").indexOf("g01-favicon.png") === -1) {
       link.href = MARK;
       link.type = "image/png";
-    });
+    }
+    if (link.classList.contains("favicon")) link.classList.remove("favicon");
+  }
+
+  function pinTabIcons() {
+    document.querySelectorAll("link").forEach(pinTabIcon);
+  }
+
+  function pinTabTitle() {
+    if (!document.title || !/chatwoot/i.test(document.title)) return;
+    var next = document.title.replace(/chatwoot/gi, "g01");
+    if (next !== document.title) document.title = next;
   }
 
   function enhanceAudioPlayers(scope) {
@@ -464,6 +488,8 @@
   }
 
   function watch() {
+    pinTabIcons();
+    pinTabTitle();
     brandImages(document);
     classifyMessages(document);
     enhanceAudioPlayers(document);
@@ -480,6 +506,26 @@
         });
       });
     }).observe(document.body, { childList: true, subtree: true });
+    new MutationObserver(function (records) {
+      records.forEach(function (record) {
+        if (record.type === "attributes") pinTabIcon(record.target);
+        if (!record.addedNodes) return;
+        record.addedNodes.forEach(function (node) {
+          if (!node || node.nodeType !== 1) return;
+          pinTabIcon(node);
+          if (node.querySelectorAll) node.querySelectorAll("link").forEach(pinTabIcon);
+        });
+      });
+    }).observe(document.head, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["href", "rel", "class"]
+    });
+    var titleNode = document.querySelector("title");
+    if (titleNode) {
+      new MutationObserver(pinTabTitle).observe(titleNode, { childList: true, characterData: true, subtree: true });
+    }
     window.setTimeout(function () {
       classifyMessages(document);
     }, 1000);
