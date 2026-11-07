@@ -80,8 +80,12 @@ def test_brand_assets_are_gold_and_white():
     assert "color: #8e98a6 !important" in css
     assert (ROOT / "branding" / "fonts" / "g01-login-serif-500.woff2").read_bytes().startswith(b"wOF2")
     assert (ROOT / "branding" / "fonts" / "g01-login-serif-600.woff2").read_bytes().startswith(b"wOF2")
-    assert "v=49" in initializer
-    assert "v=48" not in initializer
+    assert "function dismissOpenEmojiPicker" in script
+    assert "function installEmojiPickerDismiss" in script
+    assert 'element.closest(".emoji-dialog")' in script
+    assert '".reply-box .i-ph-smiley-sticker"' in script
+    assert "v=50" in initializer
+    assert "v=49" not in initializer
     assert "function contactListItem" in script
     assert "function ensureContactSectionsHidden" in script
     assert '"conversation actions": true' in script

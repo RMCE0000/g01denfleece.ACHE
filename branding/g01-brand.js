@@ -1287,12 +1287,59 @@
     }, true);
   }
 
+  var emojiPickerDismissUntil = 0;
+
+  function eventElement(target) {
+    if (!target) return null;
+    return target.nodeType === 1 ? target : target.parentElement;
+  }
+
+  // A tap on an emoji inserts it, but iPhone does not treat that tap as an
+  // outside click, so the picker stays open. Close it with the same button
+  // that opened it, after the editor has taken the character.
+  function dismissOpenEmojiPicker() {
+    if (!document.querySelector(".emoji-dialog")) return;
+    var icon = document.querySelector(".reply-box .i-ph-smiley-sticker");
+    var opener = icon && icon.closest("button");
+    if (!opener) return;
+    opener.click();
+    emojiPickerDismissUntil = Date.now() + 500;
+  }
+
+  function installEmojiPickerDismiss() {
+    document.addEventListener(
+      "click",
+      function (event) {
+        var element = eventElement(event.target);
+        if (!element || !element.closest) return;
+        var opener = element.closest("button");
+        if (
+          event.isTrusted &&
+          opener &&
+          opener.querySelector(".i-ph-smiley-sticker") &&
+          Date.now() < emojiPickerDismissUntil
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          return;
+        }
+        var dialog = element.closest(".emoji-dialog");
+        if (!dialog || !opener || !dialog.contains(opener)) return;
+        window.setTimeout(dismissOpenEmojiPicker, 0);
+      },
+      true
+    );
+  }
+
   function bootCommunity() {
     try {
       installCollapsedConversationMenuGuard();
     } catch (error) {}
     try {
       installMessageMenuGuard();
+    } catch (error) {}
+    try {
+      installEmojiPickerDismiss();
     } catch (error) {}
     try {
       watchCommunity();
