@@ -27,6 +27,19 @@
     if (root.style.colorScheme !== scheme) root.style.colorScheme = scheme;
   }
 
+  var g01Silent = null;
+  var nativeAudioPlay = window.Audio && Audio.prototype.play;
+  if (nativeAudioPlay) {
+    Audio.prototype.play = function () {
+      var src = "";
+      try {
+        src = this.currentSrc || this.src || "";
+      } catch (error) {}
+      if (dashboardSoundIsSilent() && /\/audio\/dashboard\//.test(src)) return Promise.resolve();
+      return nativeAudioPlay.apply(this, arguments);
+    };
+  }
+
   function isBrandLogo(src) {
     return /brand-assets\/logo|logo_dark|logo_thumbnail|\/logo\.svg(?:$|\?)|\/g01-(?:mark|favicon)/i.test(src || "");
   }
@@ -1139,6 +1152,154 @@
     );
   }
 
+  function eventInput(name) {
+    var node = document.getElementById("checkbox-" + name);
+    if (!node) return null;
+    if (node.tagName === "INPUT") return node;
+    return node.querySelector("input");
+  }
+
+  function eventInputs() {
+    return ["assigned", "unassigned", "notme"].map(eventInput).filter(Boolean);
+  }
+
+  function dashboardSoundIsSilent() {
+    var boxes = eventInputs();
+    if (boxes.length) return boxes.every(function (input) { return !input.checked; });
+    return g01Silent === true;
+  }
+
+  function sectionHeading(section) {
+    var heading = section && section.querySelector("h4");
+    return heading ? heading.textContent.replace(/\s+/g, " ").trim().toLowerCase() : "";
+  }
+
+  function sectionByHeading(label) {
+    var sections = document.querySelectorAll("section");
+    for (var i = 0; i < sections.length; i++) {
+      if (sectionHeading(sections[i]) === label) return sections[i];
+    }
+    return null;
+  }
+
+  function alignAudioChecks(silent, done) {
+    var steps = [];
+    if (!silent) {
+      var inactive = eventInput("condition-tab_is_inactive");
+      if (inactive && inactive.checked) steps.push(inactive);
+    }
+    eventInputs().forEach(function (input) {
+      if (input.checked === silent) steps.push(input);
+    });
+    var index = 0;
+    function next() {
+      if (index >= steps.length) {
+        if (done) done();
+        return;
+      }
+      steps[index].click();
+      index += 1;
+      window.setTimeout(next, 60);
+    }
+    next();
+  }
+
+  var silentProfileRequested = false;
+  var silentApplying = false;
+
+  function authHeaders() {
+    var headers = { Accept: "application/json", "Content-Type": "application/json" };
+    var parts = document.cookie ? document.cookie.split("; ") : [];
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i].indexOf("cw_d_session_info=") !== 0) continue;
+      var value = parts[i].slice("cw_d_session_info=".length);
+      var data = null;
+      try {
+        data = JSON.parse(decodeURIComponent(value));
+      } catch (error) {
+        try {
+          data = JSON.parse(value);
+        } catch (parseError) {}
+      }
+      if (!data) break;
+      ["access-token", "token-type", "client", "expiry", "uid"].forEach(function (key) {
+        if (data[key]) headers[key] = data[key];
+      });
+      break;
+    }
+    var csrf = document.querySelector('meta[name="csrf-token"]');
+    if (csrf && csrf.content) headers["X-CSRF-Token"] = csrf.content;
+    return headers;
+  }
+
+  function loadSilentPreference() {
+    if (silentProfileRequested || onLoginPage()) return;
+    silentProfileRequested = true;
+    fetch("/api/v1/profile", { headers: authHeaders(), credentials: "same-origin" })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (profile) {
+        var settings = profile && (profile.ui_settings || (profile.data && profile.data.ui_settings));
+        if (!settings || eventInputs().length) return;
+        var alerts = settings.enable_audio_alerts;
+        g01Silent = !alerts || alerts === "none";
+      })
+      .catch(function () {});
+  }
+
+  function ensureSilentToggle() {
+    var section = document.querySelector("[data-g01-notifications='true']") || sectionByHeading("audio alerts");
+    var preferences = sectionByHeading("notification preferences");
+    if (preferences) preferences.classList.add("g01-hidden-notification-preferences");
+    if (!section) return;
+    section.dataset.g01Notifications = "true";
+    var heading = section.querySelector("h4");
+    if (heading && heading.textContent.trim() !== "Notifications") heading.textContent = "Notifications";
+    var note = section.querySelector("header p");
+    if (note) note.textContent = "Silent turns message sounds off.";
+    var form = section.querySelector("#profile-settings-notifications");
+    if (form) form.classList.add("g01-hidden-notification-form");
+    var row = section.querySelector("#g01-silent-row");
+    if (!row) {
+      row = document.createElement("label");
+      row.id = "g01-silent-row";
+      row.className = "g01-silent-row";
+      var copy = document.createElement("span");
+      var title = document.createElement("strong");
+      title.textContent = "Silent";
+      var detail = document.createElement("span");
+      detail.textContent = "Mute sounds for new messages.";
+      copy.appendChild(title);
+      copy.appendChild(detail);
+      var control = document.createElement("span");
+      control.className = "g01-silent-switch";
+      var input = document.createElement("input");
+      input.id = "g01-silent-input";
+      input.type = "checkbox";
+      input.addEventListener("change", function () {
+        g01Silent = input.checked;
+        silentApplying = true;
+        alignAudioChecks(input.checked, function () {
+          silentApplying = false;
+        });
+      });
+      control.appendChild(input);
+      control.appendChild(document.createElement("i"));
+      row.appendChild(copy);
+      row.appendChild(control);
+      if (form && form.parentElement) form.parentElement.insertBefore(row, form);
+      else section.appendChild(row);
+    }
+    var toggle = document.getElementById("g01-silent-input");
+    if (!toggle || silentApplying) return;
+    var boxes = eventInputs();
+    if (!boxes.length) {
+      if (g01Silent !== null) toggle.checked = g01Silent;
+      return;
+    }
+    g01Silent = boxes.every(function (box) { return !box.checked; });
+    toggle.checked = g01Silent;
+  }
+
   function ensureBusinessToolsHidden() {
     [
       [".i-lucide-building-2", "g01-hidden-companies"],
@@ -1293,6 +1454,7 @@
     ensureContactsHidden();
     ensureBusinessToolsHidden();
     ensureProfileDocsHidden();
+    ensureSilentToggle();
     ensureHelpCenterGuide();
     installMessageMenuGuard();
     ensureContactSectionsHidden();
@@ -1306,6 +1468,7 @@
       ensureContactsHidden,
       ensureBusinessToolsHidden,
       ensureProfileDocsHidden,
+      ensureSilentToggle,
       ensureHelpCenterGuide,
       ensureMessageMenuTrimmed,
       ensureCollapsedConversationMenuHidden,
@@ -1401,6 +1564,9 @@
     } catch (error) {}
     try {
       installEmojiPickerDismiss();
+    } catch (error) {}
+    try {
+      loadSilentPreference();
     } catch (error) {}
     try {
       watchCommunity();

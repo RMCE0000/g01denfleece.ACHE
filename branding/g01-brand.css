@@ -737,11 +737,90 @@ button:has(.i-woot-captain),
 .n-dropdown-item:has(a[href*="chatwoot.com/hc"]),
 .n-dropdown-item:has(.i-lucide-scroll-text),
 .n-dropdown-item:has(a[href*="chatwoot.com/changelog"]),
+.g01-hidden-notification-form,
+.g01-hidden-notification-preferences,
 .g01-hidden-message-menu-item,
 .menu-container .menu:has(path[d^="M16.953 5.303"]),
 .menu-container .menu:has(path[d^="M12.022 3a6.473"]) {
   display: none !important;
   pointer-events: none !important;
+}
+
+.g01-silent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 36rem;
+  cursor: pointer;
+}
+
+.g01-silent-row strong {
+  display: block;
+  color: #2a2418;
+  font-size: 0.95rem;
+}
+
+.g01-silent-row strong + span {
+  display: block;
+  margin-top: 0.15rem;
+  color: #5c5346;
+  font-size: 0.875rem;
+}
+
+.g01-silent-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 2.75rem;
+  height: 1.5rem;
+}
+
+.g01-silent-switch input {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.g01-silent-switch i {
+  display: block;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: #d9d3c7;
+}
+
+.g01-silent-switch i::after {
+  content: "";
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 999px;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+
+.g01-silent-switch input:checked + i {
+  background: #7a5e24;
+}
+
+.g01-silent-switch input:checked + i::after {
+  transform: translateX(1.2rem);
+}
+
+body.dark .g01-silent-row strong {
+  color: #f4efe6;
+}
+
+body.dark .g01-silent-row strong + span {
+  color: #d6cbb8;
+}
+
+body.dark .g01-silent-switch i {
+  background: #3a3228;
 }
 
 [data-g01-community-search="true"] span:not(.i-lucide-search) {

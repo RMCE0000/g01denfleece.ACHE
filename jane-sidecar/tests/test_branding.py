@@ -104,8 +104,16 @@ def test_brand_assets_are_gold_and_white():
     assert 'a[href*="chatwoot.com/hc"]' in css
     assert ".n-dropdown-item:has(.i-lucide-scroll-text)" in css
     assert 'a[href*="chatwoot.com/changelog"]' in css
-    assert "v=53" in initializer
-    assert "v=52" not in initializer
+    assert "function ensureSilentToggle" in script
+    assert "function dashboardSoundIsSilent" in script
+    assert "function alignAudioChecks" in script
+    assert 'title.textContent = "Silent"' in script
+    assert 'heading.textContent = "Notifications"' in script
+    assert "g01-hidden-notification-preferences" in script
+    assert ".g01-hidden-notification-form" in css
+    assert ".g01-silent-row" in css
+    assert "v=54" in initializer
+    assert "v=53" not in initializer
     assert "function contactListItem" in script
     assert "function ensureContactSectionsHidden" in script
     assert '"conversation actions": true' in script
