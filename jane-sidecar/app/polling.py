@@ -43,13 +43,39 @@ def _local_day(now: datetime, settings: Settings):
     return now.astimezone(ZoneInfo(settings.poll_timezone)).date()
 
 
+_POLL_STATUS = re.compile(
+    r"\b(?:do you have|got any|any polls?|polls? for me|what polls?)\b",
+    re.I,
+)
+_COMMUNITY_ASK = re.compile(
+    r"\b(?:does|do|would)\s+(?:anybody|anyone|any of you)\b"
+    r"|\bwho\s+(?:wants|needs)\b"
+    r"|\bwill\s+(?:anybody|anyone)\b"
+    r"|\bask\s+(?:the\s+)?(?:community|neighbors|other homesteads|homesteads)\b"
+    r"|\b(?:take|run|start)\s+a\s+poll\b"
+    r"|\bpoll\s+the\b",
+    re.I,
+)
+def wants_community(text: str) -> bool:
+    """True when they are asking the other homesteads something. The harness writes the question."""
+    cleaned = " ".join((text or "").split())
+    return bool(cleaned and _COMMUNITY_ASK.search(cleaned))
+
+
 def _poll_prompt(question: str) -> str:
-    return f"Jane poll: {question}\nReply in this private thread with your answer."
+    return f"{question}\nYou can answer here."
+
+
+def _asked_confirmation(question: str) -> str:
+    return f"I asked the other homesteads: {question}"
 
 
 async def _deliver_added(store, poll: dict, recipients: list[dict]) -> None:
     prompt = _poll_prompt(poll["question"])
+    requester = poll.get("requester_property_id")
     for recipient in recipients:
+        if requester and recipient.get("property_id") == requester:
+            continue
         conversation_id = recipient.get("conversation_id")
         if conversation_id is not None:
             await deliver(store, int(conversation_id), prompt)
@@ -246,13 +272,35 @@ async def handle_private_poll_message(store, message: dict) -> str | None:
         question = command.group(1) or DEFAULT_POLL_MODE_QUESTION
         result = await create_requested_poll(store, prop, question)
         if result["recipients_added"]:
-            return _poll_prompt(result["poll"]["question"])
-        reply = "Poll mode could not find any private Jane threads to ask."
+            reply = _asked_confirmation(result["poll"]["question"])
+        else:
+            reply = "I could not find any private threads to ask."
         await deliver(store, conversation_id, reply)
         return reply
 
+    # A community ask and a "any polls?" question are ordinary turns. The harness
+    # writes the question and the reply. Do not treat either as a poll answer.
+    if wants_community(content) or _POLL_STATUS.search(content):
+        return None
+
     pending = await store.pending_community_polls(prop["id"])
     if not pending:
+        return None
+    explicit_answer = re.match(r"^poll(?:\s+answer)?\s*:\s*(.+)$", content, re.I | re.S)
+    answer_content = explicit_answer.group(1).strip() if explicit_answer else content
+    # Sponsor applications are multi-turn forms. Keep their unlabeled next
+    # answer in that workflow; POLL: remains available to answer the poll.
+    if prop.get("sponsor_draft") and explicit_answer is None:
+        return None
+    # A daily question should not swallow an explicit product workflow. Users
+    # can also address Jane by name to leave the poll pending and ask anything.
+    if re.match(r"^jane[\s,:-]", content, re.I) or re.search(
+        r"\b(verify my identity|identity verification|start kyc|what are my scores|north star|"
+        r"become a sponsor|register as a sponsor|cancel (the |my )?sponsor|"
+        r"where can i (get|buy|find|source)|poll mode)\b",
+        content,
+        re.I,
+    ) or re.match(r"^demand\s+[0-9a-f-]{36}\s*:", content, re.I):
         return None
     # The most recently delivered question is the one visible at the bottom of
     # the private thread, so the next reply belongs to that poll.
@@ -264,13 +312,24 @@ async def handle_private_poll_message(store, message: dict) -> str | None:
         speaker=message.get("speaker") or "Homesteader",
         content=content,
     )
-    answer = await store.answer_community_poll(poll["id"], prop["id"], content)
+    answer = await store.answer_community_poll(poll["id"], prop["id"], answer_content)
     if answer is None:
         return None
+    from app.harness import speak
+
     remaining = await store.pending_community_polls(prop["id"])
-    reply = "Thanks. Your poll answer is recorded."
+    reply = await speak(
+        store,
+        message,
+        prop=prop,
+        note=(
+            "You recorded this homesteader's answer to the community question. "
+            "Acknowledge that in your own words. Do not invent anyone else's answer."
+        ),
+        allow_community=False,
+    )
     if remaining:
-        reply += f"\n\nNext Jane poll: {remaining[0]['question']}"
+        reply = f"{reply}\n\nThe next question is: {remaining[0]['question']}"
     await deliver(store, conversation_id, reply)
     return reply
 

@@ -8,5 +8,13 @@ www.g01denfleece.com {
 }
 
 g01denfleece.com {
-	reverse_proxy rails:3000
+	# This is the only Jane route exposed publicly. Stripe signatures are
+	# verified by the sidecar before an event can change sponsorship or KYC.
+	handle /webhooks/stripe {
+		reverse_proxy jane:8000
+	}
+
+	handle {
+		reverse_proxy rails:3000
+	}
 }

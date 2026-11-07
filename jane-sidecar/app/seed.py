@@ -133,6 +133,7 @@ def _sponsor(**kwargs) -> dict:
         "stripe_customer_id": None,
         "stripe_subscription_id": None,
         "applied_promo_code": None,
+        "promo_consumed_at": None,
         "is_active_sponsor": True,
         "created_at": datetime.now(timezone.utc),
         "capabilities_embedding": None,

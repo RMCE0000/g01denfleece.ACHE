@@ -8,7 +8,7 @@ from app.constitution import JANE_CONSTITUTION, JANE_SYSTEM_PROMPT
 from app.heuristic import detect_service_tag
 from app.northstar import NorthStar, automated_pct_from_hours
 from app.sanitize import sanitize_reply
-from app.sourcing import rank_sponsor_rows, recommendation_score, sponsor_matches_tag, sponsor_rejection_reason
+from app.sourcing import format_ladder, rank_sponsor_rows, recommendation_score, sponsor_matches_tag, sponsor_rejection_reason
 
 ROOT = Path(__file__).resolve().parents[2]
 SQL = (ROOT / "sql" / "001_init_g01_schema.sql").read_text(encoding="utf-8")
@@ -77,6 +77,8 @@ def test_arbitrary_goods_and_services_are_detected_and_matched():
     }
 
     assert detect_service_tag("Where can I get tomatoes?") == "tomatoes"
+    assert detect_service_tag("Where can I get a chicken coop?") == "chicken_coop"
+    assert detect_service_tag("I am thinking about doing chickens... will anybody around here buy my eggs?") is None
     assert detect_service_tag("I need 3D printed widgets locally.") == "3d_printed_widgets"
     assert sponsor_matches_tag(profile, "tomatoes")
     assert sponsor_matches_tag(profile, "3d_printed_widgets")
@@ -151,6 +153,33 @@ def test_fair_rotation_and_franchise_filter():
     ) is None
 
 
+def test_user_facing_sponsor_result_hides_internal_ranking():
+    reply = format_ladder(
+        "lumber",
+        [
+            {
+                "company_name": "G01 Test Garden Works",
+                "capabilities_summary": "Provides locally made raised-bed materials.",
+                "sourcing_tier": "local_manufacturer",
+                "tier_weight": 0.85,
+                "score": 0.85,
+                "distance_miles": 0,
+                "referrals_last_14d": 0,
+            }
+        ],
+    )
+    assert reply.startswith("G01 Test Garden Works — Provides locally made raised-bed materials.")
+    assert "Start with this sponsor." in reply
+    assert "another local source" in reply
+    assert "encourage the relationship with the sponsor" in reply
+    for internal in ("tier", "weight", "score", "miles", "referrals", "0.85"):
+        assert internal not in reply.casefold()
+    empty = format_ladder("chicken coop", [])
+    assert empty.startswith("I don't have an active g01 sponsor for chicken coop")
+    assert "The best option is a locally owned source in your city" in empty
+    assert "encourage a sponsor relationship" in empty
+
+
 def test_retailer_sentences_are_removed_whole():
     cleaned = sanitize_reply("Buy it at https://www.amazon.com/dp/example today.\nTier 1 stays.")
     assert "amazon" not in cleaned.casefold()
@@ -176,6 +205,11 @@ def test_showcase_constitution_is_short_and_local():
         "Rogers, Arkansas",
         "said your name",
         "only here in this chat",
+        "Be a kind peer",
+        "water catchment",
+        "exact username",
+        "Do not mention tier weights",
+        "While a sponsorship application is open",
     ):
         assert phrase in JANE_CONSTITUTION
     assert "JSON object" not in JANE_CONSTITUTION
@@ -222,4 +256,6 @@ def test_constitution_and_sql_keep_the_rules():
         "vector(768)",
     ):
         assert phrase in SQL
+    assert "seed.lng, FALSE" in SQL
+    assert "SET is_active_sponsor = FALSE" in SQL
     assert "amazon.com" not in SQL.lower()

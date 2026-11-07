@@ -1,5 +1,5 @@
 #!/bin/sh
-# Run on the droplet after the production Compose stack is up and DNS points at it.
+# Run on the VM after the production Compose stack is up and DNS points at it.
 set -eu
 
 dc() {
@@ -36,5 +36,10 @@ curl -fsS http://127.0.0.1:8000/health |
   python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["ok"] and data["showcase"] == "minimum" and data["llm"] == "gemini" and data["gemini_configured"]'
 curl -fsS https://g01denfleece.com/api |
   python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["queue_services"] == "ok" and data["data_services"] == "ok"'
+stripe_status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST https://g01denfleece.com/webhooks/stripe)
+[ "$stripe_status" = "400" ] || {
+  echo "Stripe webhook route returned HTTP $stripe_status instead of signature-required HTTP 400" >&2
+  exit 1
+}
 
 echo "g01 production services are ready"

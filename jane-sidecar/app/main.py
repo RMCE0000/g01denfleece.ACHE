@@ -13,6 +13,7 @@ from app.community import bridge_actor, community_state, start_connection
 from app.config import get_settings
 from app.errors import G01Error
 from app.homesteaders import open_peer_conversation, provision_homesteader, register_homesteader, sync_workspace_metadata
+from app.jobs import collaboration_scheduler, demand_poll_scheduler
 from app.matchmaking import matchmaking_scheduler
 from app.payments import apply_stripe_event
 from app.polling import poll_scheduler
@@ -70,7 +71,9 @@ async def lifespan(app: FastAPI):
     set_store(store)
     lease = None
     poll_task = None
+    demand_poll_task = None
     match_task = None
+    collaboration_task = None
     if settings.database_url and override is None:
         lease = await open_checkpointer(settings.database_url)
         current_checkpointer.set(lease.saver)
@@ -94,8 +97,16 @@ async def lifespan(app: FastAPI):
                 log.exception("signed-in homesteader seed did not finish")
     if override is None:
         poll_task = asyncio.create_task(poll_scheduler(store, settings), name="jane-poll-scheduler")
+        demand_poll_task = asyncio.create_task(
+            demand_poll_scheduler(store, settings),
+            name="jane-demand-poll-scheduler",
+        )
         if settings.automatic_matchmaking_enabled:
             match_task = asyncio.create_task(matchmaking_scheduler(store, settings), name="jane-match-scheduler")
+        collaboration_task = asyncio.create_task(
+            collaboration_scheduler(store, settings),
+            name="jane-collaboration-scheduler",
+        )
     try:
         yield
     finally:
@@ -103,10 +114,18 @@ async def lifespan(app: FastAPI):
             poll_task.cancel()
             with suppress(asyncio.CancelledError):
                 await poll_task
+        if demand_poll_task is not None:
+            demand_poll_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await demand_poll_task
         if match_task is not None:
             match_task.cancel()
             with suppress(asyncio.CancelledError):
                 await match_task
+        if collaboration_task is not None:
+            collaboration_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await collaboration_task
         if lease is not None:
             current_checkpointer.set(None)
             await lease.close()
@@ -131,6 +150,9 @@ def create_app(store=None) -> FastAPI:
             "showcase": "minimum",
             "llm": "gemini",
             "gemini_configured": bool(app.state.settings.gemini_api_key),
+            "gemini_chat_model": app.state.settings.gemini_chat_model,
+            "gemini_deliberation_model": app.state.settings.gemini_deliberation_model,
+            "audio_transcription_enabled": app.state.settings.audio_transcription_enabled,
         }
 
     @app.post("/api/admin/promo-codes")

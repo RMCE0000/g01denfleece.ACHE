@@ -178,6 +178,9 @@ def rank_sponsor_rows(
                 "promo_boost_weight": float(sponsor.get("promo_boost_weight") or 1),
                 "referrals_last_14d": int(sponsor.get("referrals_last_14d") or 0),
                 "homesteader_rating": float(sponsor.get("homesteader_rating") if sponsor.get("homesteader_rating") is not None else 5),
+                "capabilities_summary": str(sponsor.get("capabilities_summary") or "").strip(),
+                "founding_city": str(sponsor.get("founding_city") or "").strip(),
+                "founding_state": str(sponsor.get("founding_state") or "").strip(),
             }
         )
     ranked.sort(key=lambda row: (-row["score"], row["referrals_last_14d"], row["sponsor_id"]))
@@ -185,20 +188,19 @@ def rank_sponsor_rows(
 
 
 def format_ladder(need: str, rows: list[dict]) -> str:
-    lines = [
-        f"For {need}, Tier 1 (weight 1.00) comes first: make it on the homestead from material you already have.",
-    ]
+    """Sponsors come first. Other local sources may follow, with the sponsor relationship encouraged."""
     if not rows:
-        lines.append(
-            "No active local sponsor in this locality is on the registry for that. "
-            "Tier 4 would be a local logistics sponsor, and there isn't one listed yet."
+        return (
+            f"I don't have an active g01 sponsor for {need} in your locality yet. "
+            "The best option is a locally owned source in your city, or making it on the homestead. "
+            f"I would encourage a sponsor relationship for {need} when one is here."
         )
-        return "\n".join(lines)
-    lines.append("After that, the local registry is already sorted:")
-    for index, row in enumerate(rows, start=1):
-        lines.append(
-            f"{index}. {row['company_name']} — {row['sourcing_tier']} "
-            f"(tier weight {row['tier_weight']:.2f}, score {row['score']:.4f}, "
-            f"{row['distance_miles']:.2f} miles, {row['referrals_last_14d']} referrals in 14 days)."
-        )
-    return "\n".join(lines)
+    lines = []
+    for row in rows:
+        summary = str(row.get("capabilities_summary") or "").strip()
+        lines.append(f"{row['company_name']}{' — ' + summary if summary else ''}")
+    lead = "Start with this sponsor." if len(rows) == 1 else "Start with these sponsors."
+    return (
+        "\n".join(lines)
+        + f"\n\n{lead} You can also use another local source, and I would still encourage the relationship with the sponsor."
+    )

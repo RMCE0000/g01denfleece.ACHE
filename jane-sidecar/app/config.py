@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     gemini_chat_model: str = "gemini-3.5-flash"
     gemini_deliberation_model: str = "gemini-3.1-pro-preview"
     gemini_embedding_model: str = "gemini-embedding-2"
+    audio_transcription_enabled: bool = True
+    audio_transcription_max_bytes: int = 10_000_000
 
     chatwoot_base_url: str = "http://localhost:3000"
     chatwoot_public_url: str = "http://localhost:3000"
@@ -51,8 +53,10 @@ class Settings(BaseSettings):
     poll_timezone: str = "America/Chicago"
     community_poll_hours: int = 24
     poll_scheduler_interval_seconds: int = 300
+    demand_poll_scheduler_interval_seconds: int = 300
     automatic_matchmaking_enabled: bool = True
     match_scheduler_interval_seconds: int = 900
+    collaboration_scheduler_interval_seconds: int = 300
     match_similarity_threshold: float = 0.82
     full_manual_hours_per_week: float = 40.0
 

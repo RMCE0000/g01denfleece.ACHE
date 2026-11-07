@@ -20,7 +20,13 @@ from app.epistemic import (
     extract_zip,
 )
 from app.northstar import view_from_property
-from app.sponsor_chat import absorb_next_answer, missing_fields, parse_labeled_sponsor_fields
+from app.sponsor_chat import (
+    message_has_email,
+    missing_fields,
+    parse_labeled_sponsor_fields,
+    payment_email_request,
+    sponsorship_status_request,
+)
 from app.sourcing import normalize_service_tag
 
 _UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
@@ -28,16 +34,32 @@ _YES = re.compile(r"\b(yes|accept|i accept)\b", re.I)
 _NO = re.compile(r"\b(no|decline)\b", re.I)
 _DEMAND = re.compile(r"\b(demand|would (people|neighbors) buy|local market|is there a market)\b", re.I)
 _BUSINESS = re.compile(
-    r"started a business|starting a business|my new business|register as a (local )?sponsor|become a sponsor|sponsorship",
+    r"started a business|starting a business|my new business|register as a (local )?sponsor|"
+    r"become a sponsor|start (?:a )?sponsorship|apply for (?:a )?sponsorship",
+    re.I,
+)
+_SPONSOR_PURCHASE_QUESTION = re.compile(
+    r"\b(?:how (?:do|can) i |where can i )?(?:buy|purchase|get) (?:a |the )?(?:g01 )?sponsorship\b|"
+    r"\bhow (?:does|do) (?:g01 )?sponsorship work\b|"
+    r"\b(?:sponsorship|sponsor) (?:price|pricing|cost|plans?)\b",
     re.I,
 )
 _CANCEL_SPONSOR = re.compile(r"\bcancel (the |my )?sponsor", re.I)
 _NEED = re.compile(r"\b(need|buy|source|find|looking for|where can i)\b", re.I)
+_RECOMMEND_LOCAL = re.compile(
+    r"\b(?:recommend|find|list|show)\b.{0,80}\b(?:local compan(?:y|ies)|local businesses?|sponsors?)\b",
+    re.I,
+)
 _ASK_RECORD = re.compile(
     r"\b(what are my scores|how am i doing|north star|where do i stand|my automated|my aesthetic|my material|my energetic|my contained)\b",
     re.I,
 )
 _KYC = re.compile(r"\b(verify my identity|identity verification|start kyc|stripe identity)\b", re.I)
+_KYC_RESET = re.compile(r"\b(restart|reset|new)\s+(my\s+)?(identity verification|kyc)\b", re.I)
+_DEMAND_VOTE = re.compile(
+    rf"^\s*demand\s+({_UUID.pattern})\s*:\s*(.+)$",
+    re.I,
+)
 
 _TAGS = (
     ("grow_lights", ("grow light", "grow lights", "aquaponics light")),
@@ -80,9 +102,11 @@ def _blank() -> dict:
         "match_decision": None,
         "sponsor_active": False,
         "cancel_sponsor": False,
+        "sponsor_status": False,
         "sponsor_fields": {},
         "report_scores": False,
         "request_kyc": False,
+        "reset_kyc": False,
         "zip_code": None,
         "property_lat": None,
         "property_lng": None,
@@ -91,6 +115,10 @@ def _blank() -> dict:
 
 
 def detect_service_tag(text: str) -> str | None:
+    from app.polling import wants_community
+
+    if wants_community(text):
+        return None
     lowered = text.casefold()
     for tag, phrases in _TAGS:
         if any(phrase in lowered for phrase in phrases):
@@ -107,6 +135,8 @@ def detect_service_tag(text: str) -> str | None:
         product = re.sub(r"[?.!,;:]+$", "", found.group(1).strip())
         product = re.sub(r"^(?:a|an|some|the)\s+", "", product, flags=re.I)
         product = re.split(r"\b(?:near me|locally|around here|please)\b", product, maxsplit=1, flags=re.I)[0].strip()
+        if normalize_service_tag(product) in {"sponsor", "sponsors", "sponsorship", "g01_sponsorship"}:
+            return None
         if product:
             return normalize_service_tag(product)
     return None
@@ -153,6 +183,29 @@ def status_reply(prop: dict, locality: dict | None) -> str:
     )
 
 
+def fallback_reply(decision: dict) -> str:
+    if decision.get("report_scores") or decision.get("service_tag"):
+        return ""
+    recorded = bool(decision.get("ledger_patch")) or any(
+        decision.get(key) is not None
+        for key in (
+            "outside_aid_hours_per_week",
+            "aesthetic_pct",
+            "material_independent",
+            "material_surplus_profitable",
+            "energetic_pct",
+            "energetic_profitable",
+            "contained_zero_waste",
+            "street_address",
+            "property_lat",
+            "property_lng",
+        )
+    )
+    if recorded:
+        return "I recorded that. What would you like to work on next?"
+    return "What would you like help with on your homestead?"
+
+
 def heuristic_decision(state: dict) -> dict:
     message = state.get("message") or {}
     text = message.get("content") or ""
@@ -177,6 +230,21 @@ def heuristic_decision(state: dict) -> dict:
                 "I only know what you tell me."
             )
         return decision
+
+    if _SPONSOR_PURCHASE_QUESTION.search(text):
+        decision["reply"] = (
+            "You can purchase a g01 sponsorship directly in this chat. "
+            "When you're ready, say you want to become a sponsor. "
+            "I'll ask whether it is for your homestead or a separate local company, then email you a secure payment link."
+        )
+        return decision
+
+    if _RECOMMEND_LOCAL.search(text) and detect_service_tag(text) is None:
+        decision["reply"] = (
+            "Yes. I can build the plan with you and recommend active g01 sponsors in your locality; "
+            "they do not need to have been named earlier in this chat. "
+            "What product or service should I match first?"
+        )
 
     hours = extract_hours(text)
     if hours is not None:
@@ -208,12 +276,21 @@ def heuristic_decision(state: dict) -> dict:
         decision.setdefault("ledger_patch", {})
         decision["ledger_patch"]["acreage"] = acreage.group(1)
 
-    if invites and hours is None and aesthetic is None and re.search(r"\d", text):
-        units, price = extract_vote(text)
-        decision["vote_poll_id"] = invites[0]["poll_id"]
-        decision["weekly_units"] = units
-        decision["price_per_unit"] = price
-        decision["reply"] = "I logged that as your answer to the neighborhood question. I won't fold it into a demand figure until the 24 hours are up."
+    demand_vote = _DEMAND_VOTE.fullmatch(text)
+    if demand_vote:
+        poll_id = demand_vote.group(1).lower()
+        invite_ids = {str(invite["poll_id"]).lower() for invite in invites}
+        if poll_id in invite_ids:
+            units, price = extract_vote(demand_vote.group(2))
+            if units > 0 and price > 0:
+                decision["vote_poll_id"] = poll_id
+                decision["weekly_units"] = units
+                decision["price_per_unit"] = price
+                decision["reply"] = "I logged that as your answer to the neighborhood question. I won't fold it into a demand figure until the 24 hours are up."
+                return decision
+            decision["reply"] = "I need both a weekly quantity and a price, for example 2 dozen a week at $5 a dozen."
+            return decision
+        decision["reply"] = "That demand poll is not open for this homestead, so I did not record a vote."
         return decision
 
     if _ASK_RECORD.search(text):
@@ -221,6 +298,7 @@ def heuristic_decision(state: dict) -> dict:
 
     if _KYC.search(text):
         decision["request_kyc"] = True
+        decision["reset_kyc"] = bool(_KYC_RESET.search(text))
         decision["reply"] = "Identity verification happens from a Stripe link I post in this thread. A shared neighbor thread still waits until both of you are verified."
 
     if _CANCEL_SPONSOR.search(text):
@@ -228,17 +306,36 @@ def heuristic_decision(state: dict) -> dict:
         decision["sponsor_active"] = True
         decision["reply"] = "I cleared the sponsorship application."
     else:
-        draft = dict((prop or {}).get("sponsor_draft") or {})
+        raw_draft = (prop or {}).get("sponsor_draft")
+        draft = dict(raw_draft) if isinstance(raw_draft, dict) else None
+        pending = missing_fields(draft) if draft is not None else []
         labeled = parse_labeled_sponsor_fields(text)
-        absorb = {}
-        sourcing_turn = bool(detect_service_tag(text))
-        if draft and missing_fields(draft) and not labeled and not decision["report_scores"] and not sourcing_turn and not decision["request_kyc"]:
-            absorb = absorb_next_answer(text, draft)
-        if _BUSINESS.search(text) or labeled or absorb:
-            decision["sponsor_active"] = True
-            decision["sponsor_fields"] = {**labeled, **absorb}
-            if not decision["reply"]:
-                decision["reply"] = "We can file that sponsor from this thread. I only list a local company, and it stays inactive until Stripe says the payment is complete."
+        mail = payment_email_request(text)
+        if (
+            sponsorship_status_request(text)
+            and not labeled
+            and not decision["request_kyc"]
+            and not decision["report_scores"]
+        ):
+            decision["sponsor_status"] = True
+            decision["reply"] = ""
+        elif (
+            mail
+            and not labeled
+            and not (pending[:1] == ["billing_email"] and message_has_email(text))
+            and not decision["request_kyc"]
+            and not decision["report_scores"]
+        ):
+            decision["resend_payment_email"] = True
+            decision["payment_email"] = mail["to"]
+            decision["reply"] = ""
+        else:
+            collecting = draft is not None
+            if not decision["request_kyc"] and not decision["report_scores"] and (
+                _BUSINESS.search(text) or labeled or collecting
+            ):
+                decision["sponsor_active"] = True
+                decision["sponsor_fields"] = labeled or {}
 
     if _DEMAND.search(text):
         tag = detect_service_tag(text) or "local_demand"
@@ -262,23 +359,7 @@ def heuristic_decision(state: dict) -> dict:
             decision["street_address"] = street
 
     tag = detect_service_tag(text)
-    if tag and not decision["start_poll"]:
+    if tag and not decision["start_poll"] and not decision["sponsor_active"] and not decision.get("resend_payment_email"):
         decision["service_tag"] = tag
-        if not decision["reply"]:
-            decision["reply"] = "I'll stay inside your locality and start with what you can make on the homestead."
 
-    wrote_score = any(
-        decision[key] is not None
-        for key in (
-            "outside_aid_hours_per_week",
-            "aesthetic_pct",
-            "material_independent",
-            "material_surplus_profitable",
-            "energetic_pct",
-            "energetic_profitable",
-            "contained_zero_waste",
-        )
-    )
-    if not decision["reply"] and not decision["report_scores"] and not wrote_score:
-        decision["reply"] = status_reply(prop, locality)
     return decision

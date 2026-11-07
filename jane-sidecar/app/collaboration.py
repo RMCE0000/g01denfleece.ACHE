@@ -12,11 +12,13 @@ log = logging.getLogger(__name__)
 
 
 async def _identity_sentence(store, prop: dict) -> str:
+    if prop.get("stripe_identity_session_url"):
+        return f"Use your existing Stripe Identity link: {prop['stripe_identity_session_url']}"
     try:
         session = await create_identity_session(prop["id"])
     except G01Error:
         return "Stripe Identity is not configured, so I cannot verify you and I will not open a shared thread."
-    await store.set_identity_session(prop["id"], session["id"])
+    await store.set_identity_session(prop["id"], session["id"], session["url"])
     return f"Verify with Stripe Identity: {session['url']}"
 
 
@@ -51,13 +53,23 @@ async def refresh_match_gate(store, match_id: str, speaker_property_id: str | No
             "Each of you needs a Chatwoot sign-in before I can open a thread you can both use."
         )
 
+    if not await store.claim_shared_conversation(match_id):
+        current = await store.get_match(match_id)
+        if current and current.get("shared_chatwoot_conversation_id"):
+            return f"The shared thread is already open as Chatwoot conversation {current['shared_chatwoot_conversation_id']}."
+        return "Both of you are ready. I am already opening the shared thread."
+
     client = ChatwootClient(get_settings())
     try:
         conversation_id = await client.create_shared_conversation(peer_a, peer_b)
     except G01Error:
         log.exception("shared conversation create failed")
         conversation_id = None
+    except Exception:
+        await store.release_shared_conversation_claim(match_id)
+        raise
     if conversation_id is None:
+        await store.release_shared_conversation_claim(match_id)
         return (
             "Both of you accepted and both are verified. Chatwoot did not open a thread, "
             "so I did not invent a shared conversation."

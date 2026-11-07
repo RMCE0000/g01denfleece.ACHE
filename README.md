@@ -36,6 +36,9 @@ Ties break toward fewer referrals in the last 14 days, then sponsor id.
 
 Set `G01_GEMINI_API_KEY` before starting Jane. The flow routes standard turns to
 `G01_GEMINI_CHAT_MODEL` and complex work to `G01_GEMINI_DELIBERATION_MODEL`.
+Audio recordings remain ordinary Chatwoot attachments for playback between
+humans; Jane downloads signed local recordings and transcribes them through the
+same Gemini/LangChain stack before applying chat, poll, and project workflows.
 If Gemini is unavailable, Jane says so explicitly. Celery beat and its worker
 remain optional; Jane's polling and matchmaking schedulers run in the sidecar.
 
@@ -47,7 +50,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-The website is [g01denfleece.com](https://g01denfleece.com). Login, the widget header, and the reset email use that name. On this machine the app is still `http://localhost:3000`. The public host is a DigitalOcean droplet; see below.
+The website is [g01denfleece.com](https://g01denfleece.com). Login, the widget header, and the reset email use that name. On this machine the app is still `http://localhost:3000`. The public host is a Google Compute Engine VM; see below.
 
 The homesteader signs in at Chatwoot: `http://localhost:3000/app/login`. The screen is white with gold accents and the g01 logo. **Forgot your password?** emails a reset link. Locally that mail is in Mailpit at `http://localhost:8025`. A public launch points `SMTP_ADDRESS` at a real mailbox. **Create an account** on the login page asks for a name, unique username, email, password, and a ZIP already on the record (such as 70601). That creates the sign-in and a private thread with Jane, then opens it. Chatwoot's own account signup stays off, because that form would open a separate empty account. After bootstrap, `.chatwoot-bootstrap/operator.txt` has Jane's agent login and the admin token. When Jane finishes starting, `.chatwoot-bootstrap/homesteaders.txt` has two local demo people:
 
@@ -123,32 +126,36 @@ The seeded Lake Charles thread is conversation 501, contact 101. Rogers is conve
 
 Turn off the Chatwoot inbox auto-resolve timer. Jane's user id defaults to 1. Point a `message_created` webhook at `http://jane:8000/webhooks/chatwoot`. Do not add a Dashboard App.
 
-## DigitalOcean
+## Google Cloud
 
-One droplet in Atlanta (`atl1`), the closest region to the homesteaders. Ubuntu 24.04 LTS. In that datacenter the plain 8 GB Basic plan is not offered, so choose Basic, Premium Intel, 8 GB RAM / 4 vCPU / 160 GB disk. If that row is missing, choose the v5 shared 8 GB plan with at least 80 GB of disk. Add an SSH key. Turn on monitoring and weekly backups. Paste `deploy/digitalocean/cloud-init.yaml` into user data.
+The complete production procedure is
+[`docs/GOOGLE_CLOUD_LAUNCH.md`](docs/GOOGLE_CLOUD_LAUNCH.md). It covers the
+Compute Engine VM, VPC firewall, DNS, SMTP, Gemini, Stripe Checkout and
+Identity, first boot, smoke tests, backups, updates, and rollback.
 
-Create a cloud firewall named `g01-public` and attach it to the droplet. Inbound is SSH from your own IP, plus HTTP and HTTPS from anywhere. Outbound stays open. Leave Jane's port 8000, Postgres, Redis, and Mailpit off that list.
+Create the US VM after `gcloud` is authenticated:
 
-DNS stays at GoDaddy. Replace the two A records for `@` with one A record set to the droplet's IPv4 address. Leave the `www` CNAME, the Microsoft 365 MX record, and the `onmicrosoft.com` TXT record.
+```bash
+export GCP_PROJECT=YOUR_PROJECT_ID
+export SSH_SOURCE_IP='YOUR.PUBLIC.IP/32'
+bash deploy/google-cloud/create-vm.sh
+```
 
-Use a transactional SMTP provider for password resets and authorize `jane@g01denfleece.com` there. Add that provider's exact SPF and DKIM records in GoDaddy; do not replace the existing Microsoft records. Microsoft 365 password-based SMTP is acceptable only as a temporary test when SMTP AUTH is explicitly enabled for the tenant and mailbox. Microsoft plans to disable it by default at the end of December 2026, and Security Defaults may already block it.
-
-On the droplet, after `dig +short g01denfleece.com` shows that address:
+After DNS and provider accounts are ready, the VM-side path is:
 
 ```bash
 git clone https://github.com/RMCE0000/g01denfleece.ACHE.git
 cd g01denfleece.ACHE
-cp .env.production.example .env
-# fill the placeholders, then:
-sh deploy/check-prod-env.sh
+git checkout <launch-tag-or-merged-main>
+bash deploy/configure-prod-env.sh
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 sh deploy/check-running.sh
 ```
 
-Caddy serves https://g01denfleece.com and forwards to Chatwoot. The admin API is only on the droplet at `http://127.0.0.1:8000`.
-The final check refuses to pass if Chatwoot's API or platform token is empty, if a required container is stopped, if Jane is unhealthy, or if the public Chatwoot health endpoint is unhealthy.
-
-Run these commands only after the sign-in and minimum-showcase pull requests have been merged to `main`. Until then, a default clone does not contain the launch stack.
+Create the Stripe webhook only after
+`https://g01denfleece.com/webhooks/stripe` returns HTTP 400 for an unsigned
+POST. Caddy serves Chatwoot and exposes only Jane's signature-verified Stripe
+webhook. Jane's admin API remains on VM loopback at `http://127.0.0.1:8000`.
 
 Tests:
 

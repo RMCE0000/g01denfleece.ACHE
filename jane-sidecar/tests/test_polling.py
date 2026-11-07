@@ -1,4 +1,5 @@
 from copy import deepcopy
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from app.config import get_settings
@@ -75,7 +76,8 @@ def test_poll_mode_broadcasts_and_the_next_private_reply_is_an_answer(client, st
     )
     assert started.status_code == 200
     assert started.json()["poll"] is True
-    assert started.json()["reply"].startswith("Jane poll:")
+    assert started.json()["reply"] == "I asked the other homesteads: What should we build together?"
+    assert "poll mode" not in started.json()["reply"].casefold()
     assert {row["conversation_id"] for row in store.outbox} == {
         DEMO_CONVERSATION_ID,
         ROGERS_CONVERSATION_ID,
@@ -91,9 +93,68 @@ def test_poll_mode_broadcasts_and_the_next_private_reply_is_an_answer(client, st
         ),
     )
     assert answered.json()["poll"] is True
-    assert answered.json()["reply"] == "Thanks. Your poll answer is recorded."
+    assert answered.json()["reply"] == "Noted."
     assert store.community_poll_answers[0]["property_id"] == ROGERS_PROPERTY_ID
     assert store.community_poll_answers[0]["answer"] == "A shared seed library and tool shed."
+
+
+def test_an_ordinary_question_is_posted_to_the_other_homesteads(client, store):
+    import json
+
+    from app.constitution import JANE_CONSTITUTION
+    from app.gemini_flow import gemini_override
+
+    def think(_model, messages, complexity):
+        assert complexity == "complex"
+        system = messages[0].content
+        latest = messages[-1].content
+        if "does anybody want a dog" in latest.casefold():
+            return json.dumps(
+                {
+                    "reply": "I'll ask whether anyone wants to bring a dog onto their homestead.",
+                    "tools": [
+                        {
+                            "name": "ask_community",
+                            "arguments": {"question": "Would you bring a dog onto your homestead?"},
+                        }
+                    ],
+                }
+            )
+        assert "No community question is waiting." in system
+        return "I don't have one for you today."
+
+    token = gemini_override.set(think)
+    try:
+        status = client.post(
+            "/webhooks/chatwoot",
+            json=_message(
+                "Do you have any polls for me?",
+                710,
+                user_id=DEMO_USER_ID,
+                conversation_id=DEMO_CONVERSATION_ID,
+            ),
+        )
+        asked = client.post(
+            "/webhooks/chatwoot",
+            json=_message(
+                "Yeah... does anybody want a dog? I have 5 up for adoption.",
+                711,
+                user_id=DEMO_USER_ID,
+                conversation_id=DEMO_CONVERSATION_ID,
+            ),
+        )
+    finally:
+        gemini_override.reset(token)
+
+    assert status.json().get("poll") is None
+    assert status.json()["reply"] == "I don't have one for you today."
+    assert "poll mode" not in status.json()["reply"].casefold()
+    assert "poll mode" not in JANE_CONSTITUTION
+    assert asked.json()["reply"] == "I'll ask whether anyone wants to bring a dog onto their homestead."
+    assert "poll mode" not in asked.json()["reply"].casefold()
+    assert store.community_polls[-1]["question"] == "Would you bring a dog onto your homestead?"
+    assert "does anybody want a dog" not in store.community_polls[-1]["question"].casefold()
+    assert len(store.community_polls) == 1
 
 
 def test_plain_poll_mode_uses_the_community_action_question(client, store):
@@ -109,6 +170,68 @@ def test_plain_poll_mode_uses_the_community_action_question(client, store):
     assert started.json()["poll"] is True
     assert DEFAULT_POLL_MODE_QUESTION in started.json()["reply"]
     assert store.community_polls[0]["question"] == DEFAULT_POLL_MODE_QUESTION
+
+
+def test_pending_poll_does_not_capture_an_explicit_jane_request(client, store):
+    asyncio.run(
+        create_requested_poll(
+            store,
+            store.properties[0],
+            "What should we organize next?",
+        )
+    )
+    response = client.post(
+        "/webhooks/chatwoot",
+        json=_message(
+            "Jane, what are my scores?",
+            703,
+            user_id=DEMO_USER_ID,
+            conversation_id=DEMO_CONVERSATION_ID,
+        ),
+    )
+
+    assert response.status_code == 200
+    assert response.json().get("poll") is None
+    assert "Automated" in response.json()["reply"]
+    assert store.community_poll_answers == []
+
+    sourcing = client.post(
+        "/webhooks/chatwoot",
+        json=_message(
+            "Where can I get a rainwater cistern?",
+            704,
+            user_id=DEMO_USER_ID,
+            conversation_id=DEMO_CONVERSATION_ID,
+        ),
+    )
+    assert sourcing.status_code == 200
+    assert sourcing.json().get("poll") is None
+    assert store.community_poll_answers == []
+
+
+def test_pending_poll_does_not_interrupt_a_sponsor_application(client, store):
+    asyncio.run(
+        create_requested_poll(
+            store,
+            store.properties[0],
+            "What should we organize next?",
+        )
+    )
+    store.properties[0]["sponsor_draft"] = {"company_name": "Lake Works"}
+    response = client.post(
+        "/webhooks/chatwoot",
+        json=_message(
+            "Lake Charles",
+            705,
+            user_id=DEMO_USER_ID,
+            conversation_id=DEMO_CONVERSATION_ID,
+        ),
+    )
+
+    assert response.status_code == 200
+    assert response.json().get("poll") is None
+    assert store.community_poll_answers == []
+    assert store.properties[0]["sponsor_draft"] is not None
 
 
 async def test_compilation_and_atomic_close_are_grounded_in_recorded_answers(store):

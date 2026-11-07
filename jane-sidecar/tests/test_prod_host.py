@@ -21,9 +21,12 @@ def test_production_compose_publishes_only_the_website():
     caddy = (ROOT / "deploy" / "Caddyfile").read_text(encoding="utf-8")
     assert "g01denfleece.com" in caddy
     assert "reverse_proxy rails:3000" in caddy
+    assert "handle /webhooks/stripe" in caddy
+    assert "reverse_proxy jane:8000" in caddy
     base = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert "SMTP_USERNAME:" not in base
     assert "SMTP_USERNAME: ${SMTP_USERNAME:-}" in compose
+    assert 'FORCE_SSL: "true"' in compose
     assert "image: chatwoot/chatwoot@sha256:" in base
     assert "ollama/ollama" not in base
     assert "langchain-google-genai>=4.4.2" in (
@@ -31,11 +34,17 @@ def test_production_compose_publishes_only_the_website():
     ).read_text(encoding="utf-8")
     assert "condition: service_healthy" in compose
     assert "git" in (
-        ROOT / "deploy" / "digitalocean" / "cloud-init.yaml"
+        ROOT / "deploy" / "google-cloud" / "cloud-init.yaml"
     ).read_text(encoding="utf-8")
+    launch = (ROOT / "docs" / "GOOGLE_CLOUD_LAUNCH.md").read_text(encoding="utf-8")
+    assert "us-central1" in launch
+    assert "webhooks/stripe" in launch
+    assert "create-vm.sh" in launch
     bootstrap = (ROOT / "ops" / "bootstrap_chatwoot.rb").read_text(encoding="utf-8")
     assert 'raise "g01 platform token is empty"' in bootstrap
     assert 'raise "g01 Chatwoot API token is empty"' in bootstrap
+    assert "G01_CHATWOOT_WEBHOOK_SECRET" in bootstrap
+    assert "where.not(url: WEBHOOK_URL).destroy_all" in bootstrap
 
     rendered = subprocess.run(
         [
@@ -95,11 +104,15 @@ def test_production_env_check_rejects_local_secrets(tmp_path):
         "POSTGRES_PASSWORD": "b" * 24,
         "G01_ADMIN_TOKEN": "c" * 32,
         "G01_BRIDGE_SECRET": "d" * 32,
+        "G01_CHATWOOT_WEBHOOK_SECRET": "e" * 32,
         "ACME_EMAIL": "ops@g01denfleece.com",
         "SMTP_ADDRESS": "smtp.example.net",
         "SMTP_USERNAME": "smtp-user",
         "SMTP_PASSWORD": "mailbox-secret",
         "G01_GEMINI_API_KEY": "google-ai-key",
+        "G01_STRIPE_SECRET_KEY": "sk_test_launch",
+        "G01_STRIPE_WEBHOOK_SECRET": "whsec_launch",
+        "G01_STRIPE_SPONSOR_PRICE_ID": "price_launch",
     }
     lines = []
     for line in good_text.splitlines():

@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS g01_properties (
 
     kyc_verified BOOLEAN DEFAULT FALSE,
     stripe_identity_session_id VARCHAR(255),
+    stripe_identity_session_url TEXT,
     -- In-progress sponsorship answers collected inside the Chatwoot thread.
     sponsor_draft JSONB,
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -77,6 +78,7 @@ ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS email VARCHAR(255);
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS display_name VARCHAR(255);
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS chatwoot_inbox_id BIGINT;
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS username VARCHAR(32);
+ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS stripe_identity_session_url TEXT;
 
 -- Existing accounts receive a stable handle. Prefer the email local-part when
 -- it is valid and unique; otherwise use an opaque property suffix.
@@ -171,11 +173,13 @@ CREATE TABLE IF NOT EXISTS g01_sponsors (
     stripe_customer_id VARCHAR(255),
     stripe_subscription_id VARCHAR(255),
     applied_promo_code VARCHAR(64) REFERENCES g01_promo_codes(code),
+    promo_consumed_at TIMESTAMPTZ,
     is_active_sponsor BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE g01_sponsors DROP CONSTRAINT IF EXISTS g01_sponsors_tier_chk;
+ALTER TABLE g01_sponsors ADD COLUMN IF NOT EXISTS promo_consumed_at TIMESTAMPTZ;
 ALTER TABLE g01_sponsors
     ADD CONSTRAINT g01_sponsors_tier_chk CHECK (
         sourcing_tier IN ('local_manufacturer', 'local_service_or_stock', 'local_logistics_proxy')
@@ -285,6 +289,8 @@ CREATE TABLE IF NOT EXISTS g01_neighbor_matches (
     peer_a_status VARCHAR(20) DEFAULT 'pitched',
     peer_b_status VARCHAR(20) DEFAULT 'pitched',
     shared_chatwoot_conversation_id BIGINT,
+    shared_conversation_opening BOOLEAN NOT NULL DEFAULT FALSE,
+    shared_conversation_claimed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (peer_a_property_id, peer_b_property_id, proposed_project_title)
 );
@@ -294,6 +300,8 @@ CREATE TABLE IF NOT EXISTS g01_neighbor_matches (
 ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS operator_status VARCHAR(20);
 ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS operator_review_note TEXT;
 ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS operator_reviewed_at TIMESTAMPTZ;
+ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS shared_conversation_opening BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE g01_neighbor_matches ADD COLUMN IF NOT EXISTS shared_conversation_claimed_at TIMESTAMPTZ;
 UPDATE g01_neighbor_matches SET operator_status = 'approved' WHERE operator_status IS NULL;
 ALTER TABLE g01_neighbor_matches ALTER COLUMN operator_status SET DEFAULT 'pending';
 ALTER TABLE g01_neighbor_matches ALTER COLUMN operator_status SET NOT NULL;
@@ -324,8 +332,13 @@ CREATE TABLE IF NOT EXISTS g01_processed_webhook_events (
 CREATE TABLE IF NOT EXISTS g01_sponsor_checkouts (
     stripe_session_id VARCHAR(255) PRIMARY KEY,
     sponsor_id UUID NOT NULL REFERENCES g01_sponsors(id) ON DELETE CASCADE,
+    checkout_url TEXT,
+    billing_email TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE g01_sponsor_checkouts ADD COLUMN IF NOT EXISTS checkout_url TEXT;
+ALTER TABLE g01_sponsor_checkouts ADD COLUMN IF NOT EXISTS billing_email TEXT;
 
 CREATE TABLE IF NOT EXISTS g01_outbox (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -583,15 +596,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Origin registry shipped with the two localities. These rows are already active.
--- A homesteader who files a new sponsor in the thread still stays inactive until Stripe pays.
+-- Illustrative profiles ship inactive. Operators must verify and activate real
+-- businesses; Jane must never recommend a fictional seed profile at launch.
 INSERT INTO g01_sponsors (
     id, locality_id, company_name, founding_city, founding_state, is_franchise_or_chain,
     sourcing_tier, service_tags, capabilities_summary, lat, lng, is_active_sponsor
 )
 SELECT
     seed.id, loc.id, seed.company_name, seed.founding_city, seed.founding_state, seed.is_franchise,
-    seed.sourcing_tier, seed.service_tags, seed.summary, seed.lat, seed.lng, TRUE
+    seed.sourcing_tier, seed.service_tags, seed.summary, seed.lat, seed.lng, FALSE
 FROM (
     VALUES
         ('cccccccc-cccc-cccc-cccc-ccccccccccc1'::uuid, 'Lake Charles', 'LA', 'Calcasieu Glass & Lamp', 'Lake Charles', 'LA', FALSE, 'local_manufacturer', ARRAY['grow_lights'], 'Blows and wires small greenhouse lamps in Lake Charles.', 30.2400::float8, -93.2200::float8),
@@ -603,4 +616,13 @@ JOIN g01_localities loc ON loc.primary_city = seed.city AND loc.state_code = see
 WHERE NOT EXISTS (
     SELECT 1 FROM g01_sponsors existing
     WHERE existing.locality_id = loc.id AND existing.company_name = seed.company_name
+);
+
+UPDATE g01_sponsors
+SET is_active_sponsor = FALSE
+WHERE id IN (
+    'cccccccc-cccc-cccc-cccc-ccccccccccc1',
+    'cccccccc-cccc-cccc-cccc-ccccccccccc2',
+    'cccccccc-cccc-cccc-cccc-ccccccccccc3',
+    'cccccccc-cccc-cccc-cccc-ccccccccccc4'
 );

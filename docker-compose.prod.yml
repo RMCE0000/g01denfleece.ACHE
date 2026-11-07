@@ -1,6 +1,6 @@
-# DigitalOcean host. Use with the local file:
+# Production VM host. Use with the local file:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-# Ports 3000 and 8025 are not published. Jane's admin API stays on the droplet loopback.
+# Ports 3000 and 8025 are not published. Jane's admin API stays on the VM loopback.
 
 services:
   caddy:
@@ -36,6 +36,7 @@ services:
     restart: unless-stopped
     ports: !override []
     environment:
+      FORCE_SSL: "true"
       SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-login}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
@@ -44,6 +45,7 @@ services:
   sidekiq:
     restart: unless-stopped
     environment:
+      FORCE_SSL: "true"
       SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-login}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
@@ -53,6 +55,11 @@ services:
     restart: unless-stopped
     ports: !override
       - "127.0.0.1:8000:8000"
+    environment:
+      SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-login}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_DOMAIN: ${SMTP_DOMAIN:-g01denfleece.com}
 
 volumes:
   caddy_data:

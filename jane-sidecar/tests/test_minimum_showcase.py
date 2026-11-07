@@ -35,6 +35,15 @@ def _message(content, message_id, **extra):
     }
 
 
+def test_a_thought_label_is_not_posted():
+    from app.showcase import reply_as_jane
+
+    assert reply_as_jane("Jane_thoughtI do not have a tool to resend the payment link.", []) == (
+        "I do not have a tool to resend the payment link."
+    )
+    assert "jane_thought" not in reply_as_jane("Jane: Jane_thoughtThe cistern can be repaired.", [{"speaker": "Jane"}]).casefold()
+
+
 def test_a_copied_speaker_label_is_not_posted():
     from app.showcase import reply_as_jane
 
@@ -62,6 +71,11 @@ def test_gemini_receives_real_chat_roles():
 def test_task_complexity_routes_planning_to_pro():
     assert task_complexity("Where do I get a liner?") == "standard"
     assert task_complexity("Compare three water systems and design a phased implementation plan.") == "complex"
+    source = (Path(__file__).resolve().parents[1] / "app" / "gemini_flow.py").read_text(encoding="utf-8")
+    assert 'thinking_level="low"' in source
+    assert 'thinking_level="high"' in source
+    assert "include_thoughts=False" in source
+    assert '{"google_search": {}}' in source
 
 
 async def test_langchain_flow_selects_the_model_for_task_complexity():
@@ -83,7 +97,7 @@ async def test_langchain_flow_selects_the_model_for_task_complexity():
     ]
 
 
-def test_prompt_is_the_constitution_and_the_history(client, store):
+def test_prompt_includes_the_constitution_grounded_record_and_history(client, store):
     seen = {"prompts": []}
 
     def fake(model, messages, complexity):
@@ -102,9 +116,19 @@ def test_prompt_is_the_constitution_and_the_history(client, store):
         gemini_override.reset(token)
     assert first.status_code == 200
     assert first.json()["reply"] == "Make the cistern on the homestead."
-    assert seen["system"] == JANE_CONSTITUTION
-    assert seen["models"] == ["gemini-3.5-flash", "gemini-3.5-flash"]
-    assert seen["complexities"] == ["standard", "standard"]
+    assert seen["system"].startswith("# Jane")
+    assert seen["system"].index("# You") < seen["system"].index("# Policy")
+    assert JANE_CONSTITUTION.strip() in seen["system"]
+    assert "CURRENT VERIFIED HOMESTEAD RECORD" in seen["system"]
+    assert '"homesteader":null' in seen["system"]
+    assert '"locality":"Lake Charles & Calcasieu Suburbs"' in seen["system"]
+    assert '"known_facts":' in seen["system"]
+    assert "facts already present" in seen["system"]
+    assert "private internal context" in seen["system"]
+    assert "valid recommendations even if chat history never named them" in seen["system"]
+    assert "does not mean refusing to plan" in seen["system"]
+    assert seen["models"] == ["gemini-3.1-pro-preview", "gemini-3.1-pro-preview"]
+    assert seen["complexities"] == ["complex", "complex"]
     assert seen["prompts"][0] == "Ada: The cistern is empty."
     assert "tier_weight" not in seen["system"]
     assert "known_facts_ledger" not in seen["system"]
@@ -131,6 +155,78 @@ def test_prompt_is_the_constitution_and_the_history(client, store):
     duplicate = client.post("/webhooks/chatwoot", json=_message("The cistern is empty.", 1, name="Ada"))
     assert duplicate.json()["duplicate"] is True
     assert len([row for row in store.transcript if row["message_id"] == "1"]) == 1
+
+
+def test_recording_a_normal_fact_does_not_expose_internal_scores(client, store):
+    token = gemini_override.set(
+        lambda _model, _messages, _complexity: (
+            "I recorded that you have about two acres and no equipment. "
+            "What would you most like to build or grow first?"
+        )
+    )
+    try:
+        response = client.post(
+            "/webhooks/chatwoot",
+            json=_message("I currently have no equipment, and my property is about 2 acres.", 790, name="Ada"),
+        )
+    finally:
+        gemini_override.reset(token)
+
+    assert response.status_code == 200
+    reply = response.json()["reply"]
+    assert reply.startswith("I recorded that you have about two acres")
+    for internal in ("Automated", "Aesthetic", "Material is", "Energetic", "Contained"):
+        assert internal not in reply
+    assert store.properties[0]["known_facts_ledger"]["acreage"] == "2"
+
+
+def test_live_private_chat_applies_scores_and_grounded_sponsor_ranking(client, store):
+    token = gemini_override.set(
+        lambda _model, _messages, _complexity: "I will use your recorded information."
+    )
+    try:
+        response = client.post(
+            "/webhooks/chatwoot",
+            json=_message(
+                "I work 10 hours a week. Where can I get grow lights?",
+                801,
+                name="Ada",
+            ),
+        )
+    finally:
+        gemini_override.reset(token)
+
+    assert response.status_code == 200
+    assert "Calcasieu Glass & Lamp" in response.json()["reply"]
+    assert store.properties[0]["outside_aid_hours_per_week"] == 10
+    assert store.properties[0]["northstar_automated_pct"] == 75
+    assert store.sponsors[0]["referrals_last_14d"] == 1
+
+
+def test_live_private_chat_files_a_homestead_sponsor_profile(client, store):
+    application = "\n".join(
+        [
+            "Register as a sponsor.",
+            "Company: Ada Tomatoes",
+            "Founding city: Lake Charles",
+            "Founding state: LA",
+            "Tier: local_manufacturer",
+            "Tags: tomato, produce",
+            "Summary: Grows tomatoes for nearby homesteads.",
+            "Franchise: no",
+            "Email: ada@example.com",
+        ]
+    )
+    response = client.post(
+        "/webhooks/chatwoot",
+        json=_message(application, 802, name="Ada"),
+    )
+
+    assert response.status_code == 200
+    assert "inactive sponsor" in response.json()["reply"]
+    filed = next(row for row in store.sponsors if row["company_name"] == "Ada Tomatoes")
+    assert filed["property_id"] == DEMO_PROPERTY_ID
+    assert filed["is_active_sponsor"] is False
 
 
 def test_a_connection_stays_quiet_until_someone_says_jane(client, store):
@@ -258,6 +354,8 @@ def test_the_backend_lists_every_conversation(store, monkeypatch):
     assert health.json()["showcase"] == "minimum"
     assert health.json()["llm"] == "gemini"
     assert health.json()["gemini_configured"] is False
+    assert health.json()["gemini_chat_model"] == "gemini-3.5-flash"
+    assert health.json()["audio_transcription_enabled"] is True
 
 
 def test_background_jobs_stay_off_and_ollama_is_removed():

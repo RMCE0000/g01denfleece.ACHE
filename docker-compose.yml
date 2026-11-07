@@ -50,6 +50,7 @@ x-jane-env: &jane-env
   G01_POLL_TIMEZONE: ${G01_POLL_TIMEZONE:-America/Chicago}
   G01_COMMUNITY_POLL_HOURS: ${G01_COMMUNITY_POLL_HOURS:-24}
   G01_POLL_SCHEDULER_INTERVAL_SECONDS: ${G01_POLL_SCHEDULER_INTERVAL_SECONDS:-300}
+  G01_DEMAND_POLL_SCHEDULER_INTERVAL_SECONDS: ${G01_DEMAND_POLL_SCHEDULER_INTERVAL_SECONDS:-300}
   G01_AUTOMATIC_MATCHMAKING_ENABLED: ${G01_AUTOMATIC_MATCHMAKING_ENABLED:-1}
   G01_MATCH_SCHEDULER_INTERVAL_SECONDS: ${G01_MATCH_SCHEDULER_INTERVAL_SECONDS:-900}
   G01_MATCH_SIMILARITY_THRESHOLD: ${G01_MATCH_SIMILARITY_THRESHOLD:-0.82}
@@ -57,6 +58,8 @@ x-jane-env: &jane-env
   G01_GEMINI_CHAT_MODEL: gemini-3.5-flash
   G01_GEMINI_DELIBERATION_MODEL: gemini-3.1-pro-preview
   G01_GEMINI_EMBEDDING_MODEL: gemini-embedding-2
+  G01_AUDIO_TRANSCRIPTION_ENABLED: ${G01_AUDIO_TRANSCRIPTION_ENABLED:-1}
+  G01_AUDIO_TRANSCRIPTION_MAX_BYTES: ${G01_AUDIO_TRANSCRIPTION_MAX_BYTES:-10000000}
   G01_CHATWOOT_BASE_URL: http://rails:3000
   # Browser links. On the public host this is https://g01denfleece.com.
   G01_CHATWOOT_PUBLIC_URL: ${G01_CHATWOOT_PUBLIC_URL:-http://localhost:3000}
@@ -71,6 +74,10 @@ x-jane-env: &jane-env
   G01_STRIPE_SPONSOR_PRICE_ID: ${G01_STRIPE_SPONSOR_PRICE_ID:-}
   G01_STRIPE_SUCCESS_URL: ${G01_STRIPE_SUCCESS_URL:-http://localhost:3000}
   G01_STRIPE_CANCEL_URL: ${G01_STRIPE_CANCEL_URL:-http://localhost:3000}
+  SMTP_ADDRESS: ${SMTP_ADDRESS:-mailpit}
+  SMTP_PORT: ${SMTP_PORT:-1025}
+  SMTP_ENABLE_STARTTLS_AUTO: ${SMTP_ENABLE_STARTTLS_AUTO:-false}
+  MAILER_SENDER_EMAIL: ${MAILER_SENDER_EMAIL:-Jane <jane@g01denfleece.com>}
 
 services:
   postgres:
@@ -120,11 +127,14 @@ services:
     volumes:
       - chatwoot_storage:/app/storage
       - ./branding:/branding:ro
-      - ./branding/g01-logo.svg:/app/public/g01-logo.svg:ro
+      - ./branding/g01-logo.png:/app/public/g01-logo.png:ro
+      - ./branding/g01-favicon.png:/app/public/g01-favicon.png:ro
       - ./branding/g01-mark.svg:/app/public/g01-mark.svg:ro
       - ./branding/g01-mark.png:/app/public/g01-mark.png:ro
       - ./branding/g01-brand.css:/app/public/g01-brand.css:ro
       - ./branding/g01-brand.js:/app/public/g01-brand.js:ro
+      - ./branding/fonts/g01-login-serif-500.woff2:/app/public/g01-login-serif-500.woff2:ro
+      - ./branding/fonts/g01-login-serif-600.woff2:/app/public/g01-login-serif-600.woff2:ro
       - ./ops/g01_branding.rb:/app/config/initializers/g01_branding.rb:ro
       - ./ops/g01_contacts_scope.rb:/app/config/initializers/g01_contacts_scope.rb:ro
       - ./ops/g01_community_controller.rb:/app/app/controllers/api/v1/accounts/g01_community_controller.rb:ro
@@ -156,6 +166,7 @@ services:
       <<: *chatwoot-env
       JANE_WEBHOOK_URL: http://jane:8000/webhooks/chatwoot
       G01_ADMIN_TOKEN: ${G01_ADMIN_TOKEN:-g01-local-admin-token}
+      G01_CHATWOOT_WEBHOOK_SECRET: ${G01_CHATWOOT_WEBHOOK_SECRET:-}
     entrypoint: docker/entrypoints/rails.sh
     command: ["bundle", "exec", "rails", "runner", "/bootstrap/bootstrap_chatwoot.rb"]
     volumes:
