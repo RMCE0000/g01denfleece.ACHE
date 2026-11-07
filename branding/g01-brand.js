@@ -1,6 +1,7 @@
 (function () {
   var LOGO = "/g01-logo.png";
-  var MARK = "/g01-favicon.png?v=58";
+  var MARK = "/g01-favicon.png?v=59";
+  var TAB_TITLE = "g01denfleece";
 
   function savedColorScheme() {
     try {
@@ -95,8 +96,9 @@
   }
 
   function pinTabTitle() {
-    if (!document.title || !/chatwoot/i.test(document.title)) return;
-    var next = document.title.replace(/chatwoot/gi, "g01");
+    var title = document.title || "";
+    var next = title.replace(/chatwoot/gi, TAB_TITLE);
+    if (!next || next === "g01" || next === "Sign in · g01") next = TAB_TITLE;
     if (next !== document.title) document.title = next;
   }
 
@@ -594,7 +596,7 @@
     if (/login to chatwoot/i.test(heading.textContent || "")) {
       heading.textContent = "Sign in to g01";
     }
-    if (/chatwoot/i.test(document.title)) document.title = "Sign in · g01";
+    pinTabTitle();
     if (document.getElementById("g01-signup")) return;
 
     var block = document.createElement("div");

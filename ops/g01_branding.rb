@@ -6,7 +6,7 @@ require "net/http"
 require "uri"
 
 class G01Branding
-  SNIPPET = '<link rel="icon" type="image/png" href="/g01-favicon.png?v=58"><link rel="stylesheet" href="/g01-brand.css?v=58"><script src="/g01-brand.js?v=58"></script>'
+  SNIPPET = '<link rel="icon" type="image/png" href="/g01-favicon.png?v=59"><link rel="stylesheet" href="/g01-brand.css?v=59"><script src="/g01-brand.js?v=59"></script>'
   PHONE_CHROME = '<meta name="theme-color" content="#7a5e24"><meta name="msapplication-TileColor" content="#7a5e24">'
   SIGNUP_PATH = "/g01/signup"
 
@@ -28,12 +28,20 @@ class G01Branding
     body.close if body.respond_to?(:close)
     return [status, headers, [raw]] unless raw.include?("</head>") && !raw.include?("g01-brand.css")
 
-    branded = resize_with_keyboard(strip_chatwoot_icons(paint_phone_chrome(raw.gsub("Login to Chatwoot", "Sign in to g01")))
+    branded = resize_with_keyboard(name_the_tab(strip_chatwoot_icons(paint_phone_chrome(raw.gsub("Login to Chatwoot", "Sign in to g01"))))
                                       .sub("</head>", "#{PHONE_CHROME}#{SNIPPET}</head>"))
     headers = headers.dup
     headers["Content-Length"] = branded.bytesize.to_s
     headers.delete("Transfer-Encoding")
     [status, headers, [branded]]
+  end
+
+  def name_the_tab(html)
+    html.gsub(%r{<title>\s*(.*?)\s*</title>}im) do
+      titled = Regexp.last_match(1).gsub(/chatwoot/i, "g01denfleece")
+      titled = "g01denfleece" if titled.strip.empty? || titled.strip == "g01" || titled.strip == "Sign in · g01"
+      "<title>#{titled}</title>"
+    end
   end
 
   def strip_chatwoot_icons(html)

@@ -121,12 +121,15 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=58" in initializer
-    assert "v=57" not in initializer
+    assert "v=59" in initializer
+    assert "v=58" not in initializer
     assert "function pinTabIcon" in script
     assert "function pinTabTitle" in script
     assert 'link.classList.remove("favicon")' in script
-    assert 'document.title.replace(/chatwoot/gi, "g01")' in script
+    assert 'var TAB_TITLE = "g01denfleece"' in script
+    assert "title.replace(/chatwoot/gi, TAB_TITLE)" in script
+    assert 'next === "Sign in · g01"' in script
+    assert "def name_the_tab" in initializer
     assert 'attributeFilter: ["href", "rel", "class"]' in script
     assert "function contactListItem" in script
     assert "function ensureContactSectionsHidden" in script
