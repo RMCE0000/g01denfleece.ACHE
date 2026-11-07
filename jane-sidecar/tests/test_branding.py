@@ -107,6 +107,8 @@ def test_brand_assets_are_gold_and_white():
     assert "function ensureSilentToggle" in script
     assert "function dashboardSoundIsSilent" in script
     assert "function saveSilent" in script
+    assert "var silentChosen = false" in script
+    assert "silentChosen = true" in script
     assert "function withoutNotificationBanners" in script
     assert "enable_audio_alerts: silent ? \"none\" : \"all\"" in script
     assert ".i-lucide-volume-2" in script
@@ -115,8 +117,8 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=55" in initializer
-    assert "v=54" not in initializer
+    assert "v=56" in initializer
+    assert "v=55" not in initializer
     assert "function contactListItem" in script
     assert "function ensureContactSectionsHidden" in script
     assert '"conversation actions": true' in script

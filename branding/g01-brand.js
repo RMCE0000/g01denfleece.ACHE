@@ -1200,30 +1200,42 @@
     return null;
   }
 
+  function audioState(instance) {
+    if (!instance) return null;
+    var sources = [instance.setupState, instance.exposed, instance.ctx, instance.devtoolsRawSetupState];
+    for (var i = 0; i < sources.length; i++) {
+      var state = sources[i];
+      if (!state) continue;
+      if (typeof state.handleAudioConfigChange === "function" || typeof state.handAudioAlertChange === "function") {
+        return state;
+      }
+    }
+    return null;
+  }
+
   function audioNotificationSetup() {
     var root = document.querySelector("#app");
     var app = root && root.__vue_app__;
-    var instance = app && app._instance;
     var found = null;
     var seen = [];
+    function visitInstance(instance) {
+      if (!instance || found || seen.indexOf(instance) !== -1) return;
+      seen.push(instance);
+      found = audioState(instance);
+      if (found) return;
+      visit(instance.subTree);
+    }
     function visit(vnode) {
       if (!vnode || found || seen.indexOf(vnode) !== -1) return;
       seen.push(vnode);
-      var component = vnode.component;
-      if (component && seen.indexOf(component) === -1) {
-        seen.push(component);
-        var state = component.setupState;
-        if (state && (state.handleAudioConfigChange || state.handAudioAlertChange)) {
-          found = state;
-          return;
-        }
-        visit(component.subTree);
-      }
+      if (vnode.component) visitInstance(vnode.component);
       var children = vnode.children;
       if (Array.isArray(children)) children.forEach(visit);
       else if (children && typeof children === "object") visit(children);
+      if (Array.isArray(vnode.dynamicChildren)) vnode.dynamicChildren.forEach(visit);
+      if (vnode.suspense && vnode.suspense.activeBranch) visit(vnode.suspense.activeBranch);
     }
-    if (instance) visit(instance.subTree);
+    if (app) visitInstance(app._instance);
     return found;
   }
 
@@ -1290,7 +1302,7 @@
   }
 
   var silentProfileRequested = false;
-  var silentApplying = false;
+  var silentChosen = false;
 
   function authHeaders() {
     var headers = { Accept: "application/json", "Content-Type": "application/json" };
@@ -1324,9 +1336,11 @@
       .then(function (response) { return response.ok ? response.json() : null; })
       .then(function (profile) {
         var settings = profile && (profile.ui_settings || (profile.data && profile.data.ui_settings));
-        if (!settings || eventInputs().length) return;
+        if (!settings || silentChosen) return;
         var alerts = settings.enable_audio_alerts;
         g01Silent = !alerts || alerts === "none";
+        var toggle = document.getElementById("g01-silent-input");
+        if (toggle) toggle.checked = g01Silent;
       })
       .catch(function () {});
   }
@@ -1365,13 +1379,11 @@
       var input = document.createElement("input");
       input.id = "g01-silent-input";
       input.type = "checkbox";
+      if (g01Silent !== null) input.checked = g01Silent;
       input.addEventListener("change", function () {
+        silentChosen = true;
         g01Silent = input.checked;
-        silentApplying = true;
-        saveSilent(input.checked);
-        window.setTimeout(function () {
-          silentApplying = false;
-        }, 300);
+        saveSilent(g01Silent);
       });
       control.appendChild(input);
       control.appendChild(document.createElement("i"));
@@ -1380,15 +1392,12 @@
       if (form && form.parentElement) form.parentElement.insertBefore(row, form);
       else section.appendChild(row);
     }
-    var toggle = document.getElementById("g01-silent-input");
-    if (!toggle || silentApplying) return;
-    var boxes = eventInputs();
-    if (!boxes.length) {
-      if (g01Silent !== null) toggle.checked = g01Silent;
-      return;
+    if (!silentChosen && g01Silent === null) {
+      var boxes = eventInputs();
+      if (boxes.length) g01Silent = boxes.every(function (box) { return !box.checked; });
     }
-    g01Silent = boxes.every(function (box) { return !box.checked; });
-    toggle.checked = g01Silent;
+    var toggle = document.getElementById("g01-silent-input");
+    if (toggle && g01Silent !== null) toggle.checked = g01Silent;
   }
 
   function ensureBusinessToolsHidden() {
