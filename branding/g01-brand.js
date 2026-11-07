@@ -520,7 +520,6 @@
     var lead = document.createElement("p");
     lead.textContent = "Use a ZIP that is already on the record, such as 70601.";
     lead.style.margin = "0.5rem 0 1rem";
-    lead.style.color = "#5c5346";
 
     var form = document.createElement("form");
     form.appendChild(field("Full name", "name", "text", "Ada Yard"));

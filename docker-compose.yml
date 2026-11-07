@@ -133,6 +133,8 @@ services:
       - ./branding/g01-mark.png:/app/public/g01-mark.png:ro
       - ./branding/g01-brand.css:/app/public/g01-brand.css:ro
       - ./branding/g01-brand.js:/app/public/g01-brand.js:ro
+      - ./branding/fonts/g01-login-serif-500.woff2:/app/public/g01-login-serif-500.woff2:ro
+      - ./branding/fonts/g01-login-serif-600.woff2:/app/public/g01-login-serif-600.woff2:ro
       - ./ops/g01_branding.rb:/app/config/initializers/g01_branding.rb:ro
       - ./ops/g01_contacts_scope.rb:/app/config/initializers/g01_contacts_scope.rb:ro
       - ./ops/g01_community_controller.rb:/app/app/controllers/api/v1/accounts/g01_community_controller.rb:ro

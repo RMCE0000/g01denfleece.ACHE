@@ -74,8 +74,14 @@ def test_brand_assets_are_gold_and_white():
     assert "max-height: 100dvh !important" in css
     assert "def resize_with_keyboard" in initializer
     assert "interactive-widget=resizes-content" in initializer
-    assert "v=48" in initializer
-    assert "v=47" not in initializer
+    assert 'font-family: "G01 Login"' in css
+    assert "/g01-login-serif-500.woff2?v=49" in css
+    assert "/g01-login-serif-600.woff2?v=49" in css
+    assert "color: #8e98a6 !important" in css
+    assert (ROOT / "branding" / "fonts" / "g01-login-serif-500.woff2").read_bytes().startswith(b"wOF2")
+    assert (ROOT / "branding" / "fonts" / "g01-login-serif-600.woff2").read_bytes().startswith(b"wOF2")
+    assert "v=49" in initializer
+    assert "v=48" not in initializer
     assert "function contactListItem" in script
     assert "function ensureContactSectionsHidden" in script
     assert '"conversation actions": true' in script

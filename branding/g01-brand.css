@@ -205,6 +205,101 @@ body.g01-login-page .g01-signup-card {
   backdrop-filter: blur(12px);
 }
 
+@font-face {
+  font-family: "G01 Login";
+  src: url("/g01-login-serif-500.woff2?v=49") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "G01 Login";
+  src: url("/g01-login-serif-600.woff2?v=49") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+body.g01-login-page {
+  font-family: "G01 Login", Palatino, "Palatino Linotype", "Liberation Serif", Georgia, serif;
+  font-size: 1.125rem;
+}
+
+body.g01-login-page * {
+  font-family: inherit;
+}
+
+body.g01-login-page :is(h1, h2, h3, p, label, li, small, legend, a, input, textarea, select),
+body.g01-login-page :is(h1, h2, h3, p, label, li, legend, a) span {
+  color: #8e98a6 !important;
+  -webkit-text-fill-color: #8e98a6;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+body.g01-login-page h1,
+body.g01-login-page h2 {
+  font-size: 2.35rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  background-image: linear-gradient(180deg, #f7f8fa 0%, #d5dbe3 34%, #7d8794 70%, #c9d0d8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.85));
+}
+
+body.g01-login-page input,
+body.g01-login-page textarea,
+body.g01-login-page select {
+  text-shadow: none;
+}
+
+body.g01-login-page input::placeholder,
+body.g01-login-page textarea::placeholder {
+  color: #b3bbc6 !important;
+  -webkit-text-fill-color: #b3bbc6;
+  opacity: 1;
+}
+
+body.g01-login-page .button.primary,
+body.g01-login-page button.primary,
+body.g01-login-page .bg-n-brand,
+body.g01-login-page .g01-signup-card button[type="submit"],
+body.g01-login-page .button.primary *,
+body.g01-login-page button.primary *,
+body.g01-login-page .bg-n-brand *,
+body.g01-login-page .g01-signup-card button[type="submit"] * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff;
+  text-shadow: none;
+  background-image: none;
+  filter: none;
+}
+
+body.g01-login-page .text-n-brand,
+body.g01-login-page .text-woot-500,
+body.g01-login-page a.text-n-blue-text,
+body.g01-login-page a.text-link,
+body.g01-login-page .text-link,
+body.g01-login-page .g01-signup-link,
+body.g01-login-page .g01-signup-back {
+  color: #7a5e24 !important;
+  -webkit-text-fill-color: #7a5e24;
+  background-image: none;
+  text-shadow: none;
+  filter: none;
+}
+
+body.g01-login-page .g01-signup-error {
+  color: #8a3b2a !important;
+  -webkit-text-fill-color: #8a3b2a;
+  text-shadow: none;
+}
+
 .chat-bubble.user,
 .chat-bubble.outgoing .message-content,
 .widget-header,
