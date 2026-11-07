@@ -84,8 +84,21 @@ def test_brand_assets_are_gold_and_white():
     assert "function installEmojiPickerDismiss" in script
     assert 'element.closest(".emoji-dialog")' in script
     assert '".reply-box .i-ph-smiley-sticker"' in script
-    assert "v=50" in initializer
-    assert "v=49" not in initializer
+    assert "function applyColorScheme" in script
+    assert "function savedColorScheme" in script
+    assert "function systemIsDark" in script
+    assert '"(prefers-color-scheme: dark)"' in script
+    assert 'selected === "dark"' in script
+    assert 'selected === "auto" || !selected' in script
+    assert "function light(" not in script
+    assert 'localStorage.setItem(key, "light")' not in script
+    assert "--slate-12: 42 36 24;" in css
+    assert "--slate-12: 244 239 230;" in css
+    assert "body.dark," in css
+    assert "background: #16130f !important;" in css
+    assert "color: #e4c98a !important;" in css
+    assert "v=51" in initializer
+    assert "v=50" not in initializer
     assert "function contactListItem" in script
     assert "function ensureContactSectionsHidden" in script
     assert '"conversation actions": true' in script

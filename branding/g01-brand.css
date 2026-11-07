@@ -1,7 +1,6 @@
 /* g01 gold and white on the Chatwoot shell. The signed-in app compiles its
    brand blue to #2781F6 / bg-n-brand, so those rules are overridden here. */
-:root,
-.dark {
+:root {
   color-scheme: light;
   --blue-1: 255 253 248;
   --blue-2: 255 250 240;
@@ -36,6 +35,51 @@
   --border-container: 231 215 177;
   --button-color: 255 255 255;
   --label-background: 255 252 246;
+}
+
+.dark {
+  color-scheme: dark;
+  --slate-1: 22 19 16;
+  --slate-2: 32 27 22;
+  --slate-3: 43 36 29;
+  --slate-4: 54 46 37;
+  --slate-5: 66 56 45;
+  --slate-6: 82 70 56;
+  --slate-7: 104 90 72;
+  --slate-8: 138 120 96;
+  --slate-9: 168 148 118;
+  --slate-10: 186 168 140;
+  --slate-11: 214 204 188;
+  --slate-12: 244 239 230;
+  --blue-1: 28 24 18;
+  --blue-2: 38 32 24;
+  --blue-3: 54 44 28;
+  --blue-4: 74 58 32;
+  --blue-5: 96 76 40;
+  --blue-8: 196 162 96;
+  --blue-9: 212 176 106;
+  --blue-10: 224 196 130;
+  --blue-11: 236 214 164;
+  --blue-12: 248 240 220;
+  --text-blue: 236 214 164;
+  --border-blue: 212, 176, 106, 0.45;
+  --border-blue-strong: 196 162 96;
+  --solid-blue: 74 58 32;
+  --solid-blue-2: 38 32 24;
+  --background-color: 22 19 16;
+  --surface-1: 28 24 20;
+  --surface-2: 36 31 26;
+  --surface-active: 54 46 37;
+  --card-color: 32 27 22;
+  --solid-1: 28 24 20;
+  --solid-2: 36 31 26;
+  --solid-3: 43 36 29;
+  --solid-active: 54 46 37;
+  --border-weak: 74 62 46;
+  --border-strong: 120 98 64;
+  --border-container: 74 62 46;
+  --button-color: 43 36 29;
+  --label-background: 43 36 29;
 }
 
 html,
@@ -171,6 +215,46 @@ body.g01-signup-open section.bg-white.shadow:not(#g01-signup-card) {
 .bg-n-slate-1,
 .bg-n-slate-2 {
   background-color: #ffffff !important;
+}
+
+body.dark,
+body.dark #app,
+body.dark .v3-app {
+  background: #16130f !important;
+  color: #f4efe6;
+}
+
+body.dark .bg-n-background,
+body.dark .bg-n-surface-1,
+body.dark .bg-n-surface-2,
+body.dark .bg-n-solid-1,
+body.dark .bg-n-solid-2,
+body.dark .bg-n-slate-1,
+body.dark .bg-n-slate-2 {
+  background-color: #1c1814 !important;
+}
+
+body.dark .bg-n-brand\/5,
+body.dark .bg-n-brand\/10,
+body.dark .bg-n-brand\/20 {
+  background-color: rgb(212 176 106 / 14%) !important;
+}
+
+body.dark .text-n-brand,
+body.dark .text-woot-500,
+body.dark .text-n-blue-text,
+body.dark .text-n-blue-11,
+body.dark a.text-n-blue-text,
+body.dark .text-link,
+body.dark a.text-link {
+  color: #e4c98a !important;
+}
+
+body.dark .border-n-brand,
+body.dark .border-woot-500,
+body.dark .border-n-weak,
+body.dark .border-n-strong {
+  border-color: #6b5738 !important;
 }
 
 img[src*="g01-logo"],
@@ -402,6 +486,14 @@ body.g01-login-page .g01-signup-error {
   background: #ffffff !important;
 }
 
+body.dark .conversation-wrap,
+body.dark .messages-wrap,
+body.dark .reply-box,
+body.dark .widget-wrap {
+  background: #1c1814 !important;
+  color: #f4efe6;
+}
+
 .g01-community-item {
   display: grid;
   width: 100%;
@@ -487,6 +579,23 @@ nav ul.items-center .g01-community-label {
   color: #2a2418;
   box-shadow: 0 24px 70px rgb(42 36 24 / 25%);
   padding: 1.25rem;
+}
+
+body.dark .g01-community-panel {
+  background: #241f1a;
+  color: #f4efe6;
+  border-color: #6b5738;
+}
+
+body.dark .g01-community-header h2,
+body.dark .g01-community-close {
+  color: #e4c98a;
+}
+
+body.dark .g01-community-intro,
+body.dark .g01-community-empty,
+body.dark .g01-audio-recorder-status {
+  color: #d6cbb8;
 }
 
 .g01-community-header {

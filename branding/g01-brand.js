@@ -2,10 +2,29 @@
   var LOGO = "/g01-logo.png";
   var MARK = "/g01-favicon.png?v=6";
 
-  function light() {
+  function savedColorScheme() {
+    try {
+      return localStorage.getItem("color_scheme");
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function systemIsDark() {
+    return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  }
+
+  function applyColorScheme() {
+    var selected = savedColorScheme();
+    var dark = selected === "dark" || ((selected === "auto" || !selected) && systemIsDark());
+    if (onLoginPage()) dark = false;
     var root = document.documentElement;
-    if (root.classList.contains("dark")) root.classList.remove("dark");
-    root.style.colorScheme = "light";
+    var scheme = dark ? "dark" : "light";
+    if (root.classList.contains("dark") !== dark) root.classList.toggle("dark", dark);
+    if (document.body && document.body.classList.contains("dark") !== dark) {
+      document.body.classList.toggle("dark", dark);
+    }
+    if (root.style.colorScheme !== scheme) root.style.colorScheme = scheme;
   }
 
   function isBrandLogo(src) {
@@ -367,18 +386,24 @@
     });
   }
 
-  light();
-  try {
-    ["color_scheme", "theme", "cw_theme", "cw-theme", "appearance"].forEach(function (key) {
-      localStorage.setItem(key, "light");
+  function watchColorScheme() {
+    applyColorScheme();
+    if (!document.body || document.body.dataset.g01ColorSchemeWatch === "true") return;
+    document.body.dataset.g01ColorSchemeWatch = "true";
+    new MutationObserver(applyColorScheme).observe(document.body, {
+      attributes: true,
+      attributeFilter: ["class"],
     });
-  } catch (error) {
-    /* private mode can block storage; the class observer still holds the light theme */
   }
 
-  new MutationObserver(function () {
-    light();
-  }).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+  watchColorScheme();
+  if (window.matchMedia) {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyColorScheme);
+  }
+  window.addEventListener("storage", function (event) {
+    if (!event.key || event.key === "color_scheme") applyColorScheme();
+  });
+  if (!document.body) document.addEventListener("DOMContentLoaded", watchColorScheme);
 
   function composerElement(node) {
     if (!node) return null;
