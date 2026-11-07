@@ -1105,6 +1105,33 @@
     });
   }
 
+  var profileDocsGuardInstalled = false;
+
+  function profileDocsItem(node) {
+    var element = eventElement(node);
+    var item = element && element.closest ? element.closest(".n-dropdown-item") : null;
+    if (!item) return null;
+    if (item.querySelector(".i-lucide-book") || item.querySelector('a[href*="chatwoot.com/hc"]')) return item;
+    return null;
+  }
+
+  function ensureProfileDocsHidden() {
+    document.querySelectorAll(".n-dropdown-item").forEach(function (item) {
+      if (profileDocsItem(item)) item.classList.add("g01-hidden-profile-docs");
+    });
+    if (profileDocsGuardInstalled) return;
+    profileDocsGuardInstalled = true;
+    document.addEventListener(
+      "click",
+      function (event) {
+        if (!profileDocsItem(event.target)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      },
+      true
+    );
+  }
+
   function ensureBusinessToolsHidden() {
     [
       [".i-lucide-building-2", "g01-hidden-companies"],
@@ -1258,6 +1285,7 @@
     ensureCaptainHidden();
     ensureContactsHidden();
     ensureBusinessToolsHidden();
+    ensureProfileDocsHidden();
     ensureHelpCenterGuide();
     installMessageMenuGuard();
     ensureContactSectionsHidden();
@@ -1270,6 +1298,7 @@
       ensureCaptainHidden,
       ensureContactsHidden,
       ensureBusinessToolsHidden,
+      ensureProfileDocsHidden,
       ensureHelpCenterGuide,
       ensureMessageMenuTrimmed,
       ensureCollapsedConversationMenuHidden,

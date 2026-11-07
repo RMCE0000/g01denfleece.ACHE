@@ -97,8 +97,13 @@ def test_brand_assets_are_gold_and_white():
     assert "body.dark," in css
     assert "background: #16130f !important;" in css
     assert "color: #e4c98a !important;" in css
-    assert "v=51" in initializer
-    assert "v=50" not in initializer
+    assert "function ensureProfileDocsHidden" in script
+    assert "g01-hidden-profile-docs" in script
+    assert ".g01-hidden-profile-docs" in css
+    assert ".n-dropdown-item:has(.i-lucide-book)" in css
+    assert 'a[href*="chatwoot.com/hc"]' in css
+    assert "v=52" in initializer
+    assert "v=51" not in initializer
     assert "function contactListItem" in script
     assert "function ensureContactSectionsHidden" in script
     assert '"conversation actions": true' in script
