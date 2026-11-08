@@ -113,6 +113,18 @@ class ChatwootClient:
             )
         return lines
 
+    async def set_typing(self, conversation_id: int, active: bool) -> None:
+        if not self.configured():
+            return
+        try:
+            await self._request(
+                "POST",
+                f"/api/v1/accounts/{self._account()}/conversations/{int(conversation_id)}/toggle_typing_status",
+                {"typing_status": "on" if active else "off", "is_private": False},
+            )
+        except Exception:
+            log.exception("Chatwoot did not update typing on conversation %s", conversation_id)
+
     async def post_message(self, conversation_id: int, content: str) -> dict:
         return await self._request(
             "POST",

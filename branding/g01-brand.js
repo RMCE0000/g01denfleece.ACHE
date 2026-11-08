@@ -489,9 +489,50 @@
     });
   }
 
+  function rewriteThinking(pill) {
+    pill.childNodes.forEach(function (node) {
+      if (node.nodeType !== 3 || !node.nodeValue) return;
+      var next = node.nodeValue.replace(/\bis typing\b/gi, "is thinking").replace(/\bare typing\b/gi, "are thinking");
+      if (next !== node.nodeValue) node.nodeValue = next;
+    });
+  }
+
+  function shapeThinking(scope) {
+    var root = scope && scope.querySelectorAll ? scope : document;
+    var images = [];
+    if (root.matches && root.matches('img[alt="Someone is typing"], img[src*="typing.gif"]')) images.push(root);
+    if (root.querySelectorAll) {
+      root.querySelectorAll('img[alt="Someone is typing"], img[src*="typing.gif"]').forEach(function (img) {
+        images.push(img);
+      });
+    }
+    images.forEach(function (img) {
+      var pill = img.parentElement;
+      var row = pill && pill.parentElement;
+      if (!pill || !row) return;
+      row.classList.add("g01-thinking-row");
+      pill.classList.add("g01-thinking");
+      rewriteThinking(pill);
+      if (pill.querySelector(".g01-thinking-dots")) return;
+      var dots = document.createElement("span");
+      dots.className = "g01-thinking-dots";
+      dots.setAttribute("aria-hidden", "true");
+      dots.appendChild(document.createElement("i"));
+      dots.appendChild(document.createElement("i"));
+      dots.appendChild(document.createElement("i"));
+      pill.appendChild(dots);
+      if (pill.dataset.g01Thinking === "1") return;
+      pill.dataset.g01Thinking = "1";
+      new MutationObserver(function () {
+        rewriteThinking(pill);
+      }).observe(pill, { characterData: true, subtree: true, childList: true });
+    });
+  }
+
   function watch() {
     pinTabIcons();
     pinTabTitle();
+    shapeThinking(document);
     brandImages(document);
     classifyMessages(document);
     enhanceAudioPlayers(document);
@@ -502,6 +543,7 @@
         record.addedNodes.forEach(function (node) {
           if (node.nodeType === 1) {
             brandImages(node);
+            shapeThinking(node);
             scheduleMessageClassification();
             enhanceAudioPlayers(node);
           }

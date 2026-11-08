@@ -12,6 +12,7 @@ from app.matchmaking import handle_private_match_message
 from app.polling import handle_private_poll_message
 from app.runtime import set_store
 from app.showcase import answer, answer_with_effects
+from app.thinking import start_thinking, stop_thinking
 
 
 def extract_message(payload: dict) -> dict:
@@ -103,8 +104,13 @@ async def run_turn(store, payload: dict) -> dict:
         return {"ok": True, "duplicate": True}
     message["speaker"] = await _speaker_name(store, message)
     conversation_id = int(message["conversation_id"])
+    thinking = False
     try:
         is_peer = await store.is_peer_conversation(conversation_id)
+        text = str(message.get("content") or "")
+        if not is_peer or _MENTIONS_JANE.search(text) or has_audio_attachment(message):
+            await start_thinking(conversation_id)
+            thinking = True
         await add_audio_transcript(message)
         if not str(message.get("content") or "").strip():
             message["content"] = "[Audio recording could not be transcribed.]"
@@ -134,4 +140,7 @@ async def run_turn(store, payload: dict) -> dict:
     except Exception:
         await store.unmark_event(event_id)
         raise
+    finally:
+        if thinking:
+            await stop_thinking(conversation_id)
     return {"ok": True, "reply": reply}

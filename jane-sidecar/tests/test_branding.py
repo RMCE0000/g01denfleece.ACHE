@@ -121,8 +121,13 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=59" in initializer
-    assert "v=58" not in initializer
+    assert "v=60" in initializer
+    assert "v=59" not in initializer
+    assert "function shapeThinking" in script
+    assert 'row.classList.add("g01-thinking-row")' in script
+    assert 'replace(/\\bis typing\\b/gi, "is thinking")' in script
+    assert ".g01-thinking-row" in css
+    assert "@keyframes g01-think" in css
     assert "function pinTabIcon" in script
     assert "function pinTabTitle" in script
     assert 'link.classList.remove("favicon")' in script
