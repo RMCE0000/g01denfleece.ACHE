@@ -924,6 +924,17 @@ body.dark .g01-silent-switch i {
   }
 }
 
+.bg-n-surface-1 > .absolute:has(img[alt="Someone is typing"]) {
+  position: static !important;
+  top: auto !important;
+  height: auto !important;
+  z-index: 5;
+}
+
+body:has(.g01-thinking-live) .bg-n-surface-1 > .absolute:has(img[alt="Someone is typing"]) {
+  display: none !important;
+}
+
 .g01-thinking-row {
   position: static !important;
   top: auto !important;
@@ -933,6 +944,14 @@ body.dark .g01-silent-switch i {
   justify-content: center;
   padding: 0.35rem 0.75rem 0.15rem;
   pointer-events: none;
+}
+
+.g01-thinking-live {
+  position: fixed !important;
+  z-index: 40;
+  width: auto;
+  padding: 0 0.75rem 0.4rem;
+  box-sizing: border-box;
 }
 
 .g01-thinking {

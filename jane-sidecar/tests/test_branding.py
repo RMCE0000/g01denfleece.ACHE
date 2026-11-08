@@ -121,9 +121,15 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=60" in initializer
-    assert "v=59" not in initializer
+    assert "v=61" in initializer
+    assert "v=60" not in initializer
     assert "function shapeThinking" in script
+    assert "function showThinking" in script
+    assert "function janeWillAnswer" in script
+    assert 'row.className = "g01-thinking-row g01-thinking-live"' in script
+    assert 'pill.appendChild(document.createTextNode("Jane is thinking"))' in script
+    assert ".g01-thinking-live" in css
+    assert 'img[alt="Someone is typing"]' in css
     assert 'row.classList.add("g01-thinking-row")' in script
     assert 'replace(/\\bis typing\\b/gi, "is thinking")' in script
     assert ".g01-thinking-row" in css

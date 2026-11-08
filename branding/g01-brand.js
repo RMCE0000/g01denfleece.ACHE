@@ -529,10 +529,154 @@
     });
   }
 
+  var thinkingWait = null;
+  var thinkingTimer = 0;
+  var thinkingEchoTimer = 0;
+
+  function composerText(box) {
+    var editor = box && box.querySelector ? box.querySelector(".ProseMirror") : null;
+    return editor ? editor.innerText || "" : "";
+  }
+
+  function janeWillAnswer(text) {
+    var titles = document.querySelectorAll(".conversation--header--actions [title]");
+    var sawInbox = false;
+    for (var i = 0; i < titles.length; i += 1) {
+      var name = titles[i].getAttribute("title") || "";
+      if (!name || name.charAt(0) === "#") continue;
+      sawInbox = true;
+      if (/^jane\b/i.test(name)) return true;
+    }
+    if (/\bjane\b/i.test(text || "")) return true;
+    return !sawInbox;
+  }
+
+  function hideThinking() {
+    thinkingWait = null;
+    window.clearTimeout(thinkingTimer);
+    window.clearTimeout(thinkingEchoTimer);
+    var row = document.querySelector(".g01-thinking-live");
+    if (row) row.remove();
+  }
+
+  function placeThinking() {
+    var row = document.querySelector(".g01-thinking-live");
+    var box = document.querySelector(".reply-box");
+    if (!row || !box) return;
+    var rect = box.getBoundingClientRect();
+    if (rect.width < 8 || rect.bottom < 0) {
+      row.style.visibility = "hidden";
+      return;
+    }
+    row.style.visibility = "visible";
+    row.style.left = Math.max(8, rect.left) + "px";
+    row.style.width = Math.max(0, rect.width) + "px";
+    row.style.bottom = Math.max(8, window.innerHeight - rect.top + 6) + "px";
+  }
+
+  function mountThinking() {
+    var row = document.querySelector(".g01-thinking-live");
+    if (!row) {
+      row = document.createElement("div");
+      row.className = "g01-thinking-row g01-thinking-live";
+      row.setAttribute("role", "status");
+      var pill = document.createElement("div");
+      pill.className = "g01-thinking";
+      pill.appendChild(document.createTextNode("Jane is thinking"));
+      var dots = document.createElement("span");
+      dots.className = "g01-thinking-dots";
+      dots.setAttribute("aria-hidden", "true");
+      dots.appendChild(document.createElement("i"));
+      dots.appendChild(document.createElement("i"));
+      dots.appendChild(document.createElement("i"));
+      pill.appendChild(dots);
+      row.appendChild(pill);
+      document.body.appendChild(row);
+    }
+    placeThinking();
+  }
+
+  function syncThinking() {
+    if (!thinkingWait) return;
+    mountThinking();
+    var bubbles = document.querySelectorAll(".message-bubble-container");
+    if (bubbles.length <= thinkingWait.baseline) return;
+    var last = bubbles[bubbles.length - 1];
+    var lastText = (last.innerText || "").replace(/\s+/g, " ").trim();
+    var sent = (thinkingWait.sent || "").replace(/\s+/g, " ").trim();
+    if (!sent) {
+      if (bubbles.length >= thinkingWait.baseline + 2) hideThinking();
+      return;
+    }
+    var snippet = sent.slice(0, 80);
+    if (snippet && lastText.indexOf(snippet) !== -1 && bubbles.length < thinkingWait.baseline + 2) return;
+    hideThinking();
+  }
+
+  function showThinking(sent) {
+    thinkingWait = {
+      baseline: document.querySelectorAll(".message-bubble-container").length,
+      sent: sent || ""
+    };
+    window.clearTimeout(thinkingTimer);
+    window.clearTimeout(thinkingEchoTimer);
+    thinkingTimer = window.setTimeout(hideThinking, 90000);
+    thinkingEchoTimer = window.setTimeout(function () {
+      if (!thinkingWait) return;
+      if (document.querySelectorAll(".message-bubble-container").length <= thinkingWait.baseline) hideThinking();
+    }, 1500);
+    mountThinking();
+  }
+
+  function maybeShowThinking(box) {
+    if (!box || box.classList.contains("is-private")) return;
+    var text = composerText(box);
+    if (!text.trim() && !box.querySelector(".attachment, .file-uploads, [data-file]")) return;
+    if (!janeWillAnswer(text)) return;
+    showThinking(text);
+  }
+
+  function installThinking() {
+    document.addEventListener(
+      "click",
+      function (event) {
+        var target = event.target && event.target.nodeType === 1 ? event.target : event.target && event.target.parentElement;
+        var button = target && target.closest ? target.closest(".reply-box button[type='submit']") : null;
+        if (!button || button.disabled) return;
+        maybeShowThinking(button.closest(".reply-box"));
+      },
+      true
+    );
+    document.addEventListener(
+      "keydown",
+      function (event) {
+        if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+        var target = event.target && event.target.nodeType === 1 ? event.target : event.target && event.target.parentElement;
+        var editor = target && target.closest ? target.closest(".reply-box .ProseMirror") : null;
+        if (!editor) return;
+        maybeShowThinking(editor.closest(".reply-box"));
+      },
+      true
+    );
+    window.addEventListener("resize", placeThinking);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", placeThinking);
+      window.visualViewport.addEventListener("scroll", placeThinking);
+    }
+    document.addEventListener(
+      "scroll",
+      function () {
+        if (thinkingWait) placeThinking();
+      },
+      true
+    );
+  }
+
   function watch() {
     pinTabIcons();
     pinTabTitle();
     shapeThinking(document);
+    installThinking();
     brandImages(document);
     classifyMessages(document);
     enhanceAudioPlayers(document);
@@ -549,6 +693,7 @@
           }
         });
       });
+      syncThinking();
     }).observe(document.body, { childList: true, subtree: true });
     new MutationObserver(function (records) {
       records.forEach(function (record) {
