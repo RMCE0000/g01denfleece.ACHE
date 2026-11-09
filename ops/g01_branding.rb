@@ -1,5 +1,5 @@
-# Inject the g01 stylesheet into Chatwoot HTML. The Vue bundles stay upstream.
-# POST /g01/signup is the login-page account form. Chatwoot's own signup creates
+# Inject the g01 stylesheet into g01 HTML. The Vue bundles stay upstream.
+# POST /g01/signup is the login-page account form. The built-in signup creates
 # a separate account, so this forwards to Jane on the g01 account instead.
 require "json"
 require "net/http"
@@ -99,7 +99,7 @@ end
 Rails.application.config.middleware.use G01Branding
 
 # The controller is mounted as an overlay beside this initializer. It inherits
-# Chatwoot's account authentication and proxies only the narrow community API.
+# g01's account authentication and proxies only the narrow community API.
 Rails.application.routes.append do
   get "/api/v1/accounts/:account_id/g01/community",
       to: "api/v1/accounts/g01_community#index"

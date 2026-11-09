@@ -1,11 +1,11 @@
-# Upstream Chatwoot owns chat, auth, and ActionCable.
+# The upstream image owns chat, auth, and ActionCable.
 # Jane is a separate Python service. They share Postgres.
 
 x-chatwoot-env: &chatwoot-env
   RAILS_ENV: production
   NODE_ENV: production
   INSTALLATION_ENV: docker
-  # Alphanumeric. Chatwoot rejects a short or symbolic key.
+  # Alphanumeric. g01 rejects a short or symbolic key.
   SECRET_KEY_BASE: ${SECRET_KEY_BASE:-G01devSecretKeyBase0123456789abcdefghijklmnopqrstuvwxyzABCDEF}
   # This process. The public website is https://g01denfleece.com.
   FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
@@ -30,7 +30,7 @@ x-chatwoot-env: &chatwoot-env
   SMTP_PORT: ${SMTP_PORT:-1025}
   SMTP_ENABLE_STARTTLS_AUTO: ${SMTP_ENABLE_STARTTLS_AUTO:-false}
   ACTIVE_STORAGE_SERVICE: local
-  # Jane is a private Docker hostname. Chatwoot otherwise refuses the webhook.
+  # Jane is a private Docker hostname. g01 otherwise refuses the webhook.
   SAFE_FETCH_ALLOW_PRIVATE_NETWORK: "true"
 
 x-jane-env: &jane-env
@@ -40,7 +40,7 @@ x-jane-env: &jane-env
   G01_BOOT_ON_STARTUP: "1"
   G01_SEED_DEMO: "0"
   G01_SCHEMA_PATH: /sql/001_init_g01_schema.sql
-  # Reachable from Chatwoot Sidekiq, not from a browser.
+  # Reachable from g01 Sidekiq, not from a browser.
   G01_PUBLIC_BASE_URL: ${G01_PUBLIC_BASE_URL:-http://jane:8000}
   G01_ADMIN_TOKEN: ${G01_ADMIN_TOKEN:-g01-local-admin-token}
   G01_BRIDGE_SECRET: ${G01_BRIDGE_SECRET:-g01-local-bridge-token}

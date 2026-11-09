@@ -47,7 +47,7 @@ capabilities
 ```
 
 `set`, `connect`, sponsor lifecycle commands, `poll-create`, `match-approve`,
-`match-reject`, and `jobs` can change data or send Chatwoot messages. The
+`match-reject`, and `jobs` can change data or send g01 messages. The
 interactive console asks before running them. `set` is limited to the fields
 listed by `help`; arbitrary database columns cannot be changed.
 
@@ -108,25 +108,25 @@ widget summary matches “3D printed widgets.” Ranking remains restricted to t
 requester's locality and then applies sourcing tier, distance, referral
 rotation, rating, and promotion weights.
 
-## Chatwoot boundary
+## g01 boundary
 
-Chatwoot remains a normally usable workspace: it owns the browser UI,
+g01 remains a normally usable workspace: it owns the browser UI,
 authentication, real-time messaging, files, private notes, contacts, labels,
 assignment, status, snooze, priority, and password reset. g01 adds homestead
 records and workflows without replacing those features.
 
 | Area | Current behavior |
 | --- | --- |
-| Sign-in and reset | Active through Chatwoot and configured SMTP |
-| g01 signup | Creates a Chatwoot agent, a property row, and a private Jane inbox |
+| Sign-in and reset | Active through g01 and configured SMTP |
+| g01 signup | Creates a g01 agent, a property row, and a private Jane inbox |
 | Private Jane chat | Active with `G01_GEMINI_API_KEY`; LangChain routes ordinary turns to Gemini Flash and complex work to Gemini Pro |
 | Homesteader connection | A user enters an exact username in **g01 Community**, or the operator uses `connect`; no member directory is published |
 | Files and private notes | Work normally inside every conversation the user may access |
-| Contacts | Normal Chatwoot CRM tools, scoped for homesteaders to contacts in their permitted inboxes; not a global member directory |
-| Labels and custom fields | g01 thread types and public locality metadata are filterable in Chatwoot |
-| Assignment, status, snooze, priority | Normal Chatwoot behavior remains available |
-| Reports | Chatwoot administrators use normal messaging reports; the command center provides g01 analyses |
-| Campaigns and help center | Administrators can use the normal Chatwoot workflows after configuring content and audiences |
+| Contacts | Normal g01 CRM tools, scoped for homesteaders to contacts in their permitted inboxes; not a global member directory |
+| Labels and custom fields | g01 thread types and public locality metadata are filterable in g01 |
+| Assignment, status, snooze, priority | Normal g01 behavior remains available |
+| Reports | g01 administrators use normal messaging reports; the command center provides g01 analyses |
+| Campaigns and help center | Administrators can use the normal g01 workflows after configuring content and audiences |
 | Email, WhatsApp, and social inboxes | Work normally only after each external provider is added and verified |
 | North Star and ledger | Grounded live Jane turns update the record; operators can inspect and correct whitelisted fields |
 | Sponsors | Operators manage standalone or homestead-linked profiles and lifecycle status; `rank` previews Jane's local recommendations |
@@ -142,6 +142,6 @@ account and credentials.
 ## Access and data handling
 
 Run the command center only through a shell on the server. It displays email,
-location, Chatwoot identifiers, ledger facts, KYC state, conversations, polls,
+location, g01 identifiers, ledger facts, KYC state, conversations, polls,
 and matches. Do not expose it through Caddy or copy its JSON output into a
 public log.

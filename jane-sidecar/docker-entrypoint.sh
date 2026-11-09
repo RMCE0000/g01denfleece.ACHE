@@ -1,5 +1,5 @@
 #!/bin/sh
-# Load the Chatwoot account, inbox, and Jane token written by ops/bootstrap_chatwoot.rb.
+# Load the g01 account, inbox, and Jane token written by ops/bootstrap_chatwoot.rb.
 set -e
 if [ -f /bootstrap/chatwoot.env ]; then
   set -a

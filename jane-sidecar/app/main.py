@@ -1,4 +1,4 @@
-"""FastAPI entrypoint. Homesteaders use the Chatwoot thread. This process is webhooks and admin only."""
+"""FastAPI entrypoint. Homesteaders use the g01 thread. This process is webhooks and admin only."""
 
 import asyncio
 import logging
@@ -83,11 +83,11 @@ async def lifespan(app: FastAPI):
         try:
             await client.ensure_webhook()
         except Exception:
-            log.exception("Chatwoot webhook registration did not finish; the sidecar will keep serving")
+            log.exception("g01 webhook registration did not finish; the sidecar will keep serving")
         try:
             await sync_workspace_metadata(store)
         except Exception:
-            log.exception("Chatwoot workspace metadata synchronization did not finish")
+            log.exception("g01 workspace metadata synchronization did not finish")
         if settings.seed_homesteaders and settings.chatwoot_api_token and settings.chatwoot_platform_token:
             from app.homestead_seed import seed_signed_in_homesteaders
 

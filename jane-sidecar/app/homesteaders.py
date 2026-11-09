@@ -1,4 +1,4 @@
-"""Signed-in homesteaders and the private Chatwoot thread between two of them."""
+"""Signed-in homesteaders and the private g01 thread between two of them."""
 
 import asyncio
 import logging
@@ -19,7 +19,7 @@ _PASSWORD_HELP = (
     "a number, and a special character."
 )
 _PASSWORD_LENGTH = "Password must be 72 characters or fewer."
-# Chatwoot stores passwords with bcrypt, which rejects secrets longer than 72 bytes
+# g01 stores passwords with bcrypt, which rejects secrets longer than 72 bytes
 # with an unhandled exception. That reached the browser as a plain error 500.
 _PEER_LOCKS: dict[tuple[str, str], asyncio.Lock] = {}
 
@@ -83,13 +83,13 @@ def _username(value: str | None, email: str) -> str:
 
 def _require_api(client: ChatwootClient) -> None:
     if not client.configured():
-        raise G01Error("Chatwoot API token is not configured", 503)
+        raise G01Error("g01 API token is not configured", 503)
 
 
 def _require_platform(client: ChatwootClient) -> None:
     _require_api(client)
     if not client.platform_configured():
-        raise G01Error("Chatwoot platform token is not configured", 503)
+        raise G01Error("g01 platform token is not configured", 503)
 
 
 async def _say(store, client: ChatwootClient, conversation_id: int | None, content: str) -> None:
@@ -99,7 +99,7 @@ async def _say(store, client: ChatwootClient, conversation_id: int | None, conte
             await client.post_message(int(conversation_id), content)
             delivered = True
         except Exception:
-            log.exception("Chatwoot did not accept Jane's message on conversation %s", conversation_id)
+            log.exception("g01 did not accept Jane's message on conversation %s", conversation_id)
     await store.add_outbox(int(conversation_id) if conversation_id is not None else None, content, delivered)
     if conversation_id is not None:
         await store.append_transcript(
@@ -112,7 +112,7 @@ async def _say(store, client: ChatwootClient, conversation_id: int | None, conte
 
 
 async def _sync_homesteader_metadata(client: ChatwootClient, prop: dict, locality: dict) -> None:
-    """Mirror safe, filterable g01 context into ordinary Chatwoot surfaces."""
+    """Mirror safe, filterable g01 context into ordinary g01 surfaces."""
     try:
         await client.set_contact_labels(int(prop["chatwoot_contact_id"]), ["g01-homesteader"])
         await client.update_contact_custom_attributes(
@@ -135,9 +135,9 @@ async def _sync_homesteader_metadata(client: ChatwootClient, prop: dict, localit
             },
         )
     except Exception:
-        # The Chatwoot conversation is still usable if metadata synchronization
+        # The g01 conversation is still usable if metadata synchronization
         # fails; a later bootstrap or operator run can repair labels.
-        log.exception("Chatwoot metadata did not synchronize for property %s", prop.get("id"))
+        log.exception("g01 metadata did not synchronize for property %s", prop.get("id"))
 
 
 async def _sync_peer_metadata(client: ChatwootClient, row: dict, peer_a: dict, peer_b: dict) -> None:
@@ -154,11 +154,11 @@ async def _sync_peer_metadata(client: ChatwootClient, row: dict, peer_a: dict, p
             },
         )
     except Exception:
-        log.exception("Chatwoot metadata did not synchronize for peer conversation %s", row.get("chatwoot_conversation_id"))
+        log.exception("g01 metadata did not synchronize for peer conversation %s", row.get("chatwoot_conversation_id"))
 
 
 async def sync_workspace_metadata(store) -> None:
-    """Backfill native Chatwoot labels and attributes for existing records."""
+    """Backfill native g01 labels and attributes for existing records."""
     client = ChatwootClient(get_settings())
     if not client.configured():
         return
@@ -200,15 +200,15 @@ def _platform_user_was_created(user: dict, nonce: str) -> bool:
             return True
         # Earlier g01 code could create the platform user and then reject the
         # response before adding an account. Only resume that identifiable,
-        # account-less g01 user; never claim an ordinary Chatwoot user.
+        # account-less g01 user; never claim an ordinary g01 user.
         return (
             attributes.get("g01") is True
             and user.get("account_id") is None
             and user.get("accounts") == []
         )
     # A just-created platform user has not been attached to an account yet.
-    # Older Chatwoot serializers omit custom_attributes, but still expose the
-    # empty account list. Existing users already attached to Chatwoot do not.
+    # Older g01 serializers omit custom_attributes, but still expose the
+    # empty account list. Existing users already attached to g01 do not.
     accounts = user.get("accounts")
     return user.get("account_id") is None and isinstance(accounts, list) and not accounts
 
@@ -238,7 +238,7 @@ async def register_homesteader(store, fields: dict) -> dict:
 
 
 async def provision_homesteader(store, fields: dict, *, reject_existing_user: bool = False) -> dict:
-    """Create a Chatwoot sign-in, a private Jane inbox, and the property row."""
+    """Create a g01 sign-in, a private Jane inbox, and the property row."""
     name = " ".join(str(fields.get("name") or "").split())
     if not name:
         raise G01Error("name is required", 422)
@@ -306,7 +306,7 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
 async def resolve_homesteader(store, token: str) -> dict:
     raw = (token or "").strip()
     if not raw:
-        raise G01Error("name the homesteader by email, Chatwoot user id, or property id", 422)
+        raise G01Error("name the homesteader by email, g01 user id, or property id", 422)
     if "@" in raw:
         found = await store.get_property_by_username(raw) if raw.startswith("@") else await store.get_property_by_email(_email(raw))
     elif raw.isdigit():
@@ -323,7 +323,7 @@ async def resolve_homesteader(store, token: str) -> dict:
     if found is None:
         raise G01Error("no homesteader matches that email, user id, or property id", 404)
     if not found.get("chatwoot_user_id"):
-        raise G01Error(f"{found.get('display_name') or found.get('email') or 'that homesteader'} has no Chatwoot sign-in yet", 422)
+        raise G01Error(f"{found.get('display_name') or found.get('email') or 'that homesteader'} has no g01 sign-in yet", 422)
     return found
 
 
@@ -377,7 +377,7 @@ async def _open_peer_conversation(store, peer_a: dict, peer_b: dict, topic: str 
                 store,
                 client,
                 int(speaker["primary_conversation_id"]),
-                f"I opened a conversation with {other}. In Chatwoot it is the inbox \"{inbox_name}\".",
+                f"I opened a conversation with {other}. In g01 it is the inbox \"{inbox_name}\".",
             )
     return _peer_payload(peer_a, peer_b, row, existing=False)
 

@@ -1,5 +1,5 @@
-# Same-origin bridge from the authenticated Chatwoot dashboard to Jane.
-# Chatwoot remains the UI and auth owner; no Jane or admin token reaches the browser.
+# Same-origin bridge from the authenticated g01 dashboard to Jane.
+# g01 remains the UI and auth owner; no Jane or admin token reaches the browser.
 require "json"
 require "net/http"
 require "uri"

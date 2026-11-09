@@ -1,4 +1,4 @@
-"""Audio attachment intake for Chatwoot messages."""
+"""Audio attachment intake for g01 messages."""
 
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ def _attachment_url(attachment: dict, settings: Settings) -> str:
             raise ValueError("audio attachment URL scheme is not allowed")
         allowed_hosts = {host for host in (internal.hostname, public.hostname) if host}
         if parsed.hostname not in allowed_hosts:
-            raise ValueError("audio attachment URL host is not Chatwoot")
+            raise ValueError("audio attachment URL host is not g01")
         path, query = parsed.path, parsed.query
     else:
         path, query = parsed.path, parsed.query

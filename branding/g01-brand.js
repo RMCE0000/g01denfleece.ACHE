@@ -80,7 +80,7 @@
     return link.classList.contains("favicon") || rel.indexOf("icon") !== -1;
   }
 
-  // Chatwoot rewrites .favicon to /favicon-*.png when the tab is shown again
+  // The signed-in page rewrites .favicon to /favicon-*.png when the tab is shown again
   // and to /favicon-badge-*.png when a notification arrives.
   function pinTabIcon(link) {
     if (!tabIcon(link)) return;
@@ -158,7 +158,7 @@
             });
         }
       } catch (_error) {
-        // Leave Chatwoot's player intact if a browser cannot enhance this attachment.
+        // Leave g01's player intact if a browser cannot enhance this attachment.
       }
     });
   }
@@ -425,7 +425,7 @@
         if (activeConversationKey === requestKey) applyMessageClasses(visibleMessages());
       })
       .catch(function () {
-        // Keep Chatwoot's messages usable if either read-only lookup fails.
+        // Keep g01's messages usable if either read-only lookup fails.
       })
       .finally(function () {
         messageClassificationRequest = null;

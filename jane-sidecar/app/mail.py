@@ -1,4 +1,4 @@
-"""Send the sponsorship payment link through the same mailbox Chatwoot uses."""
+"""Send the sponsorship payment link through the same mailbox g01 uses."""
 
 import os
 import smtplib

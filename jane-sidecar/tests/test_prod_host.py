@@ -42,7 +42,7 @@ def test_production_compose_publishes_only_the_website():
     assert "create-vm.sh" in launch
     bootstrap = (ROOT / "ops" / "bootstrap_chatwoot.rb").read_text(encoding="utf-8")
     assert 'raise "g01 platform token is empty"' in bootstrap
-    assert 'raise "g01 Chatwoot API token is empty"' in bootstrap
+    assert 'raise "g01 API token is empty"' in bootstrap
     assert "G01_CHATWOOT_WEBHOOK_SECRET" in bootstrap
     assert "where.not(url: WEBHOOK_URL).destroy_all" in bootstrap
 

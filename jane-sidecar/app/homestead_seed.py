@@ -1,7 +1,7 @@
-"""Local demo sign-ins so the Chatwoot screen can be opened without a manual API call.
+"""Local demo sign-ins so the g01 screen can be opened without a manual API call.
 
 The passwords below are for the local stack only. Later boots do not change a
-password Chatwoot already stored.
+password g01 already stored.
 """
 
 import logging

@@ -1,4 +1,4 @@
-"""Double opt-in plus Stripe Identity before any shared Chatwoot thread."""
+"""Double opt-in plus Stripe Identity before any shared g01 thread."""
 
 import logging
 
@@ -29,7 +29,7 @@ async def refresh_match_gate(store, match_id: str, speaker_property_id: str | No
     if match.get("operator_status") != "approved":
         return "That collaboration is waiting for operator approval. I will not contact or connect anyone yet."
     if match.get("shared_chatwoot_conversation_id"):
-        return f"The shared thread is already open as Chatwoot conversation {match['shared_chatwoot_conversation_id']}."
+        return f"The shared thread is already open as g01 conversation {match['shared_chatwoot_conversation_id']}."
     if match["peer_a_status"] == "declined" or match["peer_b_status"] == "declined":
         return "That collaboration is declined. I will not open a shared thread."
     if match["peer_a_status"] != "accepted" or match["peer_b_status"] != "accepted":
@@ -50,13 +50,13 @@ async def refresh_match_gate(store, match_id: str, speaker_property_id: str | No
     if not peer_a.get("chatwoot_user_id") or not peer_b.get("chatwoot_user_id"):
         return (
             "Both of you accepted and both are verified. "
-            "Each of you needs a Chatwoot sign-in before I can open a thread you can both use."
+            "Each of you needs a g01 sign-in before I can open a thread you can both use."
         )
 
     if not await store.claim_shared_conversation(match_id):
         current = await store.get_match(match_id)
         if current and current.get("shared_chatwoot_conversation_id"):
-            return f"The shared thread is already open as Chatwoot conversation {current['shared_chatwoot_conversation_id']}."
+            return f"The shared thread is already open as g01 conversation {current['shared_chatwoot_conversation_id']}."
         return "Both of you are ready. I am already opening the shared thread."
 
     client = ChatwootClient(get_settings())
@@ -71,7 +71,7 @@ async def refresh_match_gate(store, match_id: str, speaker_property_id: str | No
     if conversation_id is None:
         await store.release_shared_conversation_claim(match_id)
         return (
-            "Both of you accepted and both are verified. Chatwoot did not open a thread, "
+            "Both of you accepted and both are verified. g01 did not open a thread, "
             "so I did not invent a shared conversation."
         )
     await store.set_shared_conversation(match_id, conversation_id)
@@ -82,7 +82,7 @@ async def refresh_match_gate(store, match_id: str, speaker_property_id: str | No
         topic=match.get("proposed_project_title"),
     )
     notice = (
-        f"You're both verified and you both accepted. I opened Chatwoot conversation {conversation_id}. "
+        f"You're both verified and you both accepted. I opened g01 conversation {conversation_id}. "
         "Jane is a peer in it, and it stays open."
     )
     await deliver(store, conversation_id, notice)

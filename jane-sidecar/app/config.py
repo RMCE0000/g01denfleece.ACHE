@@ -1,4 +1,4 @@
-"""Environment settings for the sidecar. Chatwoot keeps its own Rails env."""
+"""Environment settings for the sidecar. g01 keeps its own Rails env."""
 
 from functools import lru_cache
 from pathlib import Path

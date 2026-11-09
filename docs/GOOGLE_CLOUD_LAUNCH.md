@@ -103,7 +103,7 @@ cd g01denfleece.ACHE
 git checkout <launch-tag-or-merged-main>
 ```
 
-The configuration helper generates the database, Chatwoot, bridge, admin, and
+The configuration helper generates the database, g01, bridge, admin, and
 internal webhook secrets locally. Provider secrets are prompted without echo
 and are not put in shell history. For the Stripe webhook signing secret, enter
 a temporary placeholder such as `whsec_pending` if the public site is not up
@@ -124,7 +124,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml \
   logs -f rails bootstrap jane caddy
 ```
 
-The first Chatwoot migration can take several minutes. Stop following logs
+The first g01 migration can take several minutes. Stop following logs
 with `Ctrl-C`; this does not stop the containers.
 
 Then run:
@@ -136,9 +136,9 @@ sh deploy/check-running.sh
 The postflight requires:
 
 - Postgres, Redis, Rails, Sidekiq, Jane, and Caddy running.
-- Chatwoot account and platform tokens from bootstrap.
+- g01 account and platform tokens from bootstrap.
 - Jane healthy with Gemini configured.
-- Public Chatwoot health passing over HTTPS.
+- Public g01 health passing over HTTPS.
 - The public Stripe route reaching Jane and rejecting an unsigned request.
 
 If bootstrap fails:

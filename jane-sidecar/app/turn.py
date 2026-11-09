@@ -1,4 +1,4 @@
-"""Chatwoot message_created intake. Jane's own posts are ignored so the webhook cannot loop.
+"""g01 message_created intake. Jane's own posts are ignored so the webhook cannot loop.
 
 The minimum showcase routes the constitution and history through LangChain to Gemini.
 """

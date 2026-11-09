@@ -229,7 +229,7 @@ def test_constitution_and_sql_keep_the_rules():
         "tier_weight = 0.85",
         "tier_weight = 0.70",
         "tier_weight = 0.50",
-        "collect the sponsorship answers in this Chatwoot thread",
+        "collect the sponsorship answers in this g01 thread",
         "Rogers, Arkansas",
         "0.45",
         "0.25",

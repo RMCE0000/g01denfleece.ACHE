@@ -1,6 +1,6 @@
 """Show Jane as thinking in the open thread until her reply is posted.
 
-Chatwoot clears a typing signal after 30 seconds, so the signal is refreshed
+g01 clears a typing signal after 30 seconds, so the signal is refreshed
 until the turn finishes.
 """
 

@@ -64,5 +64,5 @@ def test_chatwoot_redirect_is_an_error_instead_of_empty_success(monkeypatch):
         lambda timeout: _HttpClient(_Response(status_code=308), {}),
     )
 
-    with pytest.raises(G01Error, match="Chatwoot returned 308"):
+    with pytest.raises(G01Error, match="g01 returned 308"):
         asyncio.run(ChatwootClient(_settings())._request("POST", "/platform/api/v1/users", {}))

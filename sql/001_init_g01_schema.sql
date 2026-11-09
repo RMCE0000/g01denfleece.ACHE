@@ -1,4 +1,4 @@
--- g01 schema. Apply after Chatwoot's own migrations on the shared Postgres 16 database.
+-- g01 schema. Apply after the messaging migrations on the shared Postgres 16 database.
 -- Tables 1–6 and the locality seed follow the MVP brief. The rest is the ranking,
 -- idempotency, and gate machinery those tables need in order to stay deterministic.
 
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS g01_properties (
     kyc_verified BOOLEAN DEFAULT FALSE,
     stripe_identity_session_id VARCHAR(255),
     stripe_identity_session_url TEXT,
-    -- In-progress sponsorship answers collected inside the Chatwoot thread.
+    -- In-progress sponsorship answers collected inside the g01 thread.
     sponsor_draft JSONB,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -113,7 +113,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS g01_properties_email_idx
 CREATE UNIQUE INDEX IF NOT EXISTS g01_properties_username_idx
     ON g01_properties (lower(username));
 
--- A private Chatwoot inbox shared by two signed-in homesteaders. Jane stays quiet
+-- A private g01 inbox shared by two signed-in homesteaders. Jane stays quiet
 -- on these conversation ids unless the message says her name.
 CREATE TABLE IF NOT EXISTS g01_peer_conversations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

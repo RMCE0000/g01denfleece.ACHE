@@ -1,4 +1,4 @@
-"""Sponsorship answers are collected in the Chatwoot thread."""
+"""Sponsorship answers are collected in the g01 thread."""
 
 import asyncio
 import re

@@ -1,4 +1,4 @@
-# Chatwoot contacts are account-wide by default. For homesteader agents, scope
+# g01 contacts are account-wide by default. For homesteader agents, scope
 # CRM results to contacts attached to inboxes they can already access. This
 # preserves normal contact tools without turning the Contacts page into a
 # directory of every registered homesteader.

@@ -1,4 +1,4 @@
-"""Private username dialing behind the authenticated Chatwoot Rails bridge."""
+"""Private username dialing behind the authenticated g01 Rails bridge."""
 
 import secrets
 from urllib.parse import urlsplit

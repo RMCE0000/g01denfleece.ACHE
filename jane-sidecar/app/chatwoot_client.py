@@ -1,4 +1,4 @@
-"""Chatwoot REST wrapper. Messaging and auth stay in Chatwoot; this only calls them."""
+"""g01 REST wrapper. Messaging and auth stay in g01; this only calls them."""
 
 import logging
 from urllib.parse import quote
@@ -52,7 +52,7 @@ class ChatwootClient:
     async def _request(self, method: str, path: str, body: dict | None = None, platform: bool = False):
         token = self.settings.chatwoot_platform_token if platform else self.settings.chatwoot_api_token
         url = self.settings.chatwoot_base_url.rstrip("/") + path
-        # Production Chatwoot forces HTTPS at the Rails layer. Jane reaches it
+        # Production g01 forces HTTPS at the Rails layer. Jane reaches it
         # over the private Docker network, so identify the original public
         # scheme and avoid a redirect to an unusable https://rails:3000 URL.
         headers = {
@@ -64,7 +64,7 @@ class ChatwootClient:
             response = await client.request(method, url, headers=headers, json=body)
         if response.status_code >= 300:
             detail = " ".join(response.text.split())[:180]
-            raise G01Error(f"Chatwoot returned {response.status_code}: {detail}", 502)
+            raise G01Error(f"g01 returned {response.status_code}: {detail}", 502)
         if not response.content:
             return {}
         return response.json()
@@ -123,7 +123,7 @@ class ChatwootClient:
                 {"typing_status": "on" if active else "off", "is_private": False},
             )
         except Exception:
-            log.exception("Chatwoot did not update typing on conversation %s", conversation_id)
+            log.exception("g01 did not update typing on conversation %s", conversation_id)
 
     async def post_message(self, conversation_id: int, content: str) -> dict:
         return await self._request(
@@ -165,7 +165,7 @@ class ChatwootClient:
         try:
             payload = await self._request("GET", f"/platform/api/v1/users/{int(user_id)}/login", platform=True)
         except G01Error:
-            log.exception("Chatwoot did not issue a sign-in link for user %s", user_id)
+            log.exception("g01 did not issue a sign-in link for user %s", user_id)
             return None
         if isinstance(payload, dict):
             return payload.get("url")
@@ -177,7 +177,7 @@ class ChatwootClient:
             f"/api/v1/accounts/{self._account()}/contacts",
             {"name": name, "email": email, "identifier": email},
         )
-        # Chatwoot wraps the contact under "payload" on some versions and returns it bare on others.
+        # g01 wraps the contact under "payload" on some versions and returns it bare on others.
         if isinstance(payload, dict) and "payload" in payload and isinstance(payload["payload"], dict):
             return payload["payload"].get("contact") or payload["payload"]
         return payload
@@ -283,7 +283,7 @@ class ChatwootClient:
     ) -> dict:
         """Private inbox whose only agents are the given users plus whoever was passed in."""
         if not self.configured():
-            raise G01Error("Chatwoot API token is not configured", 503)
+            raise G01Error("g01 API token is not configured", 503)
         members = _unique_ids(user_ids)
         if len(members) < 2:
             raise G01Error("a homestead conversation needs the homesteader and Jane", 422)
@@ -369,4 +369,4 @@ def _record_id(payload) -> int:
             inner = payload.get(key)
             if isinstance(inner, dict) and "id" in inner and not isinstance(inner["id"], dict):
                 return int(inner["id"])
-    raise G01Error("Chatwoot response did not include an id", 502)
+    raise G01Error("g01 response did not include an id", 502)

@@ -1,4 +1,4 @@
-/* g01 gold and white on the Chatwoot shell. The signed-in app compiles its
+/* g01 gold and white on the signed-in shell. The signed-in app compiles its
    brand blue to #2781F6 / bg-n-brand, so those rules are overridden here. */
 :root {
   color-scheme: light;

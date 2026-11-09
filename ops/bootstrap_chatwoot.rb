@@ -1,4 +1,4 @@
-# Idempotent Chatwoot setup for g01. Run inside the Chatwoot container after db:chatwoot_prepare.
+# Idempotent g01 setup for g01. Run inside the g01 container after db:chatwoot_prepare.
 # Creates Jane, the website widget, g01 workspace metadata, and the message webhook.
 # Leaves auto-resolve unset so the homestead thread stays open.
 
@@ -7,7 +7,7 @@ require "fileutils"
 JANE_EMAIL = "jane@g01.local"
 ACCOUNT_NAME = "g01denfleece"
 INBOX_NAME = "Homestead"
-# The public website. FRONTEND_URL is wherever this Chatwoot process is reached.
+# The public website. FRONTEND_URL is wherever this g01 process is reached.
 SITE_NAME = "g01denfleece.com"
 SITE_URL = "https://g01denfleece.com"
 OUT_DIR = "/bootstrap/out"
@@ -35,7 +35,7 @@ account.settings = settings
 account.auto_resolve_duration = nil if account.has_attribute?(:auto_resolve_duration)
 account.save!
 
-# These make ordinary Chatwoot filtering, contacts, and conversation details
+# These make ordinary g01 filtering, contacts, and conversation details
 # useful without moving authoritative or sensitive g01 records out of Jane.
 [
   ["g01-homesteader", "A registered g01 homesteader contact", "#7A5E24"],
@@ -334,7 +334,7 @@ rescue StandardError => e
 end
 
 # Remove an older unsigned/tokenized g01 hook before saving the canonical URL.
-# Otherwise Chatwoot delivers each message twice and one delivery may 401.
+# Otherwise g01 delivers each message twice and one delivery may 401.
 Webhook.where(account: account).where("url LIKE ?", "#{WEBHOOK_BASE_URL}%").where.not(url: WEBHOOK_URL).destroy_all
 hook = Webhook.find_by(account: account, url: WEBHOOK_URL) || Webhook.new(account: account, url: WEBHOOK_URL)
 hook.subscriptions = ["message_created"]
@@ -342,7 +342,7 @@ hook.webhook_type = :account_type
 hook.save!
 
 access = AccessToken.find_by(owner: user) || AccessToken.create!(owner: user)
-raise "g01 Chatwoot API token is empty" if access.token.blank?
+raise "g01 API token is empty" if access.token.blank?
 widget_url = "#{FRONTEND}/widget?website_token=#{channel.website_token}"
 
 File.write(env_path, <<~ENV)
@@ -355,7 +355,7 @@ ENV
 
 password_line = password ? "password: #{password}" : "password: unchanged from the first bootstrap (this file was missing the old password)"
 File.write(operator_path, <<~TXT)
-  Open the Chatwoot form: #{widget_url}
+  Open the g01 form: #{widget_url}
   Jane signs in at #{FRONTEND}/app
   email: #{JANE_EMAIL}
   #{password_line}

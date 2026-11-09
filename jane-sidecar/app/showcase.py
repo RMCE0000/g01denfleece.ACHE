@@ -112,7 +112,7 @@ def _same_message(line: dict, message: dict) -> bool:
 
 
 def _merge_remote_and_local_history(remote: list[dict], local: list[dict]) -> list[dict]:
-    """Keep local-only transcripts, including audio, beside Chatwoot history."""
+    """Keep local-only transcripts, including audio, beside g01 history."""
     if not remote:
         return local
     merged = list(remote)
@@ -137,7 +137,7 @@ async def remote_history(conversation_id: int) -> list[dict]:
     try:
         return await client.list_messages(int(conversation_id))
     except Exception:
-        log.exception("Chatwoot did not return messages for conversation %s", conversation_id)
+        log.exception("g01 did not return messages for conversation %s", conversation_id)
         return []
 
 

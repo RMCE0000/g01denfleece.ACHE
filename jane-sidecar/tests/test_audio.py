@@ -49,7 +49,7 @@ def test_audio_url_is_confined_to_chatwoot_and_uses_the_proxy_route():
         "http://rails:3000/rails/active_storage/blobs/proxy/signed/voice.wav"
     )
     hostile = {**_attachment(), "data_url": "https://example.net/rails/active_storage/blobs/redirect/x"}
-    with pytest.raises(ValueError, match="host is not Chatwoot"):
+    with pytest.raises(ValueError, match="host is not g01"):
         _attachment_url(hostile, _settings())
 
 

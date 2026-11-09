@@ -62,7 +62,7 @@ HELP = """Commands
   jobs <polls|matches|referrals|connections|all>
                                     Run one disabled background workflow now
   localities                        Signup regions and ZIP allowlists
-  capabilities                      What Chatwoot/g01 features actually do
+  capabilities                      What g01 features actually do
   help                              Show this list
   quit                              Exit
 
@@ -695,15 +695,15 @@ class OperatorBackend:
 
     def capabilities(self) -> list[dict]:
         return [
-            {"area": "Sign-in and password reset", "status": "active", "operator_action": "Chatwoot owns auth; SMTP sends reset mail."},
+            {"area": "Sign-in and password reset", "status": "active", "operator_action": "g01 owns auth; SMTP sends reset mail."},
             {"area": "Homesteader signup", "status": "active", "operator_action": "g01 creates an agent, property, and private Jane inbox."},
             {"area": "Private Jane chat", "status": "active with Gemini key", "operator_action": "LangChain routes ordinary turns to Gemini Flash and complex planning/analysis to Gemini Pro."},
-            {"area": "Homesteader connections", "status": "active", "operator_action": "Users open Community in Chatwoot, or the operator uses `connect`."},
-            {"area": "Messages, files, audio, and private notes", "status": "active", "operator_action": "Chatwoot delivers and plays recordings between humans; Jane transcribes audio with Gemini before processing it."},
-            {"area": "Contacts, labels, and custom fields", "status": "active", "operator_action": "Chatwoot CRM works normally; homesteaders see contacts only in permitted inboxes."},
-            {"area": "Assignment, status, snooze, priority", "status": "active", "operator_action": "Stock Chatwoot controls remain available without changing g01 records."},
-            {"area": "Reports", "status": "administrator", "operator_action": "Use Chatwoot reports for messaging operations and this console for g01 analyses."},
-            {"area": "Campaigns and help center", "status": "administrator", "operator_action": "Use their normal Chatwoot workflows when content and audiences are configured."},
+            {"area": "Homesteader connections", "status": "active", "operator_action": "Users open Community in g01, or the operator uses `connect`."},
+            {"area": "Messages, files, audio, and private notes", "status": "active", "operator_action": "g01 delivers and plays recordings between humans; Jane transcribes audio with Gemini before processing it."},
+            {"area": "Contacts, labels, and custom fields", "status": "active", "operator_action": "g01 CRM works normally; homesteaders see contacts only in permitted inboxes."},
+            {"area": "Assignment, status, snooze, priority", "status": "active", "operator_action": "Stock g01 controls remain available without changing g01 records."},
+            {"area": "Reports", "status": "administrator", "operator_action": "Use g01 reports for messaging operations and this console for g01 analyses."},
+            {"area": "Campaigns and help center", "status": "administrator", "operator_action": "Use their normal g01 workflows when content and audiences are configured."},
             {"area": "Email, WhatsApp, social channels", "status": "provider required", "operator_action": "Add and verify each external provider before using its inbox."},
             {"area": "North Star and ledger", "status": "active", "operator_action": "Jane applies grounded user statements in live private chat; use `user` or `analyze northstar` to inspect them."},
             {"area": "Jane daily and poll-mode questions", "status": "active", "operator_action": "Use `polls`, `poll`, `poll-create`, or `analyze polls`; Jane schedules and captures answers."},
@@ -796,7 +796,7 @@ class OperatorBackend:
         if command == "localities" and not args:
             return CommandOutput("Localities", await self.localities())
         if command == "capabilities" and not args:
-            return CommandOutput("Chatwoot and g01 capabilities", self.capabilities())
+            return CommandOutput("g01 capabilities", self.capabilities())
         if command == "help" and not args:
             return CommandOutput("Help", HELP)
         raise G01Error("unknown command or wrong arguments; enter `help`", 422)
@@ -878,7 +878,7 @@ async def _interactive(backend: OperatorBackend) -> int:
         try:
             output = await backend.execute(words)
         except WriteConfirmationRequired:
-            approved = input("This changes data or can send Chatwoot messages. Continue? [y/N] ").strip().casefold()
+            approved = input("This changes data or can send g01 messages. Continue? [y/N] ").strip().casefold()
             if approved not in {"y", "yes"}:
                 print("cancelled")
                 continue
