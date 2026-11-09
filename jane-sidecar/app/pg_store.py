@@ -1,6 +1,7 @@
 """Postgres store. Ranking goes through g01_rank_local_sponsors so the SQL formula is the one that runs."""
 
 import json
+import logging
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
@@ -11,6 +12,20 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.errors import G01Error
 from app.northstar import DEFAULT_LEDGER
+
+log = logging.getLogger(__name__)
+
+# A signup 500 on production was an unhandled database error on the first
+# property read. These are the failures a second schema apply can repair:
+# a column the code selects is not on the table yet, or a pooled connection
+# is still holding a plan from before that column existed.
+_HEALABLE = (
+    "does not exist",
+    "cached plan",
+    "cached statement",
+    "current transaction is aborted",
+    "cache lookup failed",
+)
 
 _PROPERTY = """
 id, chatwoot_account_id, chatwoot_user_id, chatwoot_contact_id, primary_conversation_id,
@@ -35,6 +50,11 @@ jane_synergy_rationale, operator_status, operator_review_note, operator_reviewed
 peer_a_status, peer_b_status, shared_chatwoot_conversation_id,
 shared_conversation_opening, shared_conversation_claimed_at, created_at
 """
+
+
+def _should_heal(exc: BaseException) -> bool:
+    message = str(getattr(exc, "orig", None) or exc).lower()
+    return any(needle in message for needle in _HEALABLE)
 
 
 def _clean(value):
@@ -63,21 +83,39 @@ class PostgresStore:
             raw = await conn.get_raw_connection()
             await raw.driver_connection.execute(sql)
 
-    async def _all(self, sql: str, params: dict | None = None) -> list[dict]:
-        async with self.engine.connect() as conn:
-            result = await conn.execute(text(sql), params or {})
-            return [_clean(dict(row)) for row in result.mappings().all()]
+    async def _heal_schema(self, exc: BaseException) -> None:
+        summary = " ".join(str(exc).split()).split("[SQL", 1)[0].strip()[:300]
+        log.warning("g01 query failed (%s); reapplying the schema and retrying once", summary)
+        await self.engine.dispose()
+        await self.apply_schema()
+
+    async def _all(self, sql: str, params: dict | None = None, *, heal: bool = True) -> list[dict]:
+        try:
+            async with self.engine.connect() as conn:
+                result = await conn.execute(text(sql), params or {})
+                return [_clean(dict(row)) for row in result.mappings().all()]
+        except Exception as exc:
+            if not heal or not _should_heal(exc):
+                raise
+            await self._heal_schema(exc)
+            return await self._all(sql, params, heal=False)
 
     async def _one(self, sql: str, params: dict | None = None) -> dict | None:
         rows = await self._all(sql, params)
         return rows[0] if rows else None
 
-    async def _write(self, sql: str, params: dict | None = None) -> list[dict]:
-        async with self.engine.begin() as conn:
-            result = await conn.execute(text(sql), params or {})
-            if not result.returns_rows:
-                return []
-            return [_clean(dict(row)) for row in result.mappings().all()]
+    async def _write(self, sql: str, params: dict | None = None, *, heal: bool = True) -> list[dict]:
+        try:
+            async with self.engine.begin() as conn:
+                result = await conn.execute(text(sql), params or {})
+                if not result.returns_rows:
+                    return []
+                return [_clean(dict(row)) for row in result.mappings().all()]
+        except Exception as exc:
+            if not heal or not _should_heal(exc):
+                raise
+            await self._heal_schema(exc)
+            return await self._write(sql, params, heal=False)
 
     async def list_localities(self) -> list[dict]:
         return await self._all(

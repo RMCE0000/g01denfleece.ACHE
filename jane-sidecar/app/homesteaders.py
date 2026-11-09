@@ -18,6 +18,9 @@ _PASSWORD_HELP = (
     "Password must be at least 8 characters and include uppercase, lowercase, "
     "a number, and a special character."
 )
+_PASSWORD_LENGTH = "Password must be 72 characters or fewer."
+# Chatwoot stores passwords with bcrypt, which rejects secrets longer than 72 bytes
+# with an unhandled exception. That reached the browser as a plain error 500.
 _PEER_LOCKS: dict[tuple[str, str], asyncio.Lock] = {}
 
 
@@ -43,6 +46,30 @@ def _zip(value: str) -> str:
     if len(digits) < 5:
         raise G01Error("ZIP code is not one of the seeded localities", 422)
     return digits[:5]
+
+
+def _password(value: str) -> str:
+    password = str(value or "")
+    if len(password) > 72 or len(password.encode("utf-8")) > 72:
+        raise G01Error(_PASSWORD_LENGTH, 422)
+    if not (
+        len(password) >= 8
+        and any(char.isupper() for char in password)
+        and any(char.islower() for char in password)
+        and any(char.isdigit() for char in password)
+        and any(char in _PASSWORD_SPECIALS for char in password)
+    ):
+        raise G01Error(_PASSWORD_HELP, 422)
+    return password
+
+
+def _signup_failure(exc: BaseException) -> str:
+    orig = getattr(exc, "orig", None)
+    detail = " ".join(str(orig or exc).split())
+    detail = detail.split("[SQL", 1)[0].strip()[:240]
+    if not detail:
+        detail = exc.__class__.__name__
+    return f"Account was not created. {detail}"
 
 
 def _username(value: str | None, email: str) -> str:
@@ -189,9 +216,17 @@ def _platform_user_was_created(user: dict, nonce: str) -> bool:
 async def register_homesteader(store, fields: dict) -> dict:
     """Public login-page signup. An email that already has a sign-in does not get a new session."""
     email = _email(fields.get("email") or "")
-    if await store.get_property_by_email(email):
-        raise G01Error("That email already has a sign-in.", 409)
-    created = await provision_homesteader(store, fields, reject_existing_user=True)
+    try:
+        if await store.get_property_by_email(email):
+            raise G01Error("That email already has a sign-in.", 409)
+        created = await provision_homesteader(store, fields, reject_existing_user=True)
+    except G01Error:
+        raise
+    except Exception as exc:
+        # The login form can only show a JSON detail. An unhandled exception
+        # becomes a plain "Internal Server Error", which is the error 500 people saw.
+        log.exception("signup failed")
+        raise G01Error(_signup_failure(exc), 500) from exc
     return {
         "name": created["name"],
         "email": created["email"],
@@ -209,15 +244,7 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
         raise G01Error("name is required", 422)
     email = _email(fields.get("email") or "")
     username = _username(fields.get("username"), email)
-    password = str(fields.get("password") or "")
-    if not (
-        len(password) >= 8
-        and any(char.isupper() for char in password)
-        and any(char.islower() for char in password)
-        and any(char.isdigit() for char in password)
-        and any(char in _PASSWORD_SPECIALS for char in password)
-    ):
-        raise G01Error(_PASSWORD_HELP, 422)
+    password = _password(fields.get("password") or "")
     zip_code = _zip(fields.get("zip_code") or "")
     locality = await store.locality_for_zip(zip_code)
     if locality is None:

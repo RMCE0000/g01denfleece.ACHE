@@ -238,6 +238,25 @@ def test_login_page_signup_opens_a_sign_in(store, monkeypatch):
         )
         assert not any(call[0] == "user" for call in FakeChatwoot.calls)
 
+        long_password = _person("Long Password", "long.password@example.com", "70601")
+        long_password["password"] = "Aa1!" + ("x" * 76)
+        too_long = client.post("/api/signup", json=long_password)
+        assert too_long.status_code == 422
+        assert too_long.json()["detail"] == "Password must be 72 characters or fewer."
+        assert not any(call[0] == "user" for call in FakeChatwoot.calls)
+
+        original_lookup = store.get_property_by_email
+
+        async def database_down(_email):
+            raise RuntimeError('column "email" does not exist')
+
+        monkeypatch.setattr(store, "get_property_by_email", database_down)
+        failed = client.post("/api/signup", json=_person("Database Down", "database.down@example.com", "70601"))
+        assert failed.status_code == 500
+        assert failed.json()["detail"].startswith("Account was not created.")
+        assert "email" in failed.json()["detail"]
+        monkeypatch.setattr(store, "get_property_by_email", original_lookup)
+
         created = client.post("/api/signup", json=_person("Cara North", "cara.north@example.com", "70607"))
         assert created.status_code == 200
         body = created.json()

@@ -870,6 +870,12 @@
         password: value("password"),
         zip_code: value("zip_code"),
       };
+      if (payload.password.length > 72 || new TextEncoder().encode(payload.password).length > 72) {
+        error.textContent = "Password must be 72 characters or fewer.";
+        error.hidden = false;
+        submit.disabled = false;
+        return;
+      }
       var passwordIsValid =
         payload.password.length >= 8 &&
         /[A-Z]/.test(payload.password) &&
@@ -889,7 +895,13 @@
         body: JSON.stringify(payload),
       })
         .then(function (response) {
-          return response.json().then(function (body) {
+          return response.text().then(function (text) {
+            var body = null;
+            try {
+              body = text ? JSON.parse(text) : null;
+            } catch (parseError) {
+              body = { detail: text || "Account was not created." };
+            }
             return { ok: response.ok, body: body };
           });
         })
