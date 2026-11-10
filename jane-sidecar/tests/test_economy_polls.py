@@ -11,10 +11,13 @@ from app.polling import ensure_daily_poll, offer_conversation_question
 from app.seed import DEMO_CONVERSATION_ID, DEMO_PROPERTY_ID, DEMO_USER_ID
 
 
-def test_the_topic_list_has_two_hundred_distinct_questions():
-    assert len(TOPICS) == 200
-    assert len(set(TOPICS)) == 200
+def test_the_topic_list_has_four_hundred_distinct_questions():
+    assert len(TOPICS) == 400
+    assert len(set(TOPICS)) == 400
     assert all(topic.endswith("?") for topic in TOPICS)
+    joined = " ".join(TOPICS).casefold()
+    for word in ("robot", "aquaponics", "mushroom", "filament", "bokashi"):
+        assert word in joined
 
 
 def test_a_small_zip_keeps_one_topic_for_the_day_and_changes_the_next_day():

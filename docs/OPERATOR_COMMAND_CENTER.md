@@ -134,7 +134,7 @@ records and workflows without replacing those features.
 | Email, WhatsApp, and social inboxes | Work normally only after each external provider is added and verified |
 | North Star and ledger | Grounded live Jane turns update the record; operators can inspect and correct whitelisted fields |
 | Sponsors | Operators manage standalone or homestead-linked profiles and lifecycle status; `rank` previews Jane's local recommendations |
-| Jane polls | One question goes to each ZIP once a day. Fewer than three homesteaders, or no shared recorded word, uses the 200-topic list. Three or more with a shared word are asked about cooperating on that word. A live conversation can add one more question. Answers become ZIP profiles in `analyze economy`. `poll mode` still asks the other homesteads |
+| Jane polls | One question goes to each ZIP once a day. Fewer than three homesteaders, or no shared recorded word, uses the 400-topic list. Three or more with a shared word are asked about cooperating on that word. A live conversation can add one more question. Answers become ZIP profiles in `analyze economy`. `poll mode` still asks the other homesteads |
 | Automatic matchmaking | Discovery runs in Jane. Operators must review `matches` and confirm `match-approve` before users are contacted; both users and identity verification remain required |
 | 24-hour demand polls | The sidecar matures and reports them automatically; operators may also use `jobs polls` |
 | Stripe and identity | Operate only when production keys and webhooks are configured |

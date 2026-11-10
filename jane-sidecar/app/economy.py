@@ -36,6 +36,8 @@ _SKIP = {
     "order",
     "share",
     "shared",
+    "live",
+    "small",
     "some",
     "space",
     "spare",
