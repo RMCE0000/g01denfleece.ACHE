@@ -9,12 +9,14 @@ import re
 from app.epistemic import (
     affirmed_contained,
     affirmed_energy_profit,
+    affirmed_insured,
     affirmed_material,
     affirmed_material_surplus,
     extract_aesthetic,
     extract_energetic_pct,
     extract_hours,
     extract_pin,
+    extract_utilized,
     extract_street,
     extract_vote,
     extract_zip,
@@ -51,7 +53,7 @@ _RECOMMEND_LOCAL = re.compile(
     re.I,
 )
 _ASK_RECORD = re.compile(
-    r"\b(what are my scores|how am i doing|north star|where do i stand|my automated|my aesthetic|my material|my energetic|my contained)\b",
+    r"\b(what are my scores|how am i doing|north star|where do i stand|my automated|my aesthetic|my material|my energetic|my contained|my utilized|am i insured)\b",
     re.I,
 )
 _KYC = re.compile(r"\b(verify my identity|identity verification|start kyc|stripe identity)\b", re.I)
@@ -91,6 +93,8 @@ def _blank() -> dict:
         "energetic_pct": None,
         "energetic_profitable": None,
         "contained_zero_waste": None,
+        "utilized_pct": None,
+        "insured": None,
         "service_tag": None,
         "start_poll": False,
         "poll_topic": None,
@@ -178,7 +182,9 @@ def status_reply(prop: dict, locality: dict | None) -> str:
         f"Aesthetic {star['aesthetic']:.2f}, which is your own rating. "
         f"Material is {str(bool(star['material'])).lower()}. "
         f"Energetic is {star['energetic']:.2f} with surplus profit {str(bool(star['energetic_profitable'])).lower()}. "
-        f"Contained is {str(bool(star['contained'])).lower()}."
+        f"Contained is {str(bool(star['contained'])).lower()}. "
+        f"Utilized is {star['utilized']:.2f}, how fully the property is recorded on the financial tools that serve you. "
+        f"Insured is {str(bool(star['insured'])).lower()}, and that principle sits above the others."
         f"{gap}"
     )
 
@@ -196,6 +202,8 @@ def fallback_reply(decision: dict) -> str:
             "energetic_pct",
             "energetic_profitable",
             "contained_zero_waste",
+            "utilized_pct",
+            "insured",
             "street_address",
             "property_lat",
             "property_lng",
@@ -263,6 +271,11 @@ def heuristic_decision(state: dict) -> dict:
         decision["contained_zero_waste"] = True
     if affirmed_energy_profit(text):
         decision["energetic_profitable"] = True
+    utilized = extract_utilized(text)
+    if utilized is not None:
+        decision["utilized_pct"] = utilized
+    if affirmed_insured(text):
+        decision["insured"] = True
 
     goals = []
     lowered = text.casefold()

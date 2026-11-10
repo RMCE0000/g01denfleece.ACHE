@@ -2,7 +2,7 @@
 
 import re
 
-from app.northstar import DEFAULT_LEDGER, clamp_aesthetic, clamp_energetic
+from app.northstar import DEFAULT_LEDGER, clamp_aesthetic, clamp_energetic, clamp_utilized
 
 LEDGER_LIST_KEYS = (
     "soil_and_water",
@@ -20,6 +20,16 @@ _MATERIAL_TRUE = re.compile(
 _MATERIAL_SURPLUS = re.compile(r"sell(ing)? (the |our )?surplus|surplus at a profit", re.I)
 _CONTAINED_TRUE = re.compile(
     r"zero (harmful )?waste|leaks nothing|no harmful waste|nothing leaves the property|fully contained",
+    re.I,
+)
+_INSURED_TRUE = re.compile(
+    r"\b(?:we are|we're|property and (?:all )?(?:the )?homesteaders are|homestead is|property is)\s+perfectly insured\b",
+    re.I,
+)
+_UTILIZED_FULL = re.compile(r"\bfully recorded on (?:our |the )?(?:cutting[- ]edge )?financial tools\b", re.I)
+_UTILIZED_NONE = re.compile(r"\bnot recorded on (?:any )?financial tools\b", re.I)
+_UTILIZED_PCT = re.compile(
+    r"(?:financial tools|utilized)[^\d]{0,32}(\d{1,3}(?:\.\d+)?)|(\d{1,3}(?:\.\d+)?)\s*(?:%|percent).{0,32}financial tools",
     re.I,
 )
 _ENERGY_PROFIT = re.compile(
@@ -82,6 +92,27 @@ def affirmed_contained(user_text: str) -> bool:
 
 def affirmed_energy_profit(user_text: str) -> bool:
     return bool(_ENERGY_PROFIT.search(user_text or ""))
+
+
+def affirmed_insured(user_text: str) -> bool:
+    """True only when they say the homestead is perfectly insured, not when they want a policy."""
+    return bool(_INSURED_TRUE.search(user_text or ""))
+
+
+def extract_utilized(user_text: str) -> float | None:
+    text = user_text or ""
+    if _UTILIZED_NONE.search(text):
+        return 0.0
+    if _UTILIZED_FULL.search(text):
+        return 100.0
+    match = _UTILIZED_PCT.search(text)
+    if not match:
+        return None
+    raw = next(group for group in match.groups() if group is not None)
+    try:
+        return clamp_utilized(float(raw))
+    except ValueError:
+        return None
 
 
 def extract_hours(user_text: str) -> float | None:

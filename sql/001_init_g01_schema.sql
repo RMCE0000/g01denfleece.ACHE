@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS g01_localities (
 CREATE UNIQUE INDEX IF NOT EXISTS g01_localities_city_state_idx
     ON g01_localities (primary_city, state_code);
 
--- 2. HOMESTEADER PROPERTIES & THE 5-DIMENSIONAL NORTH STAR
+-- 2. HOMESTEADER PROPERTIES & THE NORTH STAR
+-- Insured is the guiding principle. Six aims sit beneath it.
 CREATE TABLE IF NOT EXISTS g01_properties (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     chatwoot_account_id BIGINT NOT NULL,
@@ -35,23 +36,29 @@ CREATE TABLE IF NOT EXISTS g01_properties (
     lat DOUBLE PRECISION NOT NULL,
     lng DOUBLE PRECISION NOT NULL,
 
-    -- 1. Automated: FLOAT 0.0–100.0, objective, derived from labor hours.
+    -- Automated: FLOAT 0.0–100.0, objective, from outside-aid hours.
     northstar_automated_pct NUMERIC(5,2) DEFAULT 0.00 CHECK (northstar_automated_pct >= 0 AND northstar_automated_pct <= 100),
     outside_aid_hours_per_week NUMERIC(6,2) DEFAULT 40.00,
 
-    -- 2. Aesthetic: FLOAT 0.0–100.0, subjective, set by the homesteader.
+    -- Aesthetic: FLOAT 0.0–100.0, subjective, set by the homesteader.
     northstar_aesthetic_pct NUMERIC(5,2) DEFAULT 50.00 CHECK (northstar_aesthetic_pct >= 0 AND northstar_aesthetic_pct <= 100),
 
-    -- 3. Material: BOOLEAN. Surplus profit is a fact on this dimension, not a sixth score.
+    -- Material: BOOLEAN. Surplus profit stays a fact on this aim.
     northstar_material_independent BOOLEAN DEFAULT FALSE,
     material_surplus_profitable BOOLEAN DEFAULT FALSE,
 
-    -- 4. Energetic: FLOAT (surplus may exceed 100, capped at 500) + BOOLEAN.
+    -- Energetic: FLOAT (surplus may exceed 100, capped at 500) + BOOLEAN.
     northstar_energetic_pct NUMERIC(5,2) DEFAULT 0.00 CHECK (northstar_energetic_pct >= 0 AND northstar_energetic_pct <= 500),
     northstar_energetic_profitable BOOLEAN DEFAULT FALSE,
 
-    -- 5. Contained: BOOLEAN.
+    -- Contained: BOOLEAN.
     northstar_contained_zero_waste BOOLEAN DEFAULT FALSE,
+
+    -- Utilized: FLOAT 0.0–100.0. How fully the property is recorded on the financial tools that serve its homesteaders.
+    northstar_utilized_pct NUMERIC(5,2) DEFAULT 0.00 CHECK (northstar_utilized_pct >= 0 AND northstar_utilized_pct <= 100),
+
+    -- Insured: BOOLEAN. The guiding principle. True only when the property and all homesteaders are perfectly insured.
+    northstar_insured BOOLEAN DEFAULT FALSE,
 
     known_facts_ledger JSONB DEFAULT '{
         "acreage": null,
@@ -74,6 +81,8 @@ CREATE TABLE IF NOT EXISTS g01_properties (
 );
 
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS sponsor_draft JSONB;
+ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS northstar_utilized_pct NUMERIC(5,2) DEFAULT 0.00;
+ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS northstar_insured BOOLEAN DEFAULT FALSE;
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS email VARCHAR(255);
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS display_name VARCHAR(255);
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS chatwoot_inbox_id BIGINT;
@@ -626,3 +635,33 @@ WHERE id IN (
     'cccccccc-cccc-cccc-cccc-ccccccccccc3',
     'cccccccc-cccc-cccc-cccc-ccccccccccc4'
 );
+
+-- Jane's own insurance catalog. A local producer remains a sponsor.
+-- draft is filed and not offered. offered is what Jane may name.
+CREATE TABLE IF NOT EXISTS g01_jane_products (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(160) NOT NULL,
+    covers TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'offered')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS g01_jane_products_name_idx
+    ON g01_jane_products (lower(name));
+
+-- Expertise Jane may state as fact. An entry is selected only when the
+-- homesteader's message touches one of its topics.
+CREATE TABLE IF NOT EXISTS g01_jane_knowledge (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(160) NOT NULL,
+    topics TEXT[] NOT NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE g01_properties DROP CONSTRAINT IF EXISTS g01_properties_utilized_range;
+ALTER TABLE g01_properties
+    ADD CONSTRAINT g01_properties_utilized_range
+    CHECK (northstar_utilized_pct >= 0 AND northstar_utilized_pct <= 100);

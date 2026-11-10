@@ -5,15 +5,17 @@ a LangChain flow that sends her constitution (`jane-sidecar/CONSTITUTION.md`)
 and role-preserved message history to Gemini. Ordinary chat uses Gemini Flash;
 complex planning, comparison, and analysis use Gemini Pro.
 
-The work she is written to care about is the five-part North Star, and the only shops she will name are in the homesteader's own locality.
+The work she is written to care about is insurance, the guiding principle of the homestead. Six aims sit beneath it. The only shops she will name are in the homesteader's own locality, and the only insurance she will offer is a product the operator has filed.
 
 | Dimension | Stored as | Meaning |
 | --- | --- | --- |
-| Automated | float 0.0–100.0 | Reduction from a 40-hour full-manual week. 0 hours on the record is 100. |
-| Aesthetic | float 0.0–100.0 | The homesteader's own rating. Nothing else writes it. |
-| Material | boolean | The household can live indefinitely off the property. |
-| Energetic | float (0–500) and `energetic_profitable` boolean | Power produced, plus whether surplus is sold at a profit. |
+| Insured | boolean | The guiding principle. True only when the property and all homesteaders are perfectly insured. |
+| Automated | float 0.0–100.0 | Outside aid against a 40-hour week. No outside aid is 100. |
+| Aesthetic | float 0.0–100.0 | Beauty by the homesteader's own taste. Nothing else writes it. |
+| Material | boolean | They can live off the fruits of the property, alone, indefinitely. |
+| Energetic | float (0–500) and `energetic_profitable` boolean | The property produces its own energy, and surplus is sold at a profit. |
 | Contained | boolean | No harmful waste leaves the property. |
+| Utilized | float 0.0–100.0 | How fully the property is recorded on the financial tools that serve its homesteaders. |
 
 Sourcing is a fixed prize order:
 

@@ -14,6 +14,10 @@ The four MVP behaviors are on `main`: chat scores, local ranking, 24-hour polls,
 
 ## This slice
 
+Insured is the guiding principle of the North Star, with utilized added beneath it beside the original five aims. Jane offers insurance only from products the operator files, and she states coverage only from knowledge entries whose topics the message touches. A local insurance producer remains a sponsor.
+
+## Earlier slice
+
 The minimum showcase (MS). Jane's LangChain flow sends her constitution and role-preserved message history to Gemini.
 
 - `jane-sidecar/CONSTITUTION.md` is what she is given. It is not the old JSON ledger prompt.

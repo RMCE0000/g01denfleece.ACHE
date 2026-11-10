@@ -24,7 +24,7 @@ def test_automated_is_labor_reduction_not_a_free_number():
         automated_pct_from_hours(-1)
 
 
-def test_north_star_keeps_five_types():
+def test_north_star_keeps_its_types_and_insured_is_the_principle():
     star = NorthStar(
         automated=25,
         aesthetic=50,
@@ -33,12 +33,16 @@ def test_north_star_keeps_five_types():
         energetic_profitable=True,
         contained=False,
     )
+    assert star.utilized == 0
+    assert star.insured is False
     assert isinstance(star.material, bool)
     assert isinstance(star.contained, bool)
+    assert isinstance(star.insured, bool)
     assert isinstance(star.energetic_profitable, bool)
     assert isinstance(star.automated, float)
     assert isinstance(star.aesthetic, float)
     assert isinstance(star.energetic, float)
+    assert isinstance(star.utilized, float)
     with pytest.raises(ValidationError):
         NorthStar(
             automated=101,
@@ -47,6 +51,16 @@ def test_north_star_keeps_five_types():
             energetic=10,
             energetic_profitable=False,
             contained=False,
+        )
+    with pytest.raises(ValidationError):
+        NorthStar(
+            automated=10,
+            aesthetic=50,
+            material=False,
+            energetic=10,
+            energetic_profitable=False,
+            contained=False,
+            utilized=101,
         )
 
 
@@ -200,6 +214,9 @@ def test_showcase_constitution_is_short_and_local():
         "Material",
         "Energetic",
         "Contained",
+        "Utilized",
+        "Insured",
+        "perfectly insured",
         "Make it on the homestead",
         "Amazon, Home Depot, Lowe's, Walmart",
         "Rogers, Arkansas",
@@ -224,6 +241,8 @@ def test_constitution_and_sql_keep_the_rules():
         "MATERIAL",
         "ENERGETIC",
         "CONTAINED",
+        "UTILIZED",
+        "INSURED",
         "NEVER recommend ordering from Amazon, Home Depot, Lowe's, Walmart",
         "tier_weight = 1.00",
         "tier_weight = 0.85",
@@ -244,6 +263,10 @@ def test_constitution_and_sql_keep_the_rules():
         "northstar_energetic_pct",
         "northstar_energetic_profitable",
         "northstar_contained_zero_waste",
+        "northstar_utilized_pct",
+        "northstar_insured",
+        "g01_jane_products",
+        "g01_jane_knowledge",
         "WHEN 'homestead_fabrication' THEN 1.00",
         "WHEN 'local_manufacturer' THEN 0.85",
         "WHEN 'local_service_or_stock' THEN 0.70",

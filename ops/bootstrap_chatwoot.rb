@@ -157,8 +157,8 @@ help_categories = [
         content: <<~HTML
           <p>g01 is a place to work toward a more capable, independent homestead through conversation. Your account opens into a private, ongoing thread with Jane. You do not need to learn a dashboard or fill out a long property profile before asking for help.</p>
           <p>Tell Jane what you are trying to build, fix, grow, automate, contain, or understand. She can help turn that goal into practical next steps using the facts you share about your property, constraints, and priorities.</p>
-          <h2>The five directions</h2>
-          <p>g01 keeps the work centered on reducing repetitive labor, making the homestead beautiful by your own standard, strengthening material independence, producing useful energy, and keeping harmful waste contained. Jane discusses your progress when it helps answer your question or when you ask about it.</p>
+          <h2>What the homestead is for</h2>
+          <p>A homestead is a kind of insurance: a guarantee that your place is not at the whim of quarrels beyond your home. Jane can talk about that with you. Under it, the work is to need less outside help, to make the place beautiful by your own standard, to live from what it produces, to make your own energy, to leak no harmful waste, and to have the property recorded on the financial tools that serve you. She discusses your progress when it helps answer your question or when you ask about it. She offers insurance only for products that have been filed for her, and a local insurer can still be a sponsor.</p>
           <p>You can return to the same conversation at any time. The thread is intended to build useful context instead of making you start over.</p>
         HTML
       },

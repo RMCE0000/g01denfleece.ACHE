@@ -155,8 +155,17 @@ async def answer(store, message: dict) -> str:
     """Every peer reply goes through the harness. Polls do not run in that thread."""
     from app.harness import speak
 
+    from app.jane_catalog import catalog_note
+
     lines = await history_for(store, message)
-    reply = await speak(store, message, prop=None, allow_community=False, lines=lines)
+    reply = await speak(
+        store,
+        message,
+        prop=None,
+        allow_community=False,
+        lines=lines,
+        context=await catalog_note(store, message.get("content") or ""),
+    )
     cleaned = sanitize_reply(reply).strip() or _BLOCKED
     await store.append_transcript(
         conversation_id=int(message["conversation_id"]),
@@ -217,7 +226,16 @@ async def answer_with_effects(store, message: dict) -> str:
     if prop is not None and not grounded_voice:
         from app.harness import speak
 
-        context = _record_context(prop, locality)
+        from app.jane_catalog import catalog_note
+
+        context = "\n\n".join(
+            part
+            for part in (
+                _record_context(prop, locality),
+                await catalog_note(store, message.get("content") or ""),
+            )
+            if part and part.strip()
+        )
         if jane_should_think:
             context += "\n\n" + sponsorship_thinking_note(draft, lookup_failed_city, lookup_found)
         else:

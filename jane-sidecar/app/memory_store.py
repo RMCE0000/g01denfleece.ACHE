@@ -5,7 +5,8 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from app.errors import G01Error
-from app.northstar import DEFAULT_LEDGER, automated_pct_from_hours, clamp_aesthetic, clamp_energetic
+from app.jane_catalog import clean_topics, require_text
+from app.northstar import DEFAULT_LEDGER, automated_pct_from_hours, clamp_aesthetic, clamp_energetic, clamp_utilized
 from app.seed import demo_localities, demo_promos, demo_properties, demo_sponsors
 from app.sourcing import rank_sponsor_rows, sponsor_rejection_reason
 
@@ -20,6 +21,8 @@ class MemoryStore:
         self.localities: list[dict] = []
         self.properties: list[dict] = []
         self.sponsors: list[dict] = []
+        self.jane_products: list[dict] = []
+        self.jane_knowledge: list[dict] = []
         self.promos: list[dict] = []
         self.polls: list[dict] = []
         self.invites: list[dict] = []
@@ -91,6 +94,8 @@ class MemoryStore:
             "northstar_energetic_pct": float(fields.get("northstar_energetic_pct", 0)),
             "northstar_energetic_profitable": bool(fields.get("northstar_energetic_profitable", False)),
             "northstar_contained_zero_waste": bool(fields.get("northstar_contained_zero_waste", False)),
+            "northstar_utilized_pct": float(fields.get("northstar_utilized_pct", 0)),
+            "northstar_insured": bool(fields.get("northstar_insured", False)),
             "known_facts_ledger": deepcopy(fields.get("known_facts_ledger") or DEFAULT_LEDGER),
             "sponsor_draft": deepcopy(fields.get("sponsor_draft")),
             "kyc_verified": bool(fields.get("kyc_verified", False)),
@@ -166,6 +171,10 @@ class MemoryStore:
             prop["northstar_energetic_profitable"] = bool(fields["northstar_energetic_profitable"])
         if "northstar_contained_zero_waste" in fields:
             prop["northstar_contained_zero_waste"] = bool(fields["northstar_contained_zero_waste"])
+        if "northstar_utilized_pct" in fields and fields["northstar_utilized_pct"] is not None:
+            prop["northstar_utilized_pct"] = clamp_utilized(float(fields["northstar_utilized_pct"]))
+        if "northstar_insured" in fields:
+            prop["northstar_insured"] = bool(fields["northstar_insured"])
         if "street_address" in fields:
             prop["street_address"] = fields["street_address"]
         if "lat" in fields and fields["lat"] is not None:
@@ -976,6 +985,82 @@ class MemoryStore:
         }
         self.peers.append(row)
         return deepcopy(row)
+
+    async def list_jane_products(self, status: str | None = None) -> list[dict]:
+        rows = self.jane_products
+        if status in {"draft", "offered"}:
+            rows = [row for row in rows if row["status"] == status]
+        return [deepcopy(row) for row in rows]
+
+    async def get_jane_product(self, product_id: str) -> dict | None:
+        for row in self.jane_products:
+            if row["id"] == product_id:
+                return deepcopy(row)
+        return None
+
+    async def create_jane_product(self, fields: dict) -> dict:
+        name = require_text(fields.get("name"), "name", 160)
+        if any(row["name"].casefold() == name.casefold() for row in self.jane_products):
+            raise G01Error("an insurance product with that name is already filed", 409)
+        status = str(fields.get("status") or "draft")
+        if status not in {"draft", "offered"}:
+            raise G01Error("product status must be draft or offered", 422)
+        product = {
+            "id": str(uuid4()),
+            "name": name,
+            "covers": require_text(fields.get("covers"), "covers", 400),
+            "summary": require_text(fields.get("summary"), "summary", 2000),
+            "status": status,
+            "created_at": self._clock(),
+            "updated_at": self._clock(),
+        }
+        self.jane_products.append(product)
+        return deepcopy(product)
+
+    async def update_jane_product(self, product_id: str, fields: dict) -> dict:
+        for product in self.jane_products:
+            if product["id"] != product_id:
+                continue
+            if "name" in fields:
+                name = require_text(fields.get("name"), "name", 160)
+                if any(row["id"] != product_id and row["name"].casefold() == name.casefold() for row in self.jane_products):
+                    raise G01Error("an insurance product with that name is already filed", 409)
+                product["name"] = name
+            if "covers" in fields:
+                product["covers"] = require_text(fields.get("covers"), "covers", 400)
+            if "summary" in fields:
+                product["summary"] = require_text(fields.get("summary"), "summary", 2000)
+            if "status" in fields:
+                status = str(fields.get("status") or "")
+                if status not in {"draft", "offered"}:
+                    raise G01Error("product status must be draft or offered", 422)
+                product["status"] = status
+            product["updated_at"] = self._clock()
+            return deepcopy(product)
+        raise G01Error("insurance product not found", 404)
+
+    async def list_jane_knowledge(self) -> list[dict]:
+        return [deepcopy(row) for row in self.jane_knowledge]
+
+    async def create_jane_knowledge(self, fields: dict) -> dict:
+        topics = clean_topics(fields.get("topics"))
+        if not topics:
+            raise G01Error("at least one topic is required", 422)
+        entry = {
+            "id": str(uuid4()),
+            "title": require_text(fields.get("title"), "title", 160),
+            "topics": topics,
+            "body": require_text(fields.get("body"), "body", 4000),
+            "created_at": self._clock(),
+        }
+        self.jane_knowledge.append(entry)
+        return deepcopy(entry)
+
+    async def delete_jane_knowledge(self, entry_id: str) -> None:
+        before = len(self.jane_knowledge)
+        self.jane_knowledge = [row for row in self.jane_knowledge if row["id"] != entry_id]
+        if len(self.jane_knowledge) == before:
+            raise G01Error("knowledge entry not found", 404)
 
 
 def seed_demo(store: MemoryStore) -> MemoryStore:

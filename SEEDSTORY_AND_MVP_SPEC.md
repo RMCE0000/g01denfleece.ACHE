@@ -10,13 +10,26 @@ Jane knows the property record and what the homesteader says. She does not assum
 
 ## North Star
 
-These five stay five. Do not collapse them and do not change the types.
+Insured is the guiding principle. The six aims beneath it keep their own types. Do not collapse an aim into another, and do not let Jane invent a value.
 
-1. `automated` — float, 0.0 to 100.0. Objective. Computed from weekly hours of the homesteader's labor plus outside aid, against a 40-hour full-manual week: `clamp(0, 100, (1 - hours / 40) * 100)`.
-2. `aesthetic` — float, 0.0 to 100.0. Subjective. Only the homesteader's stated rating.
-3. `material` — boolean. True only when the household can live indefinitely off the property. `material_surplus_profitable` is a fact on this dimension, not a sixth score.
-4. `energetic` — float plus `energetic_profitable` boolean. The float may exceed 100 when the property produces surplus. The column cap is 500. The boolean is true only when surplus energy is sold at a net profit.
+1. `automated` — float, 0.0 to 100.0. Objective. The homesteader ought not need to work to maintain the property. The score is outside aid against a 40-hour week: `clamp(0, 100, (1 - hours / 40) * 100)`. No outside aid is 100.
+2. `aesthetic` — float, 0.0 to 100.0. Subjective. The property ought be beautiful by the homesteader's taste. Only their stated rating.
+3. `material` — boolean. True only when they can live off the fruits of the property, alone, indefinitely. `material_surplus_profitable` remains a fact on this aim.
+4. `energetic` — float plus `energetic_profitable` boolean. The property ought produce its own energy and sell surplus at a profit. The float may exceed 100. The column cap is 500.
 5. `contained` — boolean. True only when the property leaks no harmful waste.
+6. `utilized` — float, 0.0 to 100.0. The property ought be recorded on the financial tools that serve its homesteaders. 0 means it is not recorded. 100 means that recording serves them as fully as the tools allow.
+7. `insured` — boolean. The principle above the six. True only when the property and all homesteaders are perfectly insured. A wish for coverage does not set it.
+
+## Jane's insurance
+
+Jane lives in insurance. A homestead is a guarantee that one's domain is not at the whim of quarrels beyond the home. She may say that, briefly, when the conversation is about insurance, risk, or sovereignty.
+
+What she can offer is a catalog the operator files, in the same way a sponsor is filed:
+
+- `product-add` files a product as `draft` or `offered`. Only `offered` reaches Jane. A draft is not an offer, and an offer is not a bound policy or a charge.
+- `knowledge-add` files a titled body under comma-separated topics. Jane receives that body only when the homesteader's message touches a topic. That is how her expertise grows: the operator files what she may treat as fact. She does not write the repository herself, and she does not state a premium, a limit, or a condition that is not in the entries selected for the turn.
+
+A local insurance producer can still be a g01 sponsor. Jane's product is not that company, and that company is not Jane's product.
 
 ## Sourcing
 
@@ -48,7 +61,7 @@ When more than one sponsor can do the job:
 
 g01 (upstream image) keeps users, conversations, messages, and websockets. `jane-sidecar` is FastAPI plus LangGraph plus Celery. They share Postgres 16 with pgvector. Redis is the Celery broker.
 
-- Sync graph (`sync_peer_graph.py`): `message_created` from anyone who is not Jane. Flash may draft the sentence. Hours, aesthetic, material, energetic, and contained change only when the homesteader's words support them.
+- Sync graph (`sync_peer_graph.py`): `message_created` from anyone who is not Jane. Flash may draft the sentence. Hours, aesthetic, material, energetic, contained, utilized, and insured change only when the homesteader's words support them.
 - Demand graph (`demand_poll_graph.py`): Pro may rephrase the factual tally. A number that was not in the tally is dropped.
 - Matchmaking graph (`matchmaking_graph.py`): Pro may rephrase a rationale made only of recorded goals. A shared thread is a g01 conversation.
 - Checkpointer: `AsyncPostgresSaver` on the same database when `G01_DATABASE_URL` is set.

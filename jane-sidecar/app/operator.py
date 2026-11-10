@@ -59,6 +59,17 @@ HELP = """Commands
   sponsor-activate <id>             Include a sponsor in Jane's recommendations
   sponsor-disable <id>              Remove a sponsor from recommendations
   rank <user> <service-tag>         Preview local sponsor ranking
+  products [offered|draft|all]     Jane's insurance products
+  product <id>                      One insurance product
+  product-add "<name>" "<covers>" "<summary>" <offered|draft>
+                                    File a product the way a sponsor is filed
+  product-edit <id> <field> <value> Edit name, covers, or summary
+  product-offer <id>                Let Jane offer this product
+  product-withdraw <id>             Keep the product filed, but not offered
+  knowledge                         Filed expertise Jane may use
+  knowledge-add "<title>" "<topics>" "<body>"
+                                    Topics are comma-separated. Jane sees the body only when a message touches a topic
+  knowledge-remove <id>             Remove one filed entry
   jobs <polls|matches|referrals|connections|all>
                                     Run one disabled background workflow now
   localities                        Signup regions and ZIP allowlists
@@ -68,7 +79,7 @@ HELP = """Commands
 
 Quote names or topics containing spaces. Mutating commands ask for confirmation.
 Set fields: aesthetic, labor-hours, material, material-surplus, energetic,
-energetic-profitable, contained, street-address, latitude, longitude.
+energetic-profitable, contained, utilized, insured, street-address, latitude, longitude.
 Sponsor tiers: local_manufacturer, local_service_or_stock, local_logistics_proxy.
 Sponsor edit fields: name, tier, tags, summary, latitude, longitude,
 founding-city, founding-state, franchise, homesteader.
@@ -417,6 +428,8 @@ class OperatorBackend:
                 "material_independent": sum(row["material"] for row in rows),
                 "energetic_profitable": sum(row["energetic_profitable"] for row in rows),
                 "contained_zero_waste": sum(row["contained"] for row in rows),
+                "average_utilized": round(sum(row["utilized"] for row in rows) / len(rows), 2),
+                "perfectly_insured": sum(row["insured"] for row in rows),
                 "with_active_goals": sum(bool(row["active_goals"]) for row in rows),
             },
             "users": rows,
@@ -473,6 +486,8 @@ class OperatorBackend:
                 "energetic": ("northstar_energetic_pct", "float"),
                 "energetic-profitable": ("northstar_energetic_profitable", "bool"),
                 "contained": ("northstar_contained_zero_waste", "bool"),
+                "utilized": ("northstar_utilized_pct", "float"),
+                "insured": ("northstar_insured", "bool"),
                 "street-address": ("street_address", "text"),
                 "latitude": ("lat", "float"),
                 "longitude": ("lng", "float"),
@@ -693,6 +708,50 @@ class OperatorBackend:
     async def localities(self) -> list[dict]:
         return await self.store.list_localities()
 
+    async def products(self, status: str = "all") -> list[dict]:
+        if status not in {"offered", "draft", "all"}:
+            raise G01Error("product status must be offered, draft, or all", 422)
+        return await self.store.list_jane_products(None if status == "all" else status)
+
+    async def product(self, product_id: str) -> dict:
+        row = await self.store.get_jane_product(product_id)
+        if not row:
+            raise G01Error("insurance product not found", 404)
+        return row
+
+    async def add_product(self, name: str, covers: str, summary: str, status: str, *, allow_write: bool) -> dict:
+        if not allow_write:
+            raise WriteConfirmationRequired
+        return await self.store.create_jane_product(
+            {"name": name, "covers": covers, "summary": summary, "status": status}
+        )
+
+    async def edit_product(self, product_id: str, field: str, value: str, *, allow_write: bool) -> dict:
+        if not allow_write:
+            raise WriteConfirmationRequired
+        if field not in {"name", "covers", "summary"}:
+            raise G01Error("product fields are name, covers, and summary", 422)
+        return await self.store.update_jane_product(product_id, {field: value})
+
+    async def set_product_status(self, product_id: str, status: str, *, allow_write: bool) -> dict:
+        if not allow_write:
+            raise WriteConfirmationRequired
+        return await self.store.update_jane_product(product_id, {"status": status})
+
+    async def knowledge(self) -> list[dict]:
+        return await self.store.list_jane_knowledge()
+
+    async def add_knowledge(self, title: str, topics: str, body: str, *, allow_write: bool) -> dict:
+        if not allow_write:
+            raise WriteConfirmationRequired
+        return await self.store.create_jane_knowledge({"title": title, "topics": topics, "body": body})
+
+    async def remove_knowledge(self, entry_id: str, *, allow_write: bool) -> dict:
+        if not allow_write:
+            raise WriteConfirmationRequired
+        await self.store.delete_jane_knowledge(entry_id)
+        return {"id": entry_id, "removed": True}
+
     def capabilities(self) -> list[dict]:
         return [
             {"area": "Sign-in and password reset", "status": "active", "operator_action": "g01 owns auth; SMTP sends reset mail."},
@@ -709,7 +768,8 @@ class OperatorBackend:
             {"area": "Jane daily and poll-mode questions", "status": "active", "operator_action": "Use `polls`, `poll`, `poll-create`, or `analyze polls`; Jane schedules and captures answers."},
             {"area": "Automatic matchmaking", "status": "active with approval", "operator_action": "Discovery is automatic. Use `matches`, then `match-approve` or `match-reject`; pending matches never contact users."},
             {"area": "24-hour demand polling", "status": "active", "operator_action": "Jane schedules grounded demand synthesis in the sidecar; `jobs polls` remains available for operators."},
-            {"area": "Sponsor profiles and ranking", "status": "active", "operator_action": "Use `sponsor-add`, `sponsors`, lifecycle commands, and `rank`; a homestead link is optional."},
+            {"area": "Sponsor profiles and ranking", "status": "active", "operator_action": "Use `sponsor-add`, `sponsors`, lifecycle commands, and `rank`; a homestead link is optional. A local insurance producer stays a sponsor."},
+            {"area": "Jane's insurance", "status": "active", "operator_action": "Use `product-add` and `product-offer` to file what Jane may offer, and `knowledge-add` for expertise she may state. A draft is not an offer, and nothing here binds a policy."},
             {"area": "Stripe and identity", "status": "configured only with keys", "operator_action": "Dashboard shows readiness; payment webhooks remain supported."},
         ]
 
@@ -788,6 +848,39 @@ class OperatorBackend:
             return CommandOutput(
                 "Sponsor activated" if active else "Sponsor disabled",
                 await self.set_sponsor_status(args[0], active, allow_write=allow_write),
+            )
+        if command == "products" and len(args) <= 1:
+            status = args[0] if args else "all"
+            return CommandOutput(f"Jane's products: {status}", await self.products(status))
+        if command == "product" and len(args) == 1:
+            return CommandOutput(f"Insurance product: {args[0]}", await self.product(args[0]))
+        if command == "product-add" and len(args) == 4:
+            return CommandOutput(
+                "Insurance product filed",
+                await self.add_product(args[0], args[1], args[2], args[3], allow_write=allow_write),
+            )
+        if command == "product-edit" and len(args) >= 3:
+            return CommandOutput(
+                "Insurance product updated",
+                await self.edit_product(args[0], args[1], " ".join(args[2:]), allow_write=allow_write),
+            )
+        if command in {"product-offer", "product-withdraw"} and len(args) == 1:
+            status = "offered" if command == "product-offer" else "draft"
+            return CommandOutput(
+                "Insurance product offered" if status == "offered" else "Insurance product withdrawn",
+                await self.set_product_status(args[0], status, allow_write=allow_write),
+            )
+        if command == "knowledge" and not args:
+            return CommandOutput("Jane's knowledge", await self.knowledge())
+        if command == "knowledge-add" and len(args) == 3:
+            return CommandOutput(
+                "Knowledge filed",
+                await self.add_knowledge(args[0], args[1], args[2], allow_write=allow_write),
+            )
+        if command == "knowledge-remove" and len(args) == 1:
+            return CommandOutput(
+                "Knowledge removed",
+                await self.remove_knowledge(args[0], allow_write=allow_write),
             )
         if command == "rank" and len(args) == 2:
             return CommandOutput("Sponsor ranking", await self.rank(args[0], args[1]))
