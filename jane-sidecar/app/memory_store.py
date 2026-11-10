@@ -27,6 +27,7 @@ class MemoryStore:
         self.community_polls: list[dict] = []
         self.community_poll_recipients: list[dict] = []
         self.community_poll_answers: list[dict] = []
+        self.economy_notes: list[dict] = []
         self.matches: list[dict] = []
         self.peers: list[dict] = []
         self.referrals: list[dict] = []
@@ -581,6 +582,47 @@ class MemoryStore:
             for row in self.community_polls
             if row["status"] == "open" and row["closes_at"] <= now
         ]
+
+    async def get_community_poll_by_key(self, poll_key: str) -> dict | None:
+        for poll in self.community_polls:
+            if poll["poll_key"] == poll_key:
+                return deepcopy(poll)
+        return None
+
+    async def homesteader_transcripts(self, conversation_ids: list[int]) -> list[dict]:
+        wanted = {int(conversation_id) for conversation_id in conversation_ids}
+        if not wanted:
+            return []
+        return [
+            deepcopy(row)
+            for row in self.transcript
+            if int(row["conversation_id"]) in wanted and row.get("role") == "homesteader"
+        ]
+
+    async def save_economy_note(self, fields: dict) -> dict:
+        for note in self.economy_notes:
+            if note["property_id"] == fields["property_id"] and note["poll_id"] == fields["poll_id"]:
+                if fields.get("answer"):
+                    note["answer"] = fields["answer"]
+                return deepcopy(note)
+        note = {
+            "id": str(uuid4()),
+            "property_id": fields["property_id"],
+            "zip_code": str(fields.get("zip_code") or ""),
+            "poll_id": fields["poll_id"],
+            "source": fields["source"],
+            "question": fields["question"],
+            "answer": fields.get("answer"),
+            "created_at": self._clock(),
+        }
+        self.economy_notes.append(note)
+        return deepcopy(note)
+
+    async def economy_notes_for_property(self, property_id: str) -> list[dict]:
+        return [deepcopy(row) for row in self.economy_notes if row["property_id"] == property_id]
+
+    async def list_economy_notes(self) -> list[dict]:
+        return [deepcopy(row) for row in self.economy_notes]
 
     async def close_community_poll(self, poll_id: str, report: str, analysis: dict) -> dict | None:
         for poll in self.community_polls:

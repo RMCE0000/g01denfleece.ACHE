@@ -850,6 +850,77 @@ class PostgresStore:
         )
         return rows[0] if rows else None
 
+    async def get_community_poll_by_key(self, poll_key: str) -> dict | None:
+        return await self._one(
+            """
+            SELECT id, poll_key, poll_kind, requester_property_id, question, status,
+                   opens_at, closes_at, compiled_report, compiled_analysis, created_at
+            FROM g01_community_polls WHERE poll_key = :poll_key
+            """,
+            {"poll_key": poll_key},
+        )
+
+    async def homesteader_transcripts(self, conversation_ids: list[int]) -> list[dict]:
+        if not conversation_ids:
+            return []
+        params = {}
+        holders = []
+        for index, conversation_id in enumerate(conversation_ids):
+            key = f"c{index}"
+            holders.append(f":{key}")
+            params[key] = int(conversation_id)
+        return await self._all(
+            f"""
+            SELECT id, conversation_id, message_id, role, speaker, content, created_at
+            FROM g01_transcript
+            WHERE role = 'homesteader' AND conversation_id IN ({", ".join(holders)})
+            ORDER BY created_at ASC, id ASC
+            """,
+            params,
+        )
+
+    async def save_economy_note(self, fields: dict) -> dict:
+        rows = await self._write(
+            """
+            INSERT INTO g01_economy_notes (property_id, zip_code, poll_id, source, question, answer)
+            VALUES (
+                CAST(:property_id AS uuid), :zip_code, CAST(:poll_id AS uuid), :source, :question, :answer
+            )
+            ON CONFLICT (property_id, poll_id) DO UPDATE
+            SET answer = COALESCE(EXCLUDED.answer, g01_economy_notes.answer)
+            RETURNING id, property_id, zip_code, poll_id, source, question, answer, created_at
+            """,
+            {
+                "property_id": fields["property_id"],
+                "zip_code": str(fields.get("zip_code") or ""),
+                "poll_id": fields["poll_id"],
+                "source": fields["source"],
+                "question": fields["question"],
+                "answer": fields.get("answer"),
+            },
+        )
+        return rows[0]
+
+    async def economy_notes_for_property(self, property_id: str) -> list[dict]:
+        return await self._all(
+            """
+            SELECT id, property_id, zip_code, poll_id, source, question, answer, created_at
+            FROM g01_economy_notes
+            WHERE property_id = CAST(:property_id AS uuid)
+            ORDER BY created_at, id
+            """,
+            {"property_id": property_id},
+        )
+
+    async def list_economy_notes(self) -> list[dict]:
+        return await self._all(
+            """
+            SELECT id, property_id, zip_code, poll_id, source, question, answer, created_at
+            FROM g01_economy_notes
+            ORDER BY created_at, id
+            """
+        )
+
     async def create_match(self, fields: dict) -> dict | None:
         peer_a, peer_b = sorted([fields["peer_a_property_id"], fields["peer_b_property_id"]])
         rows = await self._write(

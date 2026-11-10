@@ -47,7 +47,7 @@ HELP = """Commands
   match <match-id>                  Full proposal and both homesteaders
   match-approve <match-id> [note]   Approve and privately pitch the match
   match-reject <match-id> [note]    Reject without contacting either user
-  analyze [all|engagement|northstar|network|polls]
+  analyze [all|engagement|northstar|network|polls|economy]
                                     Deterministic analyses over all users and chats
   set <user> <field> <value>        Update a whitelisted North Star/profile field
   connect <left> <right> [topic]    Open a private homesteader conversation
@@ -252,8 +252,8 @@ class OperatorBackend:
         raise G01Error("conversation not found", 404)
 
     async def analyze(self, kind: str = "all") -> dict:
-        if kind not in {"all", "engagement", "northstar", "network", "polls"}:
-            raise G01Error("analysis must be all, engagement, northstar, network, or polls", 422)
+        if kind not in {"all", "engagement", "northstar", "network", "polls", "economy"}:
+            raise G01Error("analysis must be all, engagement, northstar, network, polls, or economy", 422)
         users = await self.store.list_properties()
         chats = (await list_conversations(self.store))["conversations"]
         analyses = {
@@ -261,6 +261,7 @@ class OperatorBackend:
             "northstar": self._northstar(users),
             "network": self._network(users, chats),
             "polls": await self.poll_analysis(),
+            "economy": await self._economy(users),
         }
         return analyses if kind == "all" else analyses[kind]
 
@@ -420,6 +421,39 @@ class OperatorBackend:
                 "with_active_goals": sum(bool(row["active_goals"]) for row in rows),
             },
             "users": rows,
+        }
+
+    async def _economy(self, users: list[dict]) -> dict:
+        from app.economy import shared_terms_in_answers
+
+        notes = await self.store.list_economy_notes()
+        names = {prop["id"]: _name(prop) for prop in users}
+        zips: dict[str, dict] = {}
+        for note in notes:
+            if not note.get("answer"):
+                continue
+            people = zips.setdefault(str(note.get("zip_code") or ""), {})
+            profile = people.setdefault(
+                note["property_id"],
+                {"name": names.get(note["property_id"], note["property_id"]), "answers": []},
+            )
+            profile["answers"].append(
+                {"source": note["source"], "question": note["question"], "answer": note["answer"]}
+            )
+        return {
+            "summary": {
+                "zips": len(zips),
+                "profiles": sum(len(people) for people in zips.values()),
+                "answered": sum(len(profile["answers"]) for people in zips.values() for profile in people.values()),
+            },
+            "zips": [
+                {
+                    "zip_code": zip_code,
+                    "profiles": list(people.values()),
+                    "shared_terms": shared_terms_in_answers(people),
+                }
+                for zip_code, people in sorted(zips.items())
+            ],
         }
 
     def _network(self, users: list[dict], chats: list[dict]) -> dict:
@@ -706,7 +740,7 @@ class OperatorBackend:
             {"area": "Campaigns and help center", "status": "administrator", "operator_action": "Use their normal g01 workflows when content and audiences are configured."},
             {"area": "Email, WhatsApp, social channels", "status": "provider required", "operator_action": "Add and verify each external provider before using its inbox."},
             {"area": "North Star and ledger", "status": "active", "operator_action": "Jane applies grounded user statements in live private chat; use `user` or `analyze northstar` to inspect them."},
-            {"area": "Jane daily and poll-mode questions", "status": "active", "operator_action": "Use `polls`, `poll`, `poll-create`, or `analyze polls`; Jane schedules and captures answers."},
+            {"area": "Jane daily and poll-mode questions", "status": "active", "operator_action": "Jane asks one question per ZIP each day. A small ZIP uses the 200-topic list. A larger ZIP with shared recorded words is asked about cooperating on that word. A live conversation can add one more question. Use `polls`, `poll`, `poll-create`, or `analyze economy`."},
             {"area": "Automatic matchmaking", "status": "active with approval", "operator_action": "Discovery is automatic. Use `matches`, then `match-approve` or `match-reject`; pending matches never contact users."},
             {"area": "24-hour demand polling", "status": "active", "operator_action": "Jane schedules grounded demand synthesis in the sidecar; `jobs polls` remains available for operators."},
             {"area": "Sponsor profiles and ranking", "status": "active", "operator_action": "Use `sponsor-add`, `sponsors`, lifecycle commands, and `rank`; a homestead link is optional."},

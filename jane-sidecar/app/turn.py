@@ -10,7 +10,7 @@ from app.audio import add_audio_transcript, has_audio_attachment
 from app.config import get_settings
 from app.delivery import deliver
 from app.matchmaking import handle_private_match_message
-from app.polling import handle_private_poll_message
+from app.polling import handle_private_poll_message, remember_conversation_answer
 from app.runtime import set_store
 from app.showcase import answer, answer_with_effects
 from app.thinking import start_thinking, stop_thinking
@@ -156,6 +156,12 @@ async def run_turn(store, payload: dict) -> dict:
         poll_reply = await handle_private_poll_message(store, message)
         if poll_reply is not None:
             return {"ok": True, "reply": poll_reply, "poll": True}
+        if not is_peer:
+            await remember_conversation_answer(
+                store,
+                await store.get_property_by_conversation(conversation_id),
+                str(message.get("content") or ""),
+            )
         reply = await answer(store, message) if is_peer else await answer_with_effects(store, message)
     except Exception:
         log.exception("Jane could not finish conversation %s", conversation_id)

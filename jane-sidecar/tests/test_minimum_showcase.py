@@ -147,10 +147,12 @@ def test_prompt_includes_the_constitution_grounded_record_and_history(client, st
     assert "tier_weight" not in seen["system"]
     assert "known_facts_ledger" not in seen["system"]
     assert second.json()["reply"] == "Make the cistern on the homestead."
+    question = store.economy_notes[0]["question"]
     assert seen["prompts"][1] == "\n".join(
         [
             "Ada: The cistern is empty.",
             "Jane: Make the cistern on the homestead.",
+            f"Jane: {question}",
             "Ada: Where do I get a liner?",
         ]
     )
