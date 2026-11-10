@@ -196,7 +196,25 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
                 notes.append(f"Verify with Stripe Identity: {session['url']}")
 
     if decision.get("cancel_sponsor"):
-        prop = await store.save_sponsor_draft(prop["id"], None)
+        if prop is None:
+            decision["reply"] = "This thread is not attached to a homestead, so I could not close a sponsorship."
+        else:
+            had_draft = bool(prop.get("sponsor_draft"))
+            try:
+                closed = await store.deactivate_sponsors_for_property(prop["id"])
+                prop = await store.save_sponsor_draft(prop["id"], None)
+            except G01Error as exc:
+                decision["reply"] = exc.message
+            else:
+                if closed:
+                    names = ", ".join(
+                        str(row.get("company_name") or "the sponsorship") for row in closed
+                    )
+                    decision["reply"] = f"I closed {names}. The listing will not be recommended."
+                elif had_draft:
+                    decision["reply"] = "I cleared the sponsorship application."
+                else:
+                    decision["reply"] = "There isn't an open sponsorship to close."
     elif decision.get("sponsor_active"):
         if decision.get("sponsor_from_thread"):
             draft = dict(decision.get("sponsor_fields") or {"open": True})

@@ -281,6 +281,17 @@ def sponsorship_status_request(text: str) -> bool:
     return bool(_SPONSOR_STATUS.search(text or ""))
 
 
+_CLOSE_SPONSOR = re.compile(
+    r"\b(?:cancel|close|end|stop|drop) (?:the |my |our |a )?(?:g01 )?(?:sponsor(?:ship)?|listing)\b",
+    re.I,
+)
+
+
+def closing_sponsor_request(text: str) -> bool:
+    """The homesteader wants the application or the listing closed."""
+    return bool(_CLOSE_SPONSOR.search(text or ""))
+
+
 def payment_email_request(text: str) -> dict | None:
     """A homesteader asking for the payment message, with an address when they named one."""
     email = _EMAIL_FIND.search(text)
