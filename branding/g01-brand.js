@@ -856,6 +856,18 @@
     backButton.addEventListener("click", function () {
       setOpen(false);
     });
+    function signupDetail(body) {
+      var detail = body && body.detail;
+      if (typeof detail === "string" && detail.trim()) return detail.trim();
+      if (Array.isArray(detail)) {
+        var message = detail.map(function (item) {
+          if (typeof item === "string") return item;
+          return item && typeof item.msg === "string" ? item.msg : "";
+        }).filter(Boolean)[0];
+        if (message) return message;
+      }
+      return "Account was not created.";
+    }
     form.addEventListener("submit", function (event) {
       event.preventDefault();
       error.hidden = true;
@@ -914,8 +926,7 @@
             setOpen(false);
             return;
           }
-          var detail = result.body && result.body.detail;
-          error.textContent = typeof detail === "string" ? detail : "Account was not created.";
+          error.textContent = signupDetail(result.body);
           error.hidden = false;
         })
         .catch(function () {

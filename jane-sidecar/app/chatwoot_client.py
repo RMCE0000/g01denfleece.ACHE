@@ -1,5 +1,6 @@
 """g01 REST wrapper. Messaging and auth stay in g01; this only calls them."""
 
+import json
 import logging
 from urllib.parse import quote
 
@@ -60,14 +61,20 @@ class ChatwootClient:
             "Accept": "application/json",
             "X-Forwarded-Proto": "https",
         }
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.request(method, url, headers=headers, json=body)
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.request(method, url, headers=headers, json=body)
+        except httpx.HTTPError as exc:
+            log.warning("g01 request failed (%s %s): %s", method, path, exc.__class__.__name__)
+            raise G01Error("g01 could not be reached. Try again.", 503) from exc
         if response.status_code >= 300:
-            detail = " ".join(response.text.split())[:180]
-            raise G01Error(f"g01 returned {response.status_code}: {detail}", 502)
+            raise _upstream_failure(response.status_code, response.text)
         if not response.content:
             return {}
-        return response.json()
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise G01Error("g01 returned a response Jane could not read.", 502) from exc
 
     def _account(self) -> int:
         return int(self.settings.chatwoot_account_id)
@@ -141,12 +148,24 @@ class ChatwootClient:
         custom = {"g01": True}
         if signup_nonce:
             custom["g01_signup"] = signup_nonce
-        payload = await self._request(
-            "POST",
-            "/platform/api/v1/users",
-            {"name": name, "display_name": name, "email": email, "password": password, "custom_attributes": custom},
-            platform=True,
-        )
+        try:
+            payload = await self._request(
+                "POST",
+                "/platform/api/v1/users",
+                {
+                    "name": name,
+                    "display_name": name,
+                    "email": email,
+                    "password": password,
+                    "password_confirmation": password,
+                    "custom_attributes": custom,
+                },
+                platform=True,
+            )
+        except G01Error as exc:
+            if exc.status_code in (409, 422) and _looks_taken(exc.message):
+                raise G01Error("That email already has a sign-in.", 409) from exc
+            raise
         if isinstance(payload, dict) and "id" not in payload and isinstance(payload.get("user"), dict):
             return payload["user"]
         return payload
@@ -293,7 +312,7 @@ class ChatwootClient:
         try:
             contact = await self.create_contact(contact_name, contact_email)
         except G01Error as exc:
-            if "422" not in exc.message:
+            if exc.status_code != 422:
                 raise
             contact = await self.search_contact(contact_email)
             if contact is None:
@@ -348,6 +367,50 @@ class ChatwootClient:
             f"/api/v1/accounts/{self._account()}/webhooks",
             {"webhook": {"url": target, "name": "g01 Jane", "subscriptions": ["message_created"]}},
         )
+
+
+def _looks_taken(message: str) -> bool:
+    lowered = message.casefold()
+    return any(
+        needle in lowered
+        for needle in ("already been taken", "already exists", "duplicate key", "uniqueviolation", "has already been taken")
+    )
+
+
+def _readable_upstream(text: str) -> str:
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    for key in ("message", "error", "detail"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return " ".join(value.split())[:180]
+        if isinstance(value, list):
+            parts = [item for item in value if isinstance(item, str) and item.strip()]
+            if parts:
+                return " ".join(" ".join(parts).split())[:180]
+    return ""
+
+
+def _upstream_failure(status: int, text: str) -> G01Error:
+    detail = " ".join((text or "").split())[:180]
+    if status in (401, 403):
+        return G01Error("g01 rejected Jane's access.", 503)
+    if status == 422:
+        readable = _readable_upstream(text) or detail or "g01 did not accept that request."
+        return G01Error(f"g01 returned 422: {readable}", 422)
+    if status == 409:
+        readable = _readable_upstream(text) or detail or "That record already exists."
+        return G01Error(readable, 409)
+    if status >= 500:
+        generic = detail.casefold() in {"", "internal server error", "internal server error."}
+        if generic:
+            return G01Error("g01 could not finish that request. Try again.", 502)
+        return G01Error(f"g01 could not finish that request. {detail}", 502)
+    return G01Error(f"g01 returned {status}: {detail}", 502)
 
 
 def _unique_ids(values) -> list[int]:

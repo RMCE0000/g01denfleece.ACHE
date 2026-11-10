@@ -42,7 +42,10 @@ async def community_state(store, actor: dict) -> dict:
         if other is None:
             continue
         locality = localities.get(str(other.get("locality_id")), {})
-        conversation_id = int(peer["chatwoot_conversation_id"])
+        try:
+            conversation_id = int(peer["chatwoot_conversation_id"])
+        except (KeyError, TypeError, ValueError):
+            continue
         connections.append(
             {
                 "username": other.get("username"),

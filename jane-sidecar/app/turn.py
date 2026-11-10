@@ -3,6 +3,7 @@
 The minimum showcase routes the constitution and history through LangChain to Gemini.
 """
 
+import logging
 import re
 
 from app.audio import add_audio_transcript, has_audio_attachment
@@ -14,11 +15,24 @@ from app.runtime import set_store
 from app.showcase import answer, answer_with_effects
 from app.thinking import start_thinking, stop_thinking
 
+log = logging.getLogger(__name__)
+
+
+def _as_int(value) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().lstrip("-").isdigit():
+        return int(value.strip())
+    return None
+
 
 def extract_message(payload: dict) -> dict:
-    conversation = payload.get("conversation") or {}
-    sender = payload.get("sender") or {}
-    meta_sender = ((conversation.get("meta") or {}).get("sender") or {}) if isinstance(conversation, dict) else {}
+    conversation = payload.get("conversation") if isinstance(payload.get("conversation"), dict) else {}
+    sender = payload.get("sender") if isinstance(payload.get("sender"), dict) else {}
+    meta = conversation.get("meta") if isinstance(conversation.get("meta"), dict) else {}
+    meta_sender = meta.get("sender") if isinstance(meta.get("sender"), dict) else {}
     sender_type = str(sender.get("type") or "")
     contact_id = sender.get("id") if sender_type.lower() == "contact" else meta_sender.get("id")
     user_id = sender.get("id") if sender_type.lower() == "user" else None
@@ -57,7 +71,8 @@ def ignore_reason(message: dict) -> str | None:
     if sender_type.lower() in ("agent_bot", "agentbot"):
         return "jane"
     settings = get_settings()
-    if sender_type.lower() == "user" and message.get("sender_id") is not None and int(message["sender_id"]) == int(settings.jane_user_id):
+    sender_id = _as_int(message.get("sender_id"))
+    if sender_type.lower() == "user" and sender_id is not None and sender_id == int(settings.jane_user_id):
         return "jane"
     if not str(message.get("content") or "").strip() and not has_audio_attachment(message):
         return "empty"
@@ -69,10 +84,12 @@ async def _speaker_name(store, message: dict) -> str:
     if named:
         return named
     prop = None
-    if message.get("user_id") is not None:
-        prop = await store.get_property_by_user(int(message["user_id"]))
-    if prop is None and message.get("contact_id") is not None:
-        prop = await store.get_property_by_contact(int(message["contact_id"]))
+    user_id = _as_int(message.get("user_id"))
+    if user_id is not None:
+        prop = await store.get_property_by_user(user_id)
+    contact_id = _as_int(message.get("contact_id"))
+    if prop is None and contact_id is not None:
+        prop = await store.get_property_by_contact(contact_id)
     if prop and prop.get("display_name"):
         return str(prop["display_name"])
     return "Homesteader"
@@ -92,6 +109,8 @@ async def _remember_incoming(store, message: dict) -> None:
 
 async def run_turn(store, payload: dict) -> dict:
     set_store(store)
+    if not isinstance(payload, dict):
+        return {"ok": True, "ignored": "payload"}
     message = extract_message(payload)
     reason = ignore_reason(message)
     if reason:
@@ -105,6 +124,7 @@ async def run_turn(store, payload: dict) -> dict:
     message["speaker"] = await _speaker_name(store, message)
     conversation_id = int(message["conversation_id"])
     thinking = False
+    is_peer = False
     try:
         is_peer = await store.is_peer_conversation(conversation_id)
         text = str(message.get("content") or "")
@@ -138,7 +158,15 @@ async def run_turn(store, payload: dict) -> dict:
             return {"ok": True, "reply": poll_reply, "poll": True}
         reply = await answer(store, message) if is_peer else await answer_with_effects(store, message)
     except Exception:
+        log.exception("Jane could not finish conversation %s", conversation_id)
         await store.unmark_event(event_id)
+        if thinking:
+            try:
+                await deliver(store, conversation_id, "I could not finish that. Please send it again.")
+            except Exception:
+                log.exception("Jane could not tell the thread the turn failed")
+                raise
+            return {"ok": False, "error": "turn failed"}
         raise
     finally:
         if thinking:

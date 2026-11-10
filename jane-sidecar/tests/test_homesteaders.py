@@ -1,5 +1,6 @@
 import asyncio
 
+import httpx
 from fastapi.testclient import TestClient
 
 from app.chatwoot_client import ChatwootClient
@@ -245,6 +246,34 @@ def test_login_page_signup_opens_a_sign_in(store, monkeypatch):
         assert too_long.json()["detail"] == "Password must be 72 characters or fewer."
         assert not any(call[0] == "user" for call in FakeChatwoot.calls)
 
+        null_password = _person("Null Password", "null.password@example.com", "70601")
+        null_password["password"] = "Aa1!safe\x00xx"
+        null_byte = client.post("/api/signup", json=null_password)
+        assert null_byte.status_code == 422
+        assert null_byte.json()["detail"] == "Password contains a character that cannot be stored."
+        assert not any(call[0] == "user" for call in FakeChatwoot.calls)
+
+        original_create = FakeChatwoot.create_platform_user
+
+        async def unreachable(self, *args, **kwargs):
+            raise httpx.ConnectError("refused")
+
+        async def no_sign_in(self, *args, **kwargs):
+            return {"email": "missing.id@example.com"}
+
+        try:
+            FakeChatwoot.create_platform_user = unreachable
+            offline = client.post("/api/signup", json=_person("Offline Signup", "offline.signup@example.com", "70601"))
+            assert offline.status_code == 503
+            assert offline.json()["detail"] == "g01 could not be reached. Try again."
+
+            FakeChatwoot.create_platform_user = no_sign_in
+            missing = client.post("/api/signup", json=_person("Missing Id", "missing.id@example.com", "70601"))
+            assert missing.status_code == 502
+            assert missing.json()["detail"] == "g01 did not return the new sign-in."
+        finally:
+            FakeChatwoot.create_platform_user = original_create
+
         original_lookup = store.get_property_by_email
 
         async def database_down(_email):
@@ -295,6 +324,17 @@ def test_login_page_signup_opens_a_sign_in(store, monkeypatch):
 
         outside = client.post("/api/signup", json=_person("Cara North", "cara.other@example.com", "10001"))
         assert outside.status_code == 422
+
+        blank = client.post(
+            "/api/signup",
+            json={"name": "", "email": "blank.name@example.com", "password": "Pasture-70601", "zip_code": "70601"},
+        )
+        assert blank.status_code == 422
+        assert blank.json()["detail"] == "name is required"
+
+        webhook = client.post("/webhooks/chatwoot", content=b"not-json", headers={"content-type": "application/json"})
+        assert webhook.status_code == 400
+        assert webhook.json()["detail"] == "webhook body was not JSON"
 
 
 def test_chatwoot_bridge_dials_exact_username_without_member_directory(store, monkeypatch):
@@ -434,3 +474,46 @@ def test_shared_conversation_seats_both_sign_ins(monkeypatch):
     assert opened_one["conversation_id"] == 12
     created = next(body for _method, path, body in calls if path.endswith("/conversations") and _method == "POST")
     assert created["assignee_id"] == 2
+
+
+def test_unhandled_errors_and_failed_turns_stay_explained(store, monkeypatch):
+    app = create_app(store)
+
+    @app.get("/boom")
+    async def boom():
+        raise RuntimeError("disk full")
+
+    async def explode(*_args, **_kwargs):
+        raise RuntimeError("planner broke")
+
+    sent = []
+
+    async def capture(_store, _conversation_id, content):
+        sent.append(content)
+
+    monkeypatch.setattr("app.turn.answer_with_effects", explode)
+    monkeypatch.setattr("app.turn.deliver", capture)
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        failed = client.get("/boom")
+        assert failed.status_code == 500
+        assert failed.headers["content-type"].startswith("application/json")
+        assert failed.json()["detail"] == "Request could not be completed."
+        assert "disk full" not in failed.text
+
+        turn = client.post(
+            "/webhooks/chatwoot",
+            json={
+                "event": "message_created",
+                "id": 440,
+                "content": "The cistern is low.",
+                "message_type": "incoming",
+                "private": False,
+                "sender": {"id": 9, "type": "user", "name": "Ada Yard"},
+                "conversation": {"id": 77},
+                "account": {"id": 1},
+            },
+        )
+    assert turn.status_code == 200
+    assert turn.json()["error"] == "turn failed"
+    assert sent == ["I could not finish that. Please send it again."]

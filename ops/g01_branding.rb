@@ -6,7 +6,7 @@ require "net/http"
 require "uri"
 
 class G01Branding
-  SNIPPET = '<link rel="icon" type="image/png" href="/g01-favicon.png?v=62"><link rel="stylesheet" href="/g01-brand.css?v=62"><script src="/g01-brand.js?v=62"></script>'
+  SNIPPET = '<link rel="icon" type="image/png" href="/g01-favicon.png?v=63"><link rel="stylesheet" href="/g01-brand.css?v=63"><script src="/g01-brand.js?v=63"></script>'
   PHONE_CHROME = '<meta name="theme-color" content="#7a5e24"><meta name="msapplication-TileColor" content="#7a5e24">'
   SIGNUP_PATH = "/g01/signup"
 
@@ -84,10 +84,30 @@ class G01Branding
     request["Accept"] = "application/json"
     request.body = raw
     response = http.request(request)
-    body = response.body.to_s
-    [response.code.to_i, { "Content-Type" => "application/json; charset=utf-8", "Cache-Control" => "no-store" }, [body]]
+    status = response.code.to_i
+    body = status >= 400 ? signup_error_body(response.body.to_s) : response.body.to_s
+    [status, { "Content-Type" => "application/json; charset=utf-8", "Cache-Control" => "no-store" }, [body]]
   rescue StandardError
     json_response(502, "signup could not reach Jane")
+  end
+
+  def signup_error_body(raw)
+    parsed = JSON.parse(raw) rescue nil
+    if parsed.is_a?(Hash)
+      detail = parsed["detail"]
+      if detail.is_a?(String) && !detail.strip.empty?
+        return JSON.generate({ "detail" => detail })
+      end
+      if detail.is_a?(Array)
+        text = detail.filter_map { |item|
+          item.is_a?(String) ? item : (item.is_a?(Hash) ? item["msg"] : nil)
+        }.find { |item| !item.to_s.strip.empty? }
+        return JSON.generate({ "detail" => text }) if text
+      end
+    end
+    fallback = raw.to_s.strip
+    fallback = "Account was not created." if fallback.empty? || fallback.casecmp("internal server error").zero?
+    JSON.generate({ "detail" => fallback[0, 240] })
   end
 
   def json_response(status, detail)

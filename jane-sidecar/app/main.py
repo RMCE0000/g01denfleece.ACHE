@@ -6,13 +6,22 @@ import secrets
 from contextlib import asynccontextmanager
 from contextlib import suppress
 from fastapi import FastAPI, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.community import bridge_actor, community_state, start_connection
 from app.config import get_settings
 from app.errors import G01Error
-from app.homesteaders import open_peer_conversation, provision_homesteader, register_homesteader, sync_workspace_metadata
+from app.homesteaders import (
+    _PASSWORD_HELP,
+    _PASSWORD_LENGTH,
+    open_peer_conversation,
+    provision_homesteader,
+    register_homesteader,
+    sync_workspace_metadata,
+)
 from app.jobs import collaboration_scheduler, demand_poll_scheduler
 from app.matchmaking import matchmaking_scheduler
 from app.payments import apply_stripe_event
@@ -140,6 +149,26 @@ def create_app(store=None) -> FastAPI:
     async def _g01_error(_request: Request, exc: G01Error):
         return JSONResponse({"detail": exc.message}, status_code=exc.status_code)
 
+    @app.exception_handler(RequestValidationError)
+    async def _invalid_request(_request: Request, exc: RequestValidationError):
+        return JSONResponse({"detail": _validation_detail(exc)}, status_code=422)
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_error(_request: Request, exc: StarletteHTTPException):
+        detail = exc.detail if isinstance(exc.detail, str) and exc.detail.strip() else "Request could not be completed."
+        return JSONResponse({"detail": detail}, status_code=exc.status_code)
+
+    @app.exception_handler(Exception)
+    async def _unexpected(request: Request, exc: Exception):
+        # A plain Starlette 500 is the blank "Internal Server Error" the signup
+        # form cannot explain. Every public route answers with JSON instead.
+        log.exception("unhandled error on %s", request.url.path)
+        if request.url.path.rstrip("/") == "/api/signup":
+            detail = f"Account was not created. {_public_failure(exc)}"
+        else:
+            detail = "Request could not be completed."
+        return JSONResponse({"detail": detail}, status_code=500)
+
     @app.get("/health")
     async def health():
         store_name = type(app.state.store).__name__ if getattr(app.state, "store", None) else "unopened"
@@ -198,7 +227,12 @@ def create_app(store=None) -> FastAPI:
             supplied = request.query_params.get("token") or request.headers.get("x-g01-webhook-token", "")
             if not secrets.compare_digest(supplied, settings.chatwoot_webhook_secret):
                 raise G01Error("webhook token rejected", 401)
-        payload = await request.json()
+        try:
+            payload = await request.json()
+        except Exception as exc:
+            raise G01Error("webhook body was not JSON", 400) from exc
+        if not isinstance(payload, dict):
+            raise G01Error("webhook body was not an object", 400)
         return await run_turn(app.state.store, payload)
 
     @app.post("/webhooks/stripe")
@@ -210,6 +244,30 @@ def create_app(store=None) -> FastAPI:
         return await apply_stripe_event(app.state.store, event)
 
     return app
+
+
+def _public_failure(exc: BaseException) -> str:
+    detail = " ".join(str(exc).split()).split("[SQL", 1)[0].strip()[:240]
+    return detail or exc.__class__.__name__
+
+
+def _validation_detail(exc: RequestValidationError) -> str:
+    messages = {
+        "name": "name is required",
+        "email": "email is not usable",
+        "username": "username must start with a letter and use 3–32 lowercase letters, numbers, dots, dashes, or underscores",
+        "zip_code": "ZIP code is not one of the seeded localities",
+    }
+    for error in exc.errors():
+        loc = [part for part in error.get("loc", ()) if part != "body"]
+        field = str(loc[-1]) if loc else ""
+        if field == "password":
+            if error.get("type") in {"string_too_long", "too_long"}:
+                return _PASSWORD_LENGTH
+            return _PASSWORD_HELP
+        if field in messages:
+            return messages[field]
+    return "The request could not be read."
 
 
 app = create_app()

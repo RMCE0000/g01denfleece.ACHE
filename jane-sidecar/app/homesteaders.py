@@ -5,6 +5,9 @@ import logging
 import re
 from uuid import UUID, uuid4
 
+import httpx
+from sqlalchemy.exc import IntegrityError
+
 from app.chatwoot_client import ChatwootClient
 from app.config import get_settings
 from app.errors import G01Error
@@ -19,8 +22,9 @@ _PASSWORD_HELP = (
     "a number, and a special character."
 )
 _PASSWORD_LENGTH = "Password must be 72 characters or fewer."
+_UNSTORABLE = "contains a character that cannot be stored."
 # g01 stores passwords with bcrypt, which rejects secrets longer than 72 bytes
-# with an unhandled exception. That reached the browser as a plain error 500.
+# or containing a null with an unhandled exception. That reached the browser as a plain error 500.
 _PEER_LOCKS: dict[tuple[str, str], asyncio.Lock] = {}
 
 
@@ -34,9 +38,13 @@ def conversation_url(conversation_id: int) -> str:
     return f"{base}/app/accounts/{int(settings.chatwoot_account_id)}/conversations/{int(conversation_id)}"
 
 
+def _unstorable(value: str) -> bool:
+    return any(ord(char) < 32 or ord(char) == 127 for char in value)
+
+
 def _email(value: str) -> str:
     email = (value or "").strip().casefold()
-    if not _EMAIL.fullmatch(email):
+    if _unstorable(email) or not _EMAIL.fullmatch(email):
         raise G01Error("email is not usable", 422)
     return email
 
@@ -50,6 +58,8 @@ def _zip(value: str) -> str:
 
 def _password(value: str) -> str:
     password = str(value or "")
+    if _unstorable(password):
+        raise G01Error(f"Password {_UNSTORABLE}", 422)
     if len(password) > 72 or len(password.encode("utf-8")) > 72:
         raise G01Error(_PASSWORD_LENGTH, 422)
     if not (
@@ -74,6 +84,8 @@ def _signup_failure(exc: BaseException) -> str:
 
 def _username(value: str | None, email: str) -> str:
     username = (value or "").strip().casefold().removeprefix("@")
+    if _unstorable(username):
+        raise G01Error(f"Username {_UNSTORABLE}", 422)
     if not username:
         username = re.sub(r"[^a-z0-9._-]", "-", email.split("@", 1)[0].casefold())
     if not _USERNAME.fullmatch(username):
@@ -222,6 +234,11 @@ async def register_homesteader(store, fields: dict) -> dict:
         created = await provision_homesteader(store, fields, reject_existing_user=True)
     except G01Error:
         raise
+    except httpx.HTTPError as exc:
+        log.warning("signup could not reach g01: %s", exc.__class__.__name__)
+        raise G01Error("g01 could not be reached. Try again.", 503) from exc
+    except IntegrityError as exc:
+        raise G01Error("That email or username is already in use.", 409) from exc
     except Exception as exc:
         # The login form can only show a JSON detail. An unhandled exception
         # becomes a plain "Internal Server Error", which is the error 500 people saw.
@@ -242,6 +259,8 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
     name = " ".join(str(fields.get("name") or "").split())
     if not name:
         raise G01Error("name is required", 422)
+    if _unstorable(name):
+        raise G01Error(f"Name {_UNSTORABLE}", 422)
     email = _email(fields.get("email") or "")
     username = _username(fields.get("username"), email)
     password = _password(fields.get("password") or "")
@@ -249,6 +268,11 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
     locality = await store.locality_for_zip(zip_code)
     if locality is None:
         raise G01Error(f"ZIP {zip_code} is outside every locality on the record", 422)
+    try:
+        lat = float(locality["center_lat"])
+        lng = float(locality["center_lng"])
+    except (KeyError, TypeError, ValueError):
+        raise G01Error("That locality is missing a map point, so the account was not created.", 422) from None
 
     existing = await store.get_property_by_email(email)
     if existing:
@@ -265,9 +289,14 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
     settings = get_settings()
     nonce = uuid4().hex if reject_existing_user else None
     user = await client.create_platform_user(name, email, password, signup_nonce=nonce)
+    if not isinstance(user, dict):
+        raise G01Error("g01 did not return the new sign-in.", 502)
+    try:
+        user_id = int(user["id"])
+    except (KeyError, TypeError, ValueError):
+        raise G01Error("g01 did not return the new sign-in.", 502) from None
     if nonce and not _platform_user_was_created(user, nonce):
         raise G01Error("That email already has a sign-in.", 409)
-    user_id = int(user["id"])
     await client.add_account_user(user_id, role="agent")
     opened = await client.open_agent_conversation(
         inbox_name=f"Jane — {name}"[:80],
@@ -276,6 +305,8 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
         contact_email=email,
         user_ids=[user_id, settings.jane_user_id],
     )
+    if not isinstance(opened, dict) or any(opened.get(key) is None for key in ("inbox_id", "contact_id", "conversation_id")):
+        raise G01Error("g01 did not open the homestead thread.", 502)
     intro = (
         f"I'm Jane. This is your open homestead thread for {locality['name']} (ZIP {zip_code}). "
         "Tell me what the place needs. The thread stays open."
@@ -290,8 +321,8 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
             "chatwoot_inbox_id": opened["inbox_id"],
             "locality_id": locality["id"],
             "zip_code": zip_code,
-            "lat": locality["center_lat"],
-            "lng": locality["center_lng"],
+            "lat": lat,
+            "lng": lng,
             "email": email,
             "display_name": name,
             "username": username,
