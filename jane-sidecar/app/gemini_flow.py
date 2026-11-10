@@ -27,8 +27,9 @@ _PUBLIC_FACT = re.compile(
     re.I,
 )
 
-# One attempt. A second model may follow, so a live turn still ends and posts.
-_ATTEMPT_SECONDS = 20
+# One attempt, long enough for the slower model to finish an answer.
+# A second model may follow, so a live turn still ends and posts.
+_ATTEMPT_SECONDS = 45
 
 UNREACHABLE = "I could not reach Gemini."
 NOT_CONFIGURED = "I could not reach Gemini. The API key is not configured."

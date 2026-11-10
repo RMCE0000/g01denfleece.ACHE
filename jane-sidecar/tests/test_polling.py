@@ -105,7 +105,7 @@ def test_an_ordinary_question_is_posted_to_the_other_homesteads(client, store):
     from app.gemini_flow import gemini_override
 
     def think(_model, messages, complexity):
-        assert complexity == "complex"
+        assert complexity == "standard"
         system = messages[0].content
         latest = messages[-1].content
         if "does anybody want a dog" in latest.casefold():

@@ -202,7 +202,9 @@ async def speak(
     user_text = str(message.get("content") or "")
     reply = ""
     for _step in range(_MAX_STEPS):
-        raw = await complete_text(system, render_history(working), working, complexity="complex")
+        # A normal question goes to the faster model, which answers before g01
+        # closes this hook. The slower model stays for planning and comparison.
+        raw = await complete_text(system, render_history(working), working)
         reply, tools = parse_turn(raw)
         if not tools:
             break

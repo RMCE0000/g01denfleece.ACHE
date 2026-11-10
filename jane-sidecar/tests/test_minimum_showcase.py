@@ -141,8 +141,8 @@ def test_prompt_includes_the_constitution_grounded_record_and_history(client, st
     assert "private internal context" in seen["system"]
     assert "valid recommendations even if chat history never named them" in seen["system"]
     assert "does not mean refusing to plan" in seen["system"]
-    assert seen["models"] == ["gemini-3.1-pro-preview", "gemini-3.1-pro-preview"]
-    assert seen["complexities"] == ["complex", "complex"]
+    assert seen["models"] == ["gemini-3.5-flash", "gemini-3.5-flash"]
+    assert seen["complexities"] == ["standard", "standard"]
     assert seen["prompts"][0] == "Ada: The cistern is empty."
     assert "tier_weight" not in seen["system"]
     assert "known_facts_ledger" not in seen["system"]

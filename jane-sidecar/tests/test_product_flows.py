@@ -193,7 +193,7 @@ def test_the_whole_message_is_read_and_the_city_state_is_looked_up(client, store
     assert draft["founding_city"] == "Lake Charles"
     assert draft["service_tags"] == ["clothing"]
     assert draft["founding_state"] == "LA"
-    assert seen["complexity"] == "complex"
+    assert seen["complexity"] == "standard"
     assert any("I want to become a sponsor." in line for line in seen["thread"])
     assert seen["question"] == "Which single US state is Lake Charles in?"
     assert "State: LA." in seen["system"]
@@ -266,7 +266,7 @@ def test_the_thread_keeps_a_no_and_files_when_the_application_is_complete(client
 
     assert described.status_code == 200
     assert any("I want to become a sponsor." in line for line in seen["calls"][1]["thread"])
-    assert seen["calls"][1]["complexity"] == "complex"
+    assert seen["calls"][1]["complexity"] == "standard"
     assert open_draft["company_name"] == "RackChess"
     assert open_draft["founding_city"] == "Lake Charles"
     assert open_draft["founding_state"] == "LA"
