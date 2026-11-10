@@ -1,0 +1,66 @@
+# Production VM host. Use with the local file:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Ports 3000 and 8025 are not published. Jane's admin API stays on the VM loopback.
+
+services:
+  caddy:
+    image: caddy@sha256:36c24ad91a7ff7bc4c87fe22bfa8df3c4b18da0773d73fc12ee2c52b98c0bb7e
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      rails:
+        condition: service_healthy
+      jane:
+        condition: service_healthy
+
+  postgres:
+    restart: unless-stopped
+
+  redis:
+    restart: unless-stopped
+
+  mailpit:
+    restart: unless-stopped
+    ports: !override []
+
+  rails:
+    restart: unless-stopped
+    ports: !override []
+    environment:
+      FORCE_SSL: "true"
+      SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-login}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_DOMAIN: ${SMTP_DOMAIN:-g01denfleece.com}
+
+  sidekiq:
+    restart: unless-stopped
+    environment:
+      FORCE_SSL: "true"
+      SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-login}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_DOMAIN: ${SMTP_DOMAIN:-g01denfleece.com}
+
+  jane:
+    restart: unless-stopped
+    ports: !override
+      - "127.0.0.1:8000:8000"
+    environment:
+      SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-login}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_DOMAIN: ${SMTP_DOMAIN:-g01denfleece.com}
+
+volumes:
+  caddy_data:
+  caddy_config:

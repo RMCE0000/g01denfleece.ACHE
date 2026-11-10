@@ -1,6 +1,11 @@
 # g01denfleece ACHE
 
-Jane is a peer inside an ordinary Chatwoot thread. The thread stays open. The work of a homestead is the five-part North Star, and the only shops Jane will name are in the homesteader's own locality.
+Jane is a peer inside an ordinary g01 thread. Each live turn runs through
+a LangChain flow that sends her constitution (`jane-sidecar/CONSTITUTION.md`)
+and role-preserved message history to Gemini. Ordinary chat uses Gemini Flash;
+complex planning, comparison, and analysis use Gemini Pro.
+
+The work she is written to care about is the five-part North Star, and the only shops she will name are in the homesteader's own locality.
 
 | Dimension | Stored as | Meaning |
 | --- | --- | --- |
@@ -25,25 +30,45 @@ Ties break toward fewer referrals in the last 14 days, then sponsor id.
 
 ## Layout
 
-- `chatwoot-fork/` — notes and optional proxy controllers. Compose runs upstream Chatwoot, not a rewritten Rails app.
-- `jane-sidecar/` — FastAPI, LangGraph, and Stripe. It has no homesteader page.
-- `sql/001_init_g01_schema.sql` — g01 tables, pgvector, and the ranking functions. Apply after Chatwoot prepares the database. The sidecar also applies this file on boot.
+- `chatwoot-fork/` — notes and optional proxy controllers. Compose runs the upstream image, not a rewritten Rails app.
+- `jane-sidecar/` — FastAPI. The live turn calls Gemini through LangChain. It has no homesteader page.
+- `sql/001_init_g01_schema.sql` — g01 tables, pgvector, and the ranking functions. Apply after g01 prepares the database. The sidecar also applies this file on boot.
 
-Live chat turns use `gemini-2.5-flash`. Poll synthesis and matchmaking use `gemini-2.5-pro`. Embeddings use `text-embedding-004` (768 dimensions) with `AsyncPostgresSaver` when `G01_DATABASE_URL` is set. Without a Gemini key, Jane still posts from the ledger and the registry; she does not invent scores.
+Set `G01_GEMINI_API_KEY` before starting Jane. The flow routes standard turns to
+`G01_GEMINI_CHAT_MODEL` and complex work to `G01_GEMINI_DELIBERATION_MODEL`.
+Audio recordings remain ordinary g01 attachments for playback between
+humans; Jane downloads signed local recordings and transcribes them through the
+same Gemini/LangChain stack before applying chat, poll, and project workflows.
+If Gemini is unavailable, Jane says so explicitly. Celery beat and its worker
+remain optional; Jane's polling and matchmaking schedulers run in the sidecar.
 
 ## Run
 
 ```bash
 cp .env.example .env
+# set G01_GEMINI_API_KEY in .env
 docker compose up --build
 ```
 
-The homesteader signs in at Chatwoot: `http://localhost:3000/app/login`. The screen is white with gold accents and the g01 logo. **Create an account** on that page asks for a name, email, password, and a ZIP already on the record (such as 70601). That creates the sign-in and a private thread with Jane, then opens it. Chatwoot's own account signup stays off, because that form would open a separate empty account. After bootstrap, `.chatwoot-bootstrap/operator.txt` has Jane's agent login and the admin token. When Jane finishes starting, `.chatwoot-bootstrap/homesteaders.txt` has two local demo people:
+The website is [g01denfleece.com](https://g01denfleece.com). Login, the widget header, and the reset email use that name. On this machine the app is still `http://localhost:3000`. The public host is a Google Compute Engine VM; see below.
+
+The homesteader signs in at g01: `http://localhost:3000/app/login`. The screen is white with gold accents and the g01 logo. **Forgot your password?** emails a reset link. Locally that mail is in Mailpit at `http://localhost:8025`. A public launch points `SMTP_ADDRESS` at a real mailbox. **Create an account** on the login page asks for a name, unique username, email, password, and a ZIP already on the record (such as 70601). That creates the sign-in and a private thread with Jane, then opens it. The built-in account signup stays off, because that form would open a separate empty account. After bootstrap, `.chatwoot-bootstrap/operator.txt` has Jane's agent login and the admin token. When Jane finishes starting, `.chatwoot-bootstrap/homesteaders.txt` has two local demo people:
 
 - Ada Yard, `ada.yard@example.com`, password `G01seed-Ada-70601`
 - Bea Chenier, `bea.chenier@example.com`, password `G01seed-Bea-70605`
 
 Each has a private inbox named `Jane — {name}` for talking with Jane, and a shared inbox `Ada Yard and Bea Chenier`. Jane stays quiet in the shared inbox unless someone says her name. The public widget remains at the URL in `operator.txt`; its header is the same gold.
+
+Signed-in homesteaders use g01 normally: messages, attachments, private
+notes, contacts, labels, assignment, status, snooze, and priority remain stock
+g01 behavior. The sidebar adds **g01 Community**. It does not list the
+membership: a homesteader starts a thread by entering another person's exact
+username, like dialing a known phone number. Existing connections remain
+available there. A homesteader's stock Contacts view is likewise limited to
+contacts attached to inboxes they can already access; it is not an alternate
+member directory. g01 labels and custom fields make Jane and connection threads
+filterable without exposing the ledger, KYC data, coordinates, or other private
+property records in g01's account-wide contacts.
 
 Create another sign-in, then a conversation between two of them:
 
@@ -51,7 +76,7 @@ Create another sign-in, then a conversation between two of them:
 curl -s -X POST http://localhost:8000/api/admin/homesteaders \
   -H "X-G01-Admin-Token: g01-local-admin-token" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Cara North","email":"cara.north@example.com","password":"Pasture-70607","zip_code":"70607"}'
+  -d '{"name":"Cara North","username":"cara.north","email":"cara.north@example.com","password":"Pasture-70607","zip_code":"70607"}'
 
 curl -s -X POST http://localhost:8000/api/admin/conversations \
   -H "X-G01-Admin-Token: g01-local-admin-token" \
@@ -59,9 +84,35 @@ curl -s -X POST http://localhost:8000/api/admin/conversations \
   -d '{"left":"ada.yard@example.com","right":"cara.north@example.com","topic":"the well"}'
 ```
 
-`left` and `right` take an email, a Chatwoot user id, or a property id. Scores, labor hours, aesthetic, local ranking, sponsorship, and identity verification are still replies in the Jane thread. Stripe Checkout and Stripe Identity stay on Stripe; Jane may paste those links.
+`left` and `right` take a username (with or without `@`), email, g01 user id, or property id. Read every thread before opening one:
 
-The sidecar on port 8000 accepts the Chatwoot webhook, the Stripe webhook, the login-page signup at `POST /api/signup`, and the admin promo route. It does not serve a dashboard. Auto-resolve is left unset so the thread stays open. The bootstrap user is the operator. Chatwoot's own agent signup stays off.
+```bash
+curl -s http://localhost:8000/api/admin/conversations \
+  -H "X-G01-Admin-Token: g01-local-admin-token"
+```
+
+Each row is a Jane thread or a connection, with the people, the topic, and the messages. Jane stays quiet in a connection unless someone says her name.
+
+The private operator backend is an interactive terminal command center:
+
+```bash
+docker compose exec jane python -m app.operator
+```
+
+It lists and inspects all homesteaders and conversations, shows complete
+property records, runs deterministic engagement/North Star/network/poll analyses,
+opens peer conversations, previews sponsor ranking, creates community polls,
+reviews automatically discovered local matches, and can explicitly run legacy
+demand-poll, referral, and connection jobs. Jane also sends one rotating daily question to every private Jane thread;
+`poll mode` starts the community-action question and `poll mode: <question>`
+broadcasts a supplied question. Match discovery uses recorded goals and poll
+answers, but users are not contacted until an operator confirms `match-approve`;
+both users must then accept and pass identity verification. Mutating commands require
+confirmation. `python -m app.operator --json analyze all` provides scriptable
+output. See [`docs/OPERATOR_COMMAND_CENTER.md`](docs/OPERATOR_COMMAND_CENTER.md)
+for the command list and the supported g01 capability boundary.
+
+The sidecar on port 8000 accepts the g01 webhook, the login-page signup at `POST /api/signup`, and the admin routes. It does not serve a web dashboard; the command center runs on the host so user information remains private. Auto-resolve is left unset so the thread stays open. The bootstrap user is the operator. The built-in agent signup stays off.
 
 For a memory-backed webhook demo without Docker:
 
@@ -71,9 +122,40 @@ python -m venv .venv
 cd jane-sidecar && ../.venv/bin/uvicorn app.main:app --port 8000
 ```
 
-The seeded Lake Charles thread is conversation 501, contact 101. Rogers is conversation 502. Ask in the webhook payload the way a Chatwoot `message_created` event would: "What are my scores?", "Where can I get a grow light?", or the sponsor answers.
+The seeded Lake Charles thread is conversation 501, contact 101. Rogers is conversation 502. A `message_created` webhook is answered by the routed Gemini flow from the constitution and that thread's history.
 
-Turn off the Chatwoot inbox auto-resolve timer. Jane's user id defaults to 1. Point a `message_created` webhook at `http://jane:8000/webhooks/chatwoot`. Do not add a Dashboard App.
+Turn off the g01 inbox auto-resolve timer. Jane's user id defaults to 1. Point a `message_created` webhook at `http://jane:8000/webhooks/chatwoot`. Do not add a Dashboard App.
+
+## Google Cloud
+
+The complete production procedure is
+[`docs/GOOGLE_CLOUD_LAUNCH.md`](docs/GOOGLE_CLOUD_LAUNCH.md). It covers the
+Compute Engine VM, VPC firewall, DNS, SMTP, Gemini, Stripe Checkout and
+Identity, first boot, smoke tests, backups, updates, and rollback.
+
+Create the US VM after `gcloud` is authenticated:
+
+```bash
+export GCP_PROJECT=YOUR_PROJECT_ID
+export SSH_SOURCE_IP='YOUR.PUBLIC.IP/32'
+bash deploy/google-cloud/create-vm.sh
+```
+
+After DNS and provider accounts are ready, the VM-side path is:
+
+```bash
+git clone https://github.com/RMCE0000/g01denfleece.ACHE.git
+cd g01denfleece.ACHE
+git checkout <launch-tag-or-merged-main>
+bash deploy/configure-prod-env.sh
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+sh deploy/check-running.sh
+```
+
+Create the Stripe webhook only after
+`https://g01denfleece.com/webhooks/stripe` returns HTTP 400 for an unsigned
+POST. Caddy serves g01 and exposes only Jane's signature-verified Stripe
+webhook. Jane's admin API remains on VM loopback at `http://127.0.0.1:8000`.
 
 Tests:
 

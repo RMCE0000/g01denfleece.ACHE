@@ -1,7 +1,7 @@
-"""Local demo sign-ins so the Chatwoot screen can be opened without a manual API call.
+"""Local demo sign-ins so the g01 screen can be opened without a manual API call.
 
 The passwords below are for the local stack only. Later boots do not change a
-password Chatwoot already stored.
+password g01 already stored.
 """
 
 import logging
@@ -15,12 +15,14 @@ log = logging.getLogger(__name__)
 DEMO_HOMESTEADERS = (
     {
         "name": "Ada Yard",
+        "username": "ada.yard",
         "email": "ada.yard@example.com",
         "password": "G01seed-Ada-70601",
         "zip_code": "70601",
     },
     {
         "name": "Bea Chenier",
+        "username": "bea.chenier",
         "email": "bea.chenier@example.com",
         "password": "G01seed-Bea-70605",
         "zip_code": "70605",
@@ -64,6 +66,7 @@ async def seed_signed_in_homesteaders(store) -> None:
         lines.extend(
             [
                 f"{fields['name']} <{fields['email']}>",
+                f"username: @{row['username']}",
                 f"password: {fields['password']}",
                 f"Jane conversation: {row.get('conversation_url')}",
                 "",

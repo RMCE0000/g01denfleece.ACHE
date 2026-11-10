@@ -1,4 +1,4 @@
-"""Post Jane's reply through Chatwoot and keep a copy in the outbox."""
+"""Post Jane's reply through g01 and keep a copy in the outbox."""
 
 import logging
 
@@ -18,5 +18,13 @@ async def deliver(store, conversation_id: int | None, content: str) -> None:
             await client.post_message(int(conversation_id), content)
             delivered = True
         except Exception:
-            log.exception("Chatwoot did not accept Jane's message on conversation %s", conversation_id)
+            log.exception("g01 did not accept Jane's message on conversation %s", conversation_id)
     await store.add_outbox(int(conversation_id) if conversation_id is not None else None, content, delivered)
+    if conversation_id is not None:
+        await store.append_transcript(
+            conversation_id=int(conversation_id),
+            message_id=None,
+            role="jane",
+            speaker="Jane",
+            content=content,
+        )

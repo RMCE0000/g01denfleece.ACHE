@@ -1,12 +1,13 @@
-# Inject the g01 stylesheet into Chatwoot HTML. The Vue bundles stay upstream.
-# POST /g01/signup is the login-page account form. Chatwoot's own signup creates
+# Inject the g01 stylesheet into g01 HTML. The Vue bundles stay upstream.
+# POST /g01/signup is the login-page account form. The built-in signup creates
 # a separate account, so this forwards to Jane on the g01 account instead.
 require "json"
 require "net/http"
 require "uri"
 
 class G01Branding
-  SNIPPET = '<link rel="stylesheet" href="/g01-brand.css?v=3"><script src="/g01-brand.js?v=2"></script>'
+  SNIPPET = '<link rel="icon" type="image/png" href="/g01-favicon.png?v=64"><link rel="stylesheet" href="/g01-brand.css?v=64"><script src="/g01-brand.js?v=64"></script>'
+  PHONE_CHROME = '<meta name="theme-color" content="#7a5e24"><meta name="msapplication-TileColor" content="#7a5e24">'
   SIGNUP_PATH = "/g01/signup"
 
   def initialize(app)
@@ -27,11 +28,46 @@ class G01Branding
     body.close if body.respond_to?(:close)
     return [status, headers, [raw]] unless raw.include?("</head>") && !raw.include?("g01-brand.css")
 
-    branded = raw.sub("</head>", "#{SNIPPET}</head>")
+    branded = resize_with_keyboard(name_the_tab(strip_chatwoot_icons(paint_phone_chrome(raw.gsub("Login to Chatwoot", "Sign in to g01"))))
+                                      .sub("</head>", "#{PHONE_CHROME}#{SNIPPET}</head>"))
     headers = headers.dup
     headers["Content-Length"] = branded.bytesize.to_s
     headers.delete("Transfer-Encoding")
     [status, headers, [branded]]
+  end
+
+  def name_the_tab(html)
+    html.gsub(%r{<title>\s*(.*?)\s*</title>}im) do
+      titled = Regexp.last_match(1).gsub(/chatwoot/i, "g01denfleece")
+      titled = "g01denfleece" if titled.strip.empty? || titled.strip == "g01" || titled.strip == "Sign in · g01"
+      "<title>#{titled}</title>"
+    end
+  end
+
+  def strip_chatwoot_icons(html)
+    html.gsub(/<link\b[^>]*>/i) do |tag|
+      rel = tag[/\brel\s*=\s*["']([^"']+)["']/i, 1].to_s.downcase
+      href = tag[/\bhref\s*=\s*["']([^"']+)["']/i, 1].to_s.downcase
+      next "" if rel.include?("icon") || href.include?("favicon") || href.include?("apple-icon")
+
+      tag
+    end
+  end
+
+  def paint_phone_chrome(html)
+    html.gsub(/<meta\b[^>]*name=["'](?:theme-color|msapplication-TileColor)["'][^>]*>/i, "")
+  end
+
+  def resize_with_keyboard(html)
+    html.gsub(/<meta\b[^>]*name=["']viewport["'][^>]*>/i) do |tag|
+      next tag if tag.include?("interactive-widget=")
+
+      tag.sub(/content\s*=\s*(["'])(.*?)\1/i) do
+        quote = Regexp.last_match(1)
+        value = Regexp.last_match(2)
+        %(content=#{quote}#{value}, interactive-widget=resizes-content#{quote})
+      end
+    end
   end
 
   def proxy_signup(env)
@@ -48,10 +84,30 @@ class G01Branding
     request["Accept"] = "application/json"
     request.body = raw
     response = http.request(request)
-    body = response.body.to_s
-    [response.code.to_i, { "Content-Type" => "application/json; charset=utf-8", "Cache-Control" => "no-store" }, [body]]
+    status = response.code.to_i
+    body = status >= 400 ? signup_error_body(response.body.to_s) : response.body.to_s
+    [status, { "Content-Type" => "application/json; charset=utf-8", "Cache-Control" => "no-store" }, [body]]
   rescue StandardError
     json_response(502, "signup could not reach Jane")
+  end
+
+  def signup_error_body(raw)
+    parsed = JSON.parse(raw) rescue nil
+    if parsed.is_a?(Hash)
+      detail = parsed["detail"]
+      if detail.is_a?(String) && !detail.strip.empty?
+        return JSON.generate({ "detail" => detail })
+      end
+      if detail.is_a?(Array)
+        text = detail.filter_map { |item|
+          item.is_a?(String) ? item : (item.is_a?(Hash) ? item["msg"] : nil)
+        }.find { |item| !item.to_s.strip.empty? }
+        return JSON.generate({ "detail" => text }) if text
+      end
+    end
+    fallback = raw.to_s.strip
+    fallback = "Account was not created." if fallback.empty? || fallback.casecmp("internal server error").zero?
+    JSON.generate({ "detail" => fallback[0, 240] })
   end
 
   def json_response(status, detail)
@@ -61,3 +117,12 @@ class G01Branding
 end
 
 Rails.application.config.middleware.use G01Branding
+
+# The controller is mounted as an overlay beside this initializer. It inherits
+# g01's account authentication and proxies only the narrow community API.
+Rails.application.routes.append do
+  get "/api/v1/accounts/:account_id/g01/community",
+      to: "api/v1/accounts/g01_community#index"
+  post "/api/v1/accounts/:account_id/g01/community",
+       to: "api/v1/accounts/g01_community#create"
+end

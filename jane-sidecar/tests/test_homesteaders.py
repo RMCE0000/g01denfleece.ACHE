@@ -1,5 +1,6 @@
 import asyncio
 
+import httpx
 from fastapi.testclient import TestClient
 
 from app.chatwoot_client import ChatwootClient
@@ -11,6 +12,8 @@ class FakeChatwoot:
     calls = []
     seq = 800
     preexisting = {}
+    orphaned = set()
+    omit_custom_attributes = False
 
     def __init__(self, settings=None):
         self.settings = settings
@@ -20,6 +23,8 @@ class FakeChatwoot:
         cls.calls = []
         cls.seq = 800
         cls.preexisting = {}
+        cls.orphaned = set()
+        cls.omit_custom_attributes = False
 
     def configured(self):
         return True
@@ -35,13 +40,25 @@ class FakeChatwoot:
         if email in FakeChatwoot.preexisting:
             user_id = FakeChatwoot.preexisting[email]
             FakeChatwoot.calls.append(("user", user_id, email))
+            if email in FakeChatwoot.orphaned:
+                return {
+                    "id": user_id,
+                    "name": name,
+                    "email": email,
+                    "custom_attributes": {"g01": True, "g01_signup": "old-attempt"},
+                    "accounts": [],
+                    "account_id": None,
+                }
             return {"id": user_id, "name": name, "email": email, "custom_attributes": {}}
         user_id = self._next()
         FakeChatwoot.calls.append(("user", user_id, email))
         attributes = {"g01": True}
         if signup_nonce:
             attributes["g01_signup"] = signup_nonce
-        return {"id": user_id, "name": name, "email": email, "custom_attributes": attributes}
+        user = {"id": user_id, "name": name, "email": email, "accounts": [], "account_id": None}
+        if not FakeChatwoot.omit_custom_attributes:
+            user["custom_attributes"] = attributes
+        return user
 
     async def add_account_user(self, user_id, role="agent"):
         FakeChatwoot.calls.append(("account_user", int(user_id), role))
@@ -59,12 +76,34 @@ class FakeChatwoot:
         FakeChatwoot.calls.append(("message", int(conversation_id), content))
         return {"id": 1}
 
+    async def set_contact_labels(self, contact_id, labels):
+        FakeChatwoot.calls.append(("contact_labels", int(contact_id), labels))
+        return {}
+
+    async def update_contact_custom_attributes(self, contact_id, attributes):
+        FakeChatwoot.calls.append(("contact_attributes", int(contact_id), attributes))
+        return {}
+
+    async def set_conversation_labels(self, conversation_id, labels):
+        FakeChatwoot.calls.append(("conversation_labels", int(conversation_id), labels))
+        return {}
+
+    async def update_conversation_custom_attributes(self, conversation_id, attributes):
+        FakeChatwoot.calls.append(("conversation_attributes", int(conversation_id), attributes))
+        return {}
+
     async def sso_link(self, user_id):
         return f"http://localhost:3000/auth/sso?user={int(user_id)}"
 
 
-def _person(name, email, zip_code):
-    return {"name": name, "email": email, "password": "Pasture-70601", "zip_code": zip_code}
+def _person(name, email, zip_code, username=None):
+    return {
+        "name": name,
+        "username": username or email.split("@", 1)[0],
+        "email": email,
+        "password": "Pasture-70601",
+        "zip_code": zip_code,
+    }
 
 
 def test_admin_opens_sign_in_and_a_private_conversation(store, monkeypatch):
@@ -90,6 +129,7 @@ def test_admin_opens_sign_in_and_a_private_conversation(store, monkeypatch):
         ada = created.json()
         assert ada["existing"] is False
         assert ada["email"] == "ada.yard@example.com"
+        assert ada["username"] == "ada.yard"
         assert ada["name"] == "Ada Yard"
         assert ada["login_url"] == "http://localhost:3000/app/login"
         assert ada["conversation_url"].startswith("http://localhost:3000/app/accounts/1/conversations/")
@@ -147,6 +187,12 @@ def test_admin_opens_sign_in_and_a_private_conversation(store, monkeypatch):
         assert 4 in inbox_calls[0][2]
         assert inbox_calls[-1][1] == "Ada Yard and Bea Chenier"
         assert set(inbox_calls[-1][2]) >= {ada["chatwoot_user_id"], 4}
+        assert any(call[0] == "contact_labels" and call[2] == ["g01-homesteader"] for call in FakeChatwoot.calls)
+        assert any(call[0] == "conversation_labels" and "g01-connection" in call[2] for call in FakeChatwoot.calls)
+        assert any(
+            call[0] == "conversation_attributes" and call[2].get("g01_kind") == "connection"
+            for call in FakeChatwoot.calls
+        )
 
         intro = [call for call in FakeChatwoot.calls if call[0] == "message" and "stay quiet" in call[2]]
         assert intro and "the well" in intro[0][2]
@@ -183,17 +229,93 @@ def test_login_page_signup_opens_a_sign_in(store, monkeypatch):
     monkeypatch.setattr("app.homesteaders.ChatwootClient", FakeChatwoot)
 
     with TestClient(create_app(store)) as client:
+        weak = _person("Weak Password", "weak.password@example.com", "70601")
+        weak["password"] = "alllowercase"
+        rejected = client.post("/api/signup", json=weak)
+        assert rejected.status_code == 422
+        assert rejected.json()["detail"] == (
+            "Password must be at least 8 characters and include uppercase, lowercase, "
+            "a number, and a special character."
+        )
+        assert not any(call[0] == "user" for call in FakeChatwoot.calls)
+
+        long_password = _person("Long Password", "long.password@example.com", "70601")
+        long_password["password"] = "Aa1!" + ("x" * 76)
+        too_long = client.post("/api/signup", json=long_password)
+        assert too_long.status_code == 422
+        assert too_long.json()["detail"] == "Password must be 72 characters or fewer."
+        assert not any(call[0] == "user" for call in FakeChatwoot.calls)
+
+        null_password = _person("Null Password", "null.password@example.com", "70601")
+        null_password["password"] = "Aa1!safe\x00xx"
+        null_byte = client.post("/api/signup", json=null_password)
+        assert null_byte.status_code == 422
+        assert null_byte.json()["detail"] == "Password contains a character that cannot be stored."
+        assert not any(call[0] == "user" for call in FakeChatwoot.calls)
+
+        original_create = FakeChatwoot.create_platform_user
+
+        async def unreachable(self, *args, **kwargs):
+            raise httpx.ConnectError("refused")
+
+        async def no_sign_in(self, *args, **kwargs):
+            return {"email": "missing.id@example.com"}
+
+        try:
+            FakeChatwoot.create_platform_user = unreachable
+            offline = client.post("/api/signup", json=_person("Offline Signup", "offline.signup@example.com", "70601"))
+            assert offline.status_code == 503
+            assert offline.json()["detail"] == "g01 could not be reached. Try again."
+
+            FakeChatwoot.create_platform_user = no_sign_in
+            missing = client.post("/api/signup", json=_person("Missing Id", "missing.id@example.com", "70601"))
+            assert missing.status_code == 502
+            assert missing.json()["detail"] == "g01 did not return the new sign-in."
+        finally:
+            FakeChatwoot.create_platform_user = original_create
+
+        original_lookup = store.get_property_by_email
+
+        async def database_down(_email):
+            raise RuntimeError('column "email" does not exist')
+
+        monkeypatch.setattr(store, "get_property_by_email", database_down)
+        failed = client.post("/api/signup", json=_person("Database Down", "database.down@example.com", "70601"))
+        assert failed.status_code == 500
+        assert failed.json()["detail"].startswith("Account was not created.")
+        assert "email" in failed.json()["detail"]
+        monkeypatch.setattr(store, "get_property_by_email", original_lookup)
+
         created = client.post("/api/signup", json=_person("Cara North", "cara.north@example.com", "70607"))
         assert created.status_code == 200
         body = created.json()
         assert body["email"] == "cara.north@example.com"
+        assert body["username"] == "cara.north"
         assert body["sso_url"].startswith("http://localhost:3000/auth/sso?user=")
         assert "api_access_token" not in body
         assert any(call[0] == "inbox" and call[1] == "Jane — Cara North" for call in FakeChatwoot.calls)
 
+        FakeChatwoot.omit_custom_attributes = True
+        older = client.post("/api/signup", json=_person("Sam Field", "sam.field@example.com", "70601"))
+        assert older.status_code == 200
+        assert older.json()["email"] == "sam.field@example.com"
+
+        FakeChatwoot.preexisting["pat.orphaned@example.com"] = 78
+        FakeChatwoot.orphaned.add("pat.orphaned@example.com")
+        resumed = client.post("/api/signup", json=_person("Pat Orchard", "pat.orphaned@example.com", "70601"))
+        assert resumed.status_code == 200
+        assert resumed.json()["email"] == "pat.orphaned@example.com"
+
         again = client.post("/api/signup", json=_person("Cara North", "cara.north@example.com", "70607"))
         assert again.status_code == 409
         assert "sso_url" not in again.json()
+
+        username_taken = client.post(
+            "/api/signup",
+            json=_person("Other Cara", "other.cara@example.com", "70601", username="cara.north"),
+        )
+        assert username_taken.status_code == 409
+        assert "username" in username_taken.json()["detail"].lower()
 
         FakeChatwoot.preexisting["drew.existing@example.com"] = 77
         taken = client.post("/api/signup", json=_person("Drew Existing", "drew.existing@example.com", "70601"))
@@ -202,6 +324,77 @@ def test_login_page_signup_opens_a_sign_in(store, monkeypatch):
 
         outside = client.post("/api/signup", json=_person("Cara North", "cara.other@example.com", "10001"))
         assert outside.status_code == 422
+
+        blank = client.post(
+            "/api/signup",
+            json={"name": "", "email": "blank.name@example.com", "password": "Pasture-70601", "zip_code": "70601"},
+        )
+        assert blank.status_code == 422
+        assert blank.json()["detail"] == "name is required"
+
+        webhook = client.post("/webhooks/chatwoot", content=b"not-json", headers={"content-type": "application/json"})
+        assert webhook.status_code == 400
+        assert webhook.json()["detail"] == "webhook body was not JSON"
+
+
+def test_chatwoot_bridge_dials_exact_username_without_member_directory(store, monkeypatch):
+    FakeChatwoot.reset()
+    monkeypatch.setenv("G01_CHATWOOT_API_TOKEN", "api-token")
+    monkeypatch.setenv("G01_CHATWOOT_PLATFORM_TOKEN", "platform-token")
+    monkeypatch.setenv("G01_CHATWOOT_PUBLIC_URL", "http://localhost:3000")
+    monkeypatch.setenv("G01_JANE_USER_ID", "4")
+    monkeypatch.setenv("G01_BRIDGE_SECRET", "bridge-secret")
+    get_settings.cache_clear()
+    monkeypatch.setattr("app.homesteaders.ChatwootClient", FakeChatwoot)
+
+    with TestClient(create_app(store)) as client:
+        client.post("/api/signup", json=_person("Ada Yard", "ada.community@example.com", "70601"))
+        client.post("/api/signup", json=_person("Bea Chenier", "bea.community@example.com", "70605"))
+        ada = next(row for row in store.properties if row.get("email") == "ada.community@example.com")
+        bea = next(row for row in store.properties if row.get("email") == "bea.community@example.com")
+        headers = {
+            "x-g01-bridge-secret": "bridge-secret",
+            "x-g01-account-id": "1",
+            "x-g01-user-id": str(ada["chatwoot_user_id"]),
+        }
+
+        assert client.get("/api/internal/community", headers={**headers, "x-g01-bridge-secret": "wrong"}).status_code == 401
+        directory = client.get("/api/internal/community", headers=headers)
+        assert directory.status_code == 200
+        assert directory.json()["connections"] == []
+        assert directory.json()["self"]["username"] == "ada.community"
+        assert "Bea Chenier" not in directory.text
+        assert "bea.community" not in directory.text
+        assert "email" not in directory.text
+        assert "zip" not in directory.text
+
+        missing = client.post(
+            "/api/internal/community/connections",
+            headers=headers,
+            json={"username": "unknown.person", "topic": "seed exchange"},
+        )
+        assert missing.status_code == 404
+
+        opened = client.post(
+            "/api/internal/community/connections",
+            headers=headers,
+            json={"username": "@bea.community", "topic": "seed exchange"},
+        )
+        assert opened.status_code == 201
+        assert opened.json()["conversation_path"].startswith("/app/accounts/1/conversations/")
+        assert opened.json()["existing"] is False
+
+        repeated = client.post(
+            "/api/internal/community/connections",
+            headers=headers,
+            json={"username": "bea.community", "topic": "ignored duplicate topic"},
+        )
+        assert repeated.status_code == 200
+        assert repeated.json()["conversation_id"] == opened.json()["conversation_id"]
+        assert repeated.json()["existing"] is True
+        connected = client.get("/api/internal/community", headers=headers).json()["connections"]
+        assert connected[0]["username"] == "bea.community"
+        assert connected[0]["name"] == "Bea Chenier"
 
 
 def test_homesteader_routes_need_chatwoot(store, monkeypatch):
@@ -281,3 +474,46 @@ def test_shared_conversation_seats_both_sign_ins(monkeypatch):
     assert opened_one["conversation_id"] == 12
     created = next(body for _method, path, body in calls if path.endswith("/conversations") and _method == "POST")
     assert created["assignee_id"] == 2
+
+
+def test_unhandled_errors_and_failed_turns_stay_explained(store, monkeypatch):
+    app = create_app(store)
+
+    @app.get("/boom")
+    async def boom():
+        raise RuntimeError("disk full")
+
+    async def explode(*_args, **_kwargs):
+        raise RuntimeError("planner broke")
+
+    sent = []
+
+    async def capture(_store, _conversation_id, content):
+        sent.append(content)
+
+    monkeypatch.setattr("app.turn.answer_with_effects", explode)
+    monkeypatch.setattr("app.turn.deliver", capture)
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        failed = client.get("/boom")
+        assert failed.status_code == 500
+        assert failed.headers["content-type"].startswith("application/json")
+        assert failed.json()["detail"] == "Request could not be completed."
+        assert "disk full" not in failed.text
+
+        turn = client.post(
+            "/webhooks/chatwoot",
+            json={
+                "event": "message_created",
+                "id": 440,
+                "content": "The cistern is low.",
+                "message_type": "incoming",
+                "private": False,
+                "sender": {"id": 9, "type": "user", "name": "Ada Yard"},
+                "conversation": {"id": 77},
+                "account": {"id": 1},
+            },
+        )
+    assert turn.status_code == 200
+    assert turn.json()["error"] == "turn failed"
+    assert sent == ["I could not finish that. Please send it again."]

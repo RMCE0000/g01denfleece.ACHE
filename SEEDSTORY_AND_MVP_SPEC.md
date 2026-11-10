@@ -4,7 +4,7 @@ Document ID: `seedstory`
 
 ## Premise
 
-g01 is a chat with Jane toward energetic and material independence. A homesteader signs up and lands in one Chatwoot conversation that stays open. Jane is a peer in that thread (a user or an agent bot), not a separate chat product. Neighbors get a second Chatwoot conversation only after both accept a pitch and both pass Stripe Identity.
+g01 is a chat with Jane toward energetic and material independence. A homesteader signs up and lands in one g01 conversation that stays open. Jane is a peer in that thread (a user or an agent bot), not a separate chat product. Neighbors get a second g01 conversation only after both accept a pitch and both pass Stripe Identity.
 
 Jane knows the property record and what the homesteader says. She does not assume acreage, climate, tools, or a budget.
 
@@ -46,14 +46,14 @@ When more than one sponsor can do the job:
 
 ## Services
 
-Chatwoot (upstream image) keeps users, conversations, messages, and websockets. `jane-sidecar` is FastAPI plus LangGraph plus Celery. They share Postgres 16 with pgvector. Redis is the Celery broker.
+g01 (upstream image) keeps users, conversations, messages, and websockets. `jane-sidecar` is FastAPI plus LangGraph plus Celery. They share Postgres 16 with pgvector. Redis is the Celery broker.
 
 - Sync graph (`sync_peer_graph.py`): `message_created` from anyone who is not Jane. Flash may draft the sentence. Hours, aesthetic, material, energetic, and contained change only when the homesteader's words support them.
 - Demand graph (`demand_poll_graph.py`): Pro may rephrase the factual tally. A number that was not in the tally is dropped.
-- Matchmaking graph (`matchmaking_graph.py`): Pro may rephrase a rationale made only of recorded goals. A shared thread is a Chatwoot conversation.
+- Matchmaking graph (`matchmaking_graph.py`): Pro may rephrase a rationale made only of recorded goals. A shared thread is a g01 conversation.
 - Checkpointer: `AsyncPostgresSaver` on the same database when `G01_DATABASE_URL` is set.
 
-The only UI a homesteader can open is the Chatwoot conversation. North Star readout, aesthetic, labor hours, local ranking, the sponsor answers, and the KYC request are retrieved by asking Jane. Chatwoot's own account form is how someone signs up. A property attaches when they tell Jane a ZIP. Stripe's hosted Checkout and Identity pages may be linked from Jane's message. The sidecar does not publish `/ui/hud`, a signup page, or a Dashboard App.
+The only UI a homesteader can open is the g01 conversation. North Star readout, aesthetic, labor hours, local ranking, the sponsor answers, and the KYC request are retrieved by asking Jane. The login-page account form is how someone signs up. A property attaches when they tell Jane a ZIP. Stripe's hosted Checkout and Identity pages may be linked from Jane's message. The sidecar does not publish `/ui/hud`, a signup page, or a Dashboard App.
 
 ## Constitution
 

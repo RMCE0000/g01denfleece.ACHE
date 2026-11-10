@@ -1,4 +1,4 @@
-"""Celery worker and beat schedule. Graphs run in a short-lived event loop per task."""
+"""Celery worker. The minimum showcase leaves the beat schedule empty."""
 
 import asyncio
 import logging
@@ -14,12 +14,16 @@ log = logging.getLogger(__name__)
 settings = get_settings()
 celery_app = Celery("g01", broker=settings.redis_url, backend=settings.redis_url)
 celery_app.conf.timezone = "UTC"
-celery_app.conf.beat_schedule = {
-    "mature-demand-polls": {"task": "app.worker.mature_demand_polls", "schedule": 300.0},
-    "scan-neighbor-synergies": {"task": "app.worker.scan_neighbor_synergies", "schedule": 900.0},
-    "recount-referral-windows": {"task": "app.worker.recount_referral_windows", "schedule": crontab(minute=15)},
-    "open-ready-collaborations": {"task": "app.worker.open_ready_collaborations", "schedule": 300.0},
-}
+celery_app.conf.beat_schedule = (
+    {
+        "mature-demand-polls": {"task": "app.worker.mature_demand_polls", "schedule": 300.0},
+        "scan-neighbor-synergies": {"task": "app.worker.scan_neighbor_synergies", "schedule": 900.0},
+        "recount-referral-windows": {"task": "app.worker.recount_referral_windows", "schedule": crontab(minute=15)},
+        "open-ready-collaborations": {"task": "app.worker.open_ready_collaborations", "schedule": 300.0},
+    }
+    if settings.background_jobs
+    else {}
+)
 
 
 def _run(job):

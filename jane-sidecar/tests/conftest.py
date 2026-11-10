@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
+from app.gemini_flow import gemini_override
 from app.main import create_app
 from app.memory_store import MemoryStore, seed_demo
 
@@ -15,7 +16,9 @@ def _env(monkeypatch):
     monkeypatch.setenv("G01_CHATWOOT_API_TOKEN", "")
     monkeypatch.setenv("G01_STRIPE_SECRET_KEY", "")
     get_settings.cache_clear()
+    token = gemini_override.set(lambda _model, _messages, _complexity: "Noted.")
     yield
+    gemini_override.reset(token)
     get_settings.cache_clear()
 
 

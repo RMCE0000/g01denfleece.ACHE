@@ -19,7 +19,7 @@ from app.epistemic import (
 from app.heuristic import heuristic_decision, status_reply
 from app.sanitize import sanitize_reply
 from app.sourcing import format_ladder, haversine_miles
-from app.sponsor_chat import file_sponsor_application, missing_fields, next_prompt
+from app.sponsor_chat import file_sponsor_application, missing_fields, resend_sponsor_payment, sponsorship_status
 from app.stripe_service import create_identity_session
 
 
@@ -76,7 +76,10 @@ async def open_demand_poll(store, prop: dict, topic: str, question: str) -> str:
         if neighbor["id"] != prop["id"]
     ]
     await store.add_invites(poll["id"], neighbors)
-    outbound = question.strip() + f"\n\nPoll {poll['id']}."
+    outbound = (
+        question.strip()
+        + f"\n\nReply in this exact form: DEMAND {poll['id']}: 2 units/week at $5 per unit."
+    )
     for neighbor in neighbors:
         if neighbor.get("primary_conversation_id"):
             await deliver(store, neighbor["primary_conversation_id"], outbound)
@@ -104,6 +107,7 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
                     "chatwoot_user_id": message.get("user_id"),
                     "chatwoot_contact_id": int(contact_id),
                     "primary_conversation_id": int(message["conversation_id"]),
+                    "username": f"homesteader-{int(contact_id)}",
                     "locality_id": found["id"],
                     "zip_code": zip_code,
                     "lat": found["center_lat"],
@@ -173,45 +177,46 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
     ledger = gate_ledger_patch(prop.get("known_facts_ledger") or {}, decision.get("ledger_patch") or {}, user_text)
     prop = await store.merge_ledger(prop["id"], ledger)
 
-    wrote_score = any(
-        decision.get(key) is not None
-        for key in (
-            "outside_aid_hours_per_week",
-            "aesthetic_pct",
-            "material_independent",
-            "material_surplus_profitable",
-            "energetic_pct",
-            "energetic_profitable",
-            "contained_zero_waste",
-        )
-    )
-    if decision.get("report_scores") or wrote_score:
+    if decision.get("report_scores"):
         fresh_locality = locality or await store.get_locality(prop["locality_id"])
         notes.append(status_reply(prop, fresh_locality))
 
     if decision.get("request_kyc"):
-        try:
-            session = await create_identity_session(prop["id"])
-        except G01Error:
-            notes.append("Stripe Identity is not configured, so I cannot verify you from this thread yet.")
+        if prop.get("kyc_verified"):
+            notes.append("Your identity is already verified.")
+        elif prop.get("stripe_identity_session_url") and not decision.get("reset_kyc"):
+            notes.append(f"Use your existing Stripe Identity link: {prop['stripe_identity_session_url']}")
         else:
-            await store.set_identity_session(prop["id"], session["id"])
-            notes.append(f"Verify with Stripe Identity: {session['url']}")
+            try:
+                session = await create_identity_session(prop["id"])
+            except G01Error:
+                notes.append("Stripe Identity is not configured, so I cannot verify you from this thread yet.")
+            else:
+                await store.set_identity_session(prop["id"], session["id"], session["url"])
+                notes.append(f"Verify with Stripe Identity: {session['url']}")
 
     if decision.get("cancel_sponsor"):
         prop = await store.save_sponsor_draft(prop["id"], None)
     elif decision.get("sponsor_active"):
-        draft = dict(prop.get("sponsor_draft") or {})
-        draft.update(decision.get("sponsor_fields") or {})
+        if decision.get("sponsor_from_thread"):
+            draft = dict(decision.get("sponsor_fields") or {"open": True})
+        else:
+            draft = dict(prop.get("sponsor_draft") or {})
+            draft.update(decision.get("sponsor_fields") or {})
         if "promo_code" in draft and str(draft["promo_code"]).casefold() == "none":
             draft.pop("promo_code", None)
         sponsor_locality = locality or await store.get_locality(prop["locality_id"])
         if missing_fields(draft):
             prop = await store.save_sponsor_draft(prop["id"], draft)
-            notes.append(next_prompt(draft))
         else:
             notes.append(await file_sponsor_application(store, prop, sponsor_locality, draft))
             prop = await store.get_property(prop["id"])
+
+    if decision.get("resend_payment_email"):
+        notes.append(await resend_sponsor_payment(store, prop, decision.get("payment_email")))
+
+    if decision.get("sponsor_status"):
+        notes.append(await sponsorship_status(store, prop))
 
     if decision.get("start_poll"):
         question = decision.get("poll_question") or "Would you buy any of this weekly, and at what price per unit?"

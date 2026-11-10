@@ -5,6 +5,7 @@ import re
 from app.constitution import BANNED_URL_HOSTS
 
 _URL = re.compile(r"https?://[^\s)>\]]+", re.I)
+_JANE_THOUGHT = re.compile(r"jane[_-]thought\s*:?\s*", re.I)
 _REFUSAL = re.compile(
     r"\b(does not list|did not file|may only appear|are excluded|is excluded|will not (list|recommend|name|link))\b",
     re.I,
@@ -31,6 +32,11 @@ def _line_is_banned(line: str, allow_walmart_name: bool) -> bool:
     return True
 
 
+def strip_jane_thought(text: str) -> str:
+    """Remove a leaked model thought label before Jane's reply is posted."""
+    return _JANE_THOUGHT.sub("", text or "")
+
+
 def sanitize_reply(text: str, *, allow_walmart_name: bool = False) -> str:
     """Drop any line that recommends a banned retailer or links to one.
 
@@ -44,4 +50,4 @@ def sanitize_reply(text: str, *, allow_walmart_name: bool = False) -> str:
             continue
         kept.append(line.rstrip())
     collapsed = re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip()
-    return collapsed[:4000]
+    return strip_jane_thought(collapsed).strip()[:4000]

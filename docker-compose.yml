@@ -1,12 +1,13 @@
-# Upstream Chatwoot owns chat, auth, and ActionCable.
+# The upstream image owns chat, auth, and ActionCable.
 # Jane is a separate Python service. They share Postgres.
 
 x-chatwoot-env: &chatwoot-env
   RAILS_ENV: production
   NODE_ENV: production
   INSTALLATION_ENV: docker
-  # Alphanumeric. Chatwoot rejects a short or symbolic key.
+  # Alphanumeric. g01 rejects a short or symbolic key.
   SECRET_KEY_BASE: ${SECRET_KEY_BASE:-G01devSecretKeyBase0123456789abcdefghijklmnopqrstuvwxyzABCDEF}
+  # This process. The public website is https://g01denfleece.com.
   FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
   DEFAULT_LOCALE: en
   FORCE_SSL: "false"
@@ -20,11 +21,16 @@ x-chatwoot-env: &chatwoot-env
   RAILS_LOG_TO_STDOUT: "true"
   RAILS_SERVE_STATIC_FILES: "true"
   ENABLE_ACCOUNT_SIGNUP: "false"
-  MAILER_SENDER_EMAIL: "${MAILER_SENDER_EMAIL:-Jane <jane@localhost>}"
-  SMTP_ADDRESS: ${SMTP_ADDRESS:-}
-  SMTP_PORT: ${SMTP_PORT:-587}
+  MAILER_SENDER_EMAIL: "${MAILER_SENDER_EMAIL:-Jane <jane@g01denfleece.com>}"
+  G01_BRIDGE_SECRET: ${G01_BRIDGE_SECRET:-g01-local-bridge-token}
+  G01_CHATWOOT_ACCOUNT_ID: ${CHATWOOT_ACCOUNT_ID:-1}
+  G01_COMMUNITY_UPSTREAM: http://jane:8000
+  # Local mail is Mailpit. A public launch sets SMTP_ADDRESS, SMTP_PORT, and SMTP_ENABLE_STARTTLS_AUTO.
+  SMTP_ADDRESS: ${SMTP_ADDRESS:-mailpit}
+  SMTP_PORT: ${SMTP_PORT:-1025}
+  SMTP_ENABLE_STARTTLS_AUTO: ${SMTP_ENABLE_STARTTLS_AUTO:-false}
   ACTIVE_STORAGE_SERVICE: local
-  # Jane is a private Docker hostname. Chatwoot otherwise refuses the webhook.
+  # Jane is a private Docker hostname. g01 otherwise refuses the webhook.
   SAFE_FETCH_ALLOW_PRIVATE_NETWORK: "true"
 
 x-jane-env: &jane-env
@@ -34,15 +40,28 @@ x-jane-env: &jane-env
   G01_BOOT_ON_STARTUP: "1"
   G01_SEED_DEMO: "0"
   G01_SCHEMA_PATH: /sql/001_init_g01_schema.sql
-  # Reachable from Chatwoot Sidekiq, not from a browser.
+  # Reachable from g01 Sidekiq, not from a browser.
   G01_PUBLIC_BASE_URL: ${G01_PUBLIC_BASE_URL:-http://jane:8000}
   G01_ADMIN_TOKEN: ${G01_ADMIN_TOKEN:-g01-local-admin-token}
+  G01_BRIDGE_SECRET: ${G01_BRIDGE_SECRET:-g01-local-bridge-token}
   G01_SEED_HOMESTEADERS: ${G01_SEED_HOMESTEADERS:-1}
+  G01_BACKGROUND_JOBS: "0"
+  G01_DAILY_POLL_ENABLED: ${G01_DAILY_POLL_ENABLED:-1}
+  G01_POLL_TIMEZONE: ${G01_POLL_TIMEZONE:-America/Chicago}
+  G01_COMMUNITY_POLL_HOURS: ${G01_COMMUNITY_POLL_HOURS:-24}
+  G01_POLL_SCHEDULER_INTERVAL_SECONDS: ${G01_POLL_SCHEDULER_INTERVAL_SECONDS:-300}
+  G01_DEMAND_POLL_SCHEDULER_INTERVAL_SECONDS: ${G01_DEMAND_POLL_SCHEDULER_INTERVAL_SECONDS:-300}
+  G01_AUTOMATIC_MATCHMAKING_ENABLED: ${G01_AUTOMATIC_MATCHMAKING_ENABLED:-1}
+  G01_MATCH_SCHEDULER_INTERVAL_SECONDS: ${G01_MATCH_SCHEDULER_INTERVAL_SECONDS:-900}
+  G01_MATCH_SIMILARITY_THRESHOLD: ${G01_MATCH_SIMILARITY_THRESHOLD:-0.82}
   G01_GEMINI_API_KEY: ${G01_GEMINI_API_KEY:-}
-  G01_GEMINI_CHAT_MODEL: gemini-2.5-flash
-  G01_GEMINI_DELIBERATION_MODEL: gemini-2.5-pro
-  G01_GEMINI_EMBEDDING_MODEL: text-embedding-004
+  G01_GEMINI_CHAT_MODEL: gemini-3.5-flash
+  G01_GEMINI_DELIBERATION_MODEL: gemini-3.1-pro-preview
+  G01_GEMINI_EMBEDDING_MODEL: gemini-embedding-2
+  G01_AUDIO_TRANSCRIPTION_ENABLED: ${G01_AUDIO_TRANSCRIPTION_ENABLED:-1}
+  G01_AUDIO_TRANSCRIPTION_MAX_BYTES: ${G01_AUDIO_TRANSCRIPTION_MAX_BYTES:-10000000}
   G01_CHATWOOT_BASE_URL: http://rails:3000
+  # Browser links. On the public host this is https://g01denfleece.com.
   G01_CHATWOOT_PUBLIC_URL: ${G01_CHATWOOT_PUBLIC_URL:-http://localhost:3000}
   G01_CHATWOOT_ACCOUNT_ID: ${CHATWOOT_ACCOUNT_ID:-1}
   G01_CHATWOOT_API_TOKEN: ${G01_CHATWOOT_API_TOKEN:-}
@@ -55,10 +74,14 @@ x-jane-env: &jane-env
   G01_STRIPE_SPONSOR_PRICE_ID: ${G01_STRIPE_SPONSOR_PRICE_ID:-}
   G01_STRIPE_SUCCESS_URL: ${G01_STRIPE_SUCCESS_URL:-http://localhost:3000}
   G01_STRIPE_CANCEL_URL: ${G01_STRIPE_CANCEL_URL:-http://localhost:3000}
+  SMTP_ADDRESS: ${SMTP_ADDRESS:-mailpit}
+  SMTP_PORT: ${SMTP_PORT:-1025}
+  SMTP_ENABLE_STARTTLS_AUTO: ${SMTP_ENABLE_STARTTLS_AUTO:-false}
+  MAILER_SENDER_EMAIL: ${MAILER_SENDER_EMAIL:-Jane <jane@g01denfleece.com>}
 
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector@sha256:0dd3149a06e4579a0d70d8fef9945636cd514005e7237deb27f9b67886f8dc4f
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-g01}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-g01}
@@ -73,20 +96,27 @@ services:
       retries: 20
 
   redis:
-    image: redis:7-alpine
+    image: redis@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20
 
+  mailpit:
+    image: axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
+    ports:
+      - "8025:8025"
+
   rails:
-    image: chatwoot/chatwoot:latest
+    image: chatwoot/chatwoot@sha256:0ea1fdeecf99470d76c51ca6d60f54d0e0b044c149ea069290741b35113a720d
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     ports:
       - "3000:3000"
     environment:
@@ -97,12 +127,17 @@ services:
     volumes:
       - chatwoot_storage:/app/storage
       - ./branding:/branding:ro
-      - ./branding/g01-logo.svg:/app/public/g01-logo.svg:ro
+      - ./branding/g01-logo.png:/app/public/g01-logo.png:ro
+      - ./branding/g01-favicon.png:/app/public/g01-favicon.png:ro
       - ./branding/g01-mark.svg:/app/public/g01-mark.svg:ro
       - ./branding/g01-mark.png:/app/public/g01-mark.png:ro
       - ./branding/g01-brand.css:/app/public/g01-brand.css:ro
       - ./branding/g01-brand.js:/app/public/g01-brand.js:ro
+      - ./branding/fonts/g01-login-serif-500.woff2:/app/public/g01-login-serif-500.woff2:ro
+      - ./branding/fonts/g01-login-serif-600.woff2:/app/public/g01-login-serif-600.woff2:ro
       - ./ops/g01_branding.rb:/app/config/initializers/g01_branding.rb:ro
+      - ./ops/g01_contacts_scope.rb:/app/config/initializers/g01_contacts_scope.rb:ro
+      - ./ops/g01_community_controller.rb:/app/app/controllers/api/v1/accounts/g01_community_controller.rb:ro
     healthcheck:
       test: ["CMD-SHELL", "ruby -e \"require 'net/http'; code = Net::HTTP.get_response(URI('http://127.0.0.1:3000/api')).code.to_i; exit(code < 500 ? 0 : 1)\""]
       interval: 15s
@@ -111,7 +146,7 @@ services:
       start_period: 180s
 
   sidekiq:
-    image: chatwoot/chatwoot:latest
+    image: chatwoot/chatwoot@sha256:0ea1fdeecf99470d76c51ca6d60f54d0e0b044c149ea069290741b35113a720d
     depends_on:
       rails:
         condition: service_healthy
@@ -123,7 +158,7 @@ services:
       - chatwoot_storage:/app/storage
 
   bootstrap:
-    image: chatwoot/chatwoot:latest
+    image: chatwoot/chatwoot@sha256:0ea1fdeecf99470d76c51ca6d60f54d0e0b044c149ea069290741b35113a720d
     depends_on:
       rails:
         condition: service_healthy
@@ -131,6 +166,7 @@ services:
       <<: *chatwoot-env
       JANE_WEBHOOK_URL: http://jane:8000/webhooks/chatwoot
       G01_ADMIN_TOKEN: ${G01_ADMIN_TOKEN:-g01-local-admin-token}
+      G01_CHATWOOT_WEBHOOK_SECRET: ${G01_CHATWOOT_WEBHOOK_SECRET:-}
     entrypoint: docker/entrypoints/rails.sh
     command: ["bundle", "exec", "rails", "runner", "/bootstrap/bootstrap_chatwoot.rb"]
     volumes:
@@ -156,8 +192,16 @@ services:
     volumes:
       - ./sql/001_init_g01_schema.sql:/sql/001_init_g01_schema.sql:ro
       - ./.chatwoot-bootstrap:/bootstrap
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
 
+  # Off for the minimum showcase. `docker compose --profile background up` starts them.
   jane-worker:
+    profiles: ["background"]
     build: ./jane-sidecar
     command: ["celery", "-A", "app.worker:celery_app", "worker", "--loglevel=info"]
     depends_on:
@@ -174,6 +218,7 @@ services:
       - ./.chatwoot-bootstrap:/bootstrap:ro
 
   jane-beat:
+    profiles: ["background"]
     build: ./jane-sidecar
     command: ["celery", "-A", "app.worker:celery_app", "beat", "--loglevel=info", "--schedule", "/tmp/celerybeat-schedule"]
     depends_on:

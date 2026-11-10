@@ -24,12 +24,17 @@ class MemoryStore:
         self.polls: list[dict] = []
         self.invites: list[dict] = []
         self.votes: list[dict] = []
+        self.community_polls: list[dict] = []
+        self.community_poll_recipients: list[dict] = []
+        self.community_poll_answers: list[dict] = []
         self.matches: list[dict] = []
         self.peers: list[dict] = []
         self.referrals: list[dict] = []
         self.events: set[str] = set()
         self.checkouts: dict[str, str] = {}
+        self.checkout_details: dict[str, dict] = {}
         self.outbox: list[dict] = []
+        self.transcript: list[dict] = []
 
     async def close(self) -> None:
         return None
@@ -72,6 +77,7 @@ class MemoryStore:
             "chatwoot_inbox_id": fields.get("chatwoot_inbox_id"),
             "email": fields.get("email"),
             "display_name": fields.get("display_name"),
+            "username": fields["username"],
             "locality_id": fields["locality_id"],
             "street_address": fields.get("street_address"),
             "zip_code": fields["zip_code"],
@@ -89,6 +95,7 @@ class MemoryStore:
             "sponsor_draft": deepcopy(fields.get("sponsor_draft")),
             "kyc_verified": bool(fields.get("kyc_verified", False)),
             "stripe_identity_session_id": fields.get("stripe_identity_session_id"),
+            "stripe_identity_session_url": fields.get("stripe_identity_session_url"),
             "updated_at": self._clock(),
             "goals_embedding": fields.get("goals_embedding"),
         }
@@ -120,6 +127,12 @@ class MemoryStore:
         if not wanted:
             return None
         return self._find_property(lambda row: (row.get("email") or "").casefold() == wanted)
+
+    async def get_property_by_username(self, username: str) -> dict | None:
+        wanted = (username or "").strip().casefold().removeprefix("@")
+        if not wanted:
+            return None
+        return self._find_property(lambda row: (row.get("username") or "").casefold() == wanted)
 
     def _mutate(self, property_id: str) -> dict:
         for prop in self.properties:
@@ -163,7 +176,7 @@ class MemoryStore:
 
     async def save_sponsor_draft(self, property_id: str, draft: dict | None) -> dict:
         prop = self._mutate(property_id)
-        prop["sponsor_draft"] = deepcopy(draft) if draft else None
+        prop["sponsor_draft"] = deepcopy(draft) if draft is not None else None
         return deepcopy(prop)
 
     async def merge_ledger(self, property_id: str, ledger: dict) -> dict:
@@ -221,6 +234,12 @@ class MemoryStore:
         locality = await self.get_locality(fields["locality_id"])
         if not locality:
             raise G01Error("locality not found", 404)
+        if fields.get("property_id"):
+            prop = await self.get_property(fields["property_id"])
+            if not prop:
+                raise G01Error("linked homesteader not found", 404)
+            if str(prop["locality_id"]) != str(fields["locality_id"]):
+                raise G01Error("linked homesteader and sponsor must share a locality", 422)
         reason = sponsor_rejection_reason(
             company_name=fields["company_name"],
             is_franchise_or_chain=bool(fields.get("is_franchise_or_chain")),
@@ -254,6 +273,7 @@ class MemoryStore:
             "stripe_customer_id": None,
             "stripe_subscription_id": None,
             "applied_promo_code": fields.get("applied_promo_code"),
+            "promo_consumed_at": None,
             "is_active_sponsor": bool(fields.get("is_active_sponsor", False)),
             "created_at": self._clock(),
             "capabilities_embedding": None,
@@ -266,6 +286,49 @@ class MemoryStore:
             if sponsor["id"] == sponsor_id:
                 return deepcopy(sponsor)
         return None
+
+    async def list_sponsors(self, status: str | None = None, limit: int = 100) -> list[dict]:
+        rows = self.sponsors
+        if status == "active":
+            rows = [row for row in rows if row.get("is_active_sponsor")]
+        elif status == "inactive":
+            rows = [row for row in rows if not row.get("is_active_sponsor")]
+        return deepcopy(rows[: max(limit, 1)])
+
+    async def update_sponsor(self, sponsor_id: str, patch: dict) -> dict:
+        for index, sponsor in enumerate(self.sponsors):
+            if sponsor["id"] != sponsor_id:
+                continue
+            merged = {**sponsor, **patch}
+            locality = await self.get_locality(merged["locality_id"])
+            if not locality:
+                raise G01Error("locality not found", 404)
+            if merged.get("property_id"):
+                prop = await self.get_property(merged["property_id"])
+                if not prop:
+                    raise G01Error("linked homesteader not found", 404)
+                if str(prop["locality_id"]) != str(merged["locality_id"]):
+                    raise G01Error("linked homesteader and sponsor must share a locality", 422)
+            reason = sponsor_rejection_reason(
+                company_name=merged["company_name"],
+                is_franchise_or_chain=bool(merged.get("is_franchise_or_chain")),
+                locality_city=locality["primary_city"],
+                locality_state=locality["state_code"],
+                founding_city=merged["founding_city"],
+                founding_state=merged["founding_state"],
+                capabilities_summary=merged.get("capabilities_summary", ""),
+            )
+            if reason:
+                raise G01Error(reason, 422)
+            if merged["sourcing_tier"] not in (
+                "local_manufacturer",
+                "local_service_or_stock",
+                "local_logistics_proxy",
+            ):
+                raise G01Error("invalid sponsor sourcing tier", 422)
+            self.sponsors[index] = merged
+            return deepcopy(merged)
+        raise G01Error("sponsor not found", 404)
 
     async def rank_sponsors(self, property_id: str, service_tag: str, limit: int = 5) -> list[dict]:
         prop = await self.get_property(property_id)
@@ -391,13 +454,142 @@ class MemoryStore:
         current = self._clock()
         return [deepcopy(poll) for poll in self.polls if poll["status"] == "polling" and poll["mature_at"] <= current]
 
-    async def complete_poll(self, poll_id: str, report: str) -> dict:
+    async def complete_poll(self, poll_id: str, report: str) -> dict | None:
         for poll in self.polls:
-            if poll["id"] == poll_id:
+            if poll["id"] == poll_id and poll["status"] == "polling":
                 poll["status"] = "completed"
                 poll["final_synthesis_report"] = report
                 return deepcopy(poll)
-        raise G01Error("poll not found", 404)
+        return None
+
+    async def create_community_poll(self, fields: dict) -> tuple[dict, bool]:
+        for poll in self.community_polls:
+            if poll["poll_key"] == fields["poll_key"]:
+                return deepcopy(poll), False
+        poll = {
+            "id": str(uuid4()),
+            "poll_key": fields["poll_key"],
+            "poll_kind": fields["poll_kind"],
+            "requester_property_id": fields.get("requester_property_id"),
+            "question": fields["question"],
+            "status": "open",
+            "opens_at": fields["opens_at"],
+            "closes_at": fields["closes_at"],
+            "compiled_report": None,
+            "compiled_analysis": None,
+            "created_at": self._clock(),
+        }
+        self.community_polls.append(poll)
+        return deepcopy(poll), True
+
+    async def add_community_poll_recipients(self, poll_id: str, properties: list[dict]) -> list[dict]:
+        added = []
+        for prop in properties:
+            if any(
+                row["poll_id"] == poll_id and row["property_id"] == prop["id"]
+                for row in self.community_poll_recipients
+            ):
+                continue
+            row = {
+                "id": str(uuid4()),
+                "poll_id": poll_id,
+                "property_id": prop["id"],
+                "conversation_id": prop.get("primary_conversation_id"),
+                "created_at": self._clock(),
+            }
+            self.community_poll_recipients.append(row)
+            added.append(deepcopy(row))
+        return added
+
+    async def community_poll_recipients_for(self, poll_id: str) -> list[dict]:
+        return [
+            deepcopy(row)
+            for row in self.community_poll_recipients
+            if row["poll_id"] == poll_id
+        ]
+
+    async def pending_community_polls(self, property_id: str) -> list[dict]:
+        answered = {
+            row["poll_id"]
+            for row in self.community_poll_answers
+            if row["property_id"] == property_id
+        }
+        polls = {row["id"]: row for row in self.community_polls if row["status"] == "open"}
+        found = []
+        for recipient in self.community_poll_recipients:
+            if recipient["property_id"] != property_id or recipient["poll_id"] in answered:
+                continue
+            poll = polls.get(recipient["poll_id"])
+            if poll:
+                found.append({**deepcopy(poll), "recipient_id": recipient["id"]})
+        return sorted(found, key=lambda row: (row["opens_at"], row["id"]))
+
+    async def answer_community_poll(self, poll_id: str, property_id: str, answer: str) -> dict | None:
+        for row in self.community_poll_answers:
+            if row["poll_id"] == poll_id and row["property_id"] == property_id:
+                return deepcopy(row)
+        poll = next(
+            (row for row in self.community_polls if row["id"] == poll_id and row["status"] == "open"),
+            None,
+        )
+        recipient = any(
+            row["poll_id"] == poll_id and row["property_id"] == property_id
+            for row in self.community_poll_recipients
+        )
+        if poll is None or not recipient:
+            return None
+        row = {
+            "id": str(uuid4()),
+            "poll_id": poll_id,
+            "property_id": property_id,
+            "answer": answer,
+            "created_at": self._clock(),
+        }
+        self.community_poll_answers.append(row)
+        return deepcopy(row)
+
+    async def community_poll_answers_for(self, poll_id: str) -> list[dict]:
+        properties = {row["id"]: row for row in self.properties}
+        found = []
+        for answer in self.community_poll_answers:
+            if answer["poll_id"] != poll_id:
+                continue
+            prop = properties.get(answer["property_id"], {})
+            found.append(
+                {
+                    **deepcopy(answer),
+                    "username": prop.get("username"),
+                    "display_name": prop.get("display_name"),
+                }
+            )
+        return found
+
+    async def get_community_poll(self, poll_id: str) -> dict | None:
+        for poll in self.community_polls:
+            if poll["id"] == poll_id:
+                return deepcopy(poll)
+        return None
+
+    async def list_community_polls(self, limit: int = 50) -> list[dict]:
+        rows = sorted(self.community_polls, key=lambda row: (row["created_at"], row["id"]), reverse=True)
+        return [deepcopy(row) for row in rows[:limit]]
+
+    async def due_community_polls(self) -> list[dict]:
+        now = self._clock()
+        return [
+            deepcopy(row)
+            for row in self.community_polls
+            if row["status"] == "open" and row["closes_at"] <= now
+        ]
+
+    async def close_community_poll(self, poll_id: str, report: str, analysis: dict) -> dict | None:
+        for poll in self.community_polls:
+            if poll["id"] == poll_id and poll["status"] == "open":
+                poll["status"] = "closed"
+                poll["compiled_report"] = report
+                poll["compiled_analysis"] = deepcopy(analysis)
+                return deepcopy(poll)
+        return None
 
     async def create_match(self, fields: dict) -> dict | None:
         peer_a, peer_b = sorted([fields["peer_a_property_id"], fields["peer_b_property_id"]])
@@ -412,9 +604,14 @@ class MemoryStore:
             "peer_b_property_id": peer_b,
             "proposed_project_title": title,
             "jane_synergy_rationale": fields["jane_synergy_rationale"],
+            "operator_status": "pending",
+            "operator_review_note": None,
+            "operator_reviewed_at": None,
             "peer_a_status": "pitched",
             "peer_b_status": "pitched",
             "shared_chatwoot_conversation_id": None,
+            "shared_conversation_opening": False,
+            "shared_conversation_claimed_at": None,
             "created_at": self._clock(),
         }
         self.matches.append(match)
@@ -426,11 +623,33 @@ class MemoryStore:
                 return deepcopy(match)
         return None
 
+    async def list_matches(self, operator_status: str | None = None, limit: int = 100) -> list[dict]:
+        rows = self.matches
+        if operator_status:
+            rows = [row for row in rows if row["operator_status"] == operator_status]
+        ordered = sorted(rows, key=lambda row: (row["created_at"], row["id"]), reverse=True)
+        return [deepcopy(row) for row in ordered[:limit]]
+
+    async def set_match_operator_status(self, match_id: str, status: str, note: str | None = None) -> dict:
+        if status not in ("approved", "rejected"):
+            raise G01Error("operator match status must be approved or rejected", 422)
+        for match in self.matches:
+            if match["id"] != match_id:
+                continue
+            if match["operator_status"] != "pending":
+                raise G01Error(f"match is already {match['operator_status']}", 409)
+            match["operator_status"] = status
+            match["operator_review_note"] = note
+            match["operator_reviewed_at"] = self._clock()
+            return deepcopy(match)
+        raise G01Error("match not found", 404)
+
     async def matches_for_property(self, property_id: str) -> list[dict]:
         return [
             deepcopy(match)
             for match in self.matches
             if property_id in (match["peer_a_property_id"], match["peer_b_property_id"])
+            and match["operator_status"] == "approved"
             and match["shared_chatwoot_conversation_id"] is None
             and "declined" not in (match["peer_a_status"], match["peer_b_status"])
         ]
@@ -441,6 +660,8 @@ class MemoryStore:
         for match in self.matches:
             if match["id"] != match_id:
                 continue
+            if match["operator_status"] != "approved":
+                raise G01Error("match requires operator approval", 409)
             if match["peer_a_property_id"] == peer_property_id:
                 match["peer_a_status"] = status
             elif match["peer_b_property_id"] == peer_property_id:
@@ -454,13 +675,36 @@ class MemoryStore:
         for match in self.matches:
             if match["id"] == match_id:
                 match["shared_chatwoot_conversation_id"] = int(conversation_id)
+                match["shared_conversation_opening"] = False
+                match["shared_conversation_claimed_at"] = None
                 return deepcopy(match)
         raise G01Error("match not found", 404)
+
+    async def claim_shared_conversation(self, match_id: str) -> bool:
+        for match in self.matches:
+            if match["id"] != match_id or match.get("shared_chatwoot_conversation_id") is not None:
+                continue
+            claimed_at = match.get("shared_conversation_claimed_at")
+            stale = claimed_at is not None and claimed_at <= self._clock() - timedelta(minutes=5)
+            if match.get("shared_conversation_opening") and not stale:
+                return False
+            match["shared_conversation_opening"] = True
+            match["shared_conversation_claimed_at"] = self._clock()
+            return True
+        return False
+
+    async def release_shared_conversation_claim(self, match_id: str) -> None:
+        for match in self.matches:
+            if match["id"] == match_id and match.get("shared_chatwoot_conversation_id") is None:
+                match["shared_conversation_opening"] = False
+                match["shared_conversation_claimed_at"] = None
 
     async def ready_matches_without_thread(self) -> list[dict]:
         ready = []
         for match in self.matches:
             if match["shared_chatwoot_conversation_id"] is not None:
+                continue
+            if match["operator_status"] != "approved":
                 continue
             if match["peer_a_status"] != "accepted" or match["peer_b_status"] != "accepted":
                 continue
@@ -478,6 +722,47 @@ class MemoryStore:
 
     async def unmark_event(self, event_id: str) -> None:
         self.events.discard(event_id)
+
+    async def list_properties(self) -> list[dict]:
+        return deepcopy(self.properties)
+
+    async def list_peer_conversations(self) -> list[dict]:
+        return deepcopy(self.peers)
+
+    async def append_transcript(
+        self,
+        *,
+        conversation_id: int | None,
+        message_id: str | None,
+        role: str,
+        speaker: str,
+        content: str,
+    ) -> dict | None:
+        text = str(content or "").strip()
+        if conversation_id is None or not text:
+            return None
+        if message_id:
+            for row in self.transcript:
+                if int(row["conversation_id"]) == int(conversation_id) and row.get("message_id") == str(message_id):
+                    return deepcopy(row)
+        row = {
+            "id": str(uuid4()),
+            "conversation_id": int(conversation_id),
+            "message_id": str(message_id) if message_id else None,
+            "role": role,
+            "speaker": speaker or ("Jane" if role == "jane" else "Homesteader"),
+            "content": text,
+            "created_at": self._clock(),
+        }
+        self.transcript.append(row)
+        return deepcopy(row)
+
+    async def list_transcript(self, conversation_id: int) -> list[dict]:
+        rows = [row for row in self.transcript if int(row["conversation_id"]) == int(conversation_id)]
+        return deepcopy(rows)
+
+    async def transcript_conversation_ids(self) -> list[int]:
+        return sorted({int(row["conversation_id"]) for row in self.transcript})
 
     async def add_outbox(self, conversation_id: int | None, content: str, delivered: bool) -> dict:
         row = {
@@ -497,16 +782,46 @@ class MemoryStore:
             prop["stripe_identity_session_id"] = session_id
         return deepcopy(prop)
 
-    async def set_identity_session(self, property_id: str, session_id: str) -> dict:
+    async def set_identity_session(self, property_id: str, session_id: str, session_url: str | None = None) -> dict:
         prop = self._mutate(property_id)
         prop["stripe_identity_session_id"] = session_id
+        prop["stripe_identity_session_url"] = session_url
         return deepcopy(prop)
 
     async def property_by_identity_session(self, session_id: str) -> dict | None:
         return self._find_property(lambda row: row.get("stripe_identity_session_id") == session_id)
 
-    async def attach_checkout(self, session_id: str, sponsor_id: str) -> None:
+    async def attach_checkout(
+        self,
+        session_id: str,
+        sponsor_id: str,
+        url: str | None = None,
+        billing_email: str | None = None,
+    ) -> None:
         self.checkouts[session_id] = sponsor_id
+        details = dict(self.checkout_details.get(session_id) or {})
+        if url:
+            details["url"] = url
+        if billing_email:
+            details["billing_email"] = billing_email
+        self.checkout_details[session_id] = details
+
+    async def latest_open_checkout(self, property_id: str) -> dict | None:
+        for session_id, sponsor_id in reversed(list(self.checkouts.items())):
+            sponsor = await self.get_sponsor(sponsor_id)
+            if not sponsor or str(sponsor.get("property_id")) != str(property_id):
+                continue
+            if sponsor.get("is_active_sponsor"):
+                continue
+            details = self.checkout_details.get(session_id) or {}
+            return {
+                "session_id": session_id,
+                "sponsor_id": sponsor_id,
+                "company_name": sponsor["company_name"],
+                "url": details.get("url"),
+                "billing_email": details.get("billing_email"),
+            }
+        return None
 
     async def sponsor_by_checkout(self, session_id: str) -> dict | None:
         sponsor_id = self.checkouts.get(session_id)
@@ -526,8 +841,92 @@ class MemoryStore:
             return deepcopy(sponsor)
         raise G01Error("sponsor not found", 404)
 
+    async def activate_sponsor_checkout(self, sponsor_id: str, customer_id: str | None, subscription_id: str | None) -> dict:
+        for sponsor in self.sponsors:
+            if sponsor["id"] != sponsor_id:
+                continue
+            if sponsor.get("applied_promo_code") and sponsor.get("promo_consumed_at") is None:
+                try:
+                    promo = await self.consume_promo(sponsor["applied_promo_code"])
+                except G01Error:
+                    promo = None
+                sponsor["promo_consumed_at"] = self._clock()
+                if promo is not None:
+                    sponsor["promo_boost_weight"] = float(promo["recommendation_boost"])
+            sponsor["is_active_sponsor"] = True
+            sponsor["stripe_customer_id"] = customer_id
+            sponsor["stripe_subscription_id"] = subscription_id
+            return deepcopy(sponsor)
+        raise G01Error("sponsor not found", 404)
+
+    async def remember_sponsor_billing(self, sponsor_id: str, customer_id: str | None, subscription_id: str | None) -> dict:
+        for sponsor in self.sponsors:
+            if sponsor["id"] != sponsor_id:
+                continue
+            if customer_id:
+                sponsor["stripe_customer_id"] = customer_id
+            if subscription_id:
+                sponsor["stripe_subscription_id"] = subscription_id
+            return deepcopy(sponsor)
+        raise G01Error("sponsor not found", 404)
+
+    async def latest_inactive_sponsor(self, property_id: str) -> dict | None:
+        found = None
+        for sponsor in self.sponsors:
+            if str(sponsor.get("property_id")) == str(property_id) and not sponsor.get("is_active_sponsor"):
+                found = sponsor
+        return deepcopy(found) if found else None
+
+    async def inactive_sponsor_named(self, property_id: str, company_name: str) -> dict | None:
+        from app.sponsor_chat import sponsor_name_key
+
+        wanted = sponsor_name_key(company_name)
+        if not wanted:
+            return None
+        found = None
+        for sponsor in self.sponsors:
+            if str(sponsor.get("property_id")) != str(property_id) or sponsor.get("is_active_sponsor"):
+                continue
+            if sponsor_name_key(sponsor.get("company_name") or "") == wanted:
+                found = sponsor
+        return deepcopy(found) if found else None
+
+    async def latest_sponsor(self, property_id: str) -> dict | None:
+        found = None
+        for sponsor in self.sponsors:
+            if str(sponsor.get("property_id")) == str(property_id):
+                found = sponsor
+        return deepcopy(found) if found else None
+
+    async def sponsor_by_subscription(self, subscription_id: str) -> dict | None:
+        for sponsor in self.sponsors:
+            if sponsor.get("stripe_subscription_id") == subscription_id:
+                return deepcopy(sponsor)
+        return None
+
+    async def set_sponsor_subscription_active(self, subscription_id: str, active: bool) -> dict | None:
+        for sponsor in self.sponsors:
+            if sponsor.get("stripe_subscription_id") == subscription_id:
+                sponsor["is_active_sponsor"] = bool(active)
+                return deepcopy(sponsor)
+        return None
+
     async def properties_with_goals(self) -> list[dict]:
-        return [deepcopy(row) for row in self.properties if (row.get("known_facts_ledger") or {}).get("active_goals")]
+        answers: dict[str, list[str]] = {}
+        for answer in self.community_poll_answers:
+            answers.setdefault(answer["property_id"], []).append(answer["answer"])
+        rows = []
+        for prop in self.properties:
+            goals = list((prop.get("known_facts_ledger") or {}).get("active_goals") or [])
+            signals = [*goals, *answers.get(prop["id"], [])]
+            if not signals and not prop.get("goals_embedding"):
+                continue
+            row = deepcopy(prop)
+            ledger = deepcopy(row.get("known_facts_ledger") or {})
+            ledger["active_goals"] = signals
+            row["known_facts_ledger"] = ledger
+            rows.append(row)
+        return rows
 
     def _ordered_pair(self, left: str, right: str) -> tuple[str, str]:
         first, second = str(left), str(right)

@@ -1,4 +1,4 @@
-"""Fixed local fixtures for the memory store and the demo Chatwoot threads."""
+"""Fixed local fixtures for the memory store and the demo g01 threads."""
 
 from datetime import datetime, timezone
 
@@ -53,6 +53,7 @@ def _property(
     contact_id: int,
     user_id: int,
     conversation_id: int,
+    username: str,
     zip_code: str,
     lat: float,
     lng: float,
@@ -70,6 +71,7 @@ def _property(
         "chatwoot_inbox_id": None,
         "email": None,
         "display_name": None,
+        "username": username,
         "locality_id": locality_id,
         "street_address": None,
         "zip_code": zip_code,
@@ -99,6 +101,7 @@ def demo_properties() -> list[dict]:
             contact_id=DEMO_CONTACT_ID,
             user_id=DEMO_USER_ID,
             conversation_id=DEMO_CONVERSATION_ID,
+            username="lake-homestead",
             zip_code="70601",
             lat=30.2266,
             lng=-93.2174,
@@ -110,6 +113,7 @@ def demo_properties() -> list[dict]:
             contact_id=ROGERS_CONTACT_ID,
             user_id=ROGERS_USER_ID,
             conversation_id=ROGERS_CONVERSATION_ID,
+            username="rogers-homestead",
             zip_code="72756",
             lat=36.3320,
             lng=-94.1185,
@@ -129,6 +133,7 @@ def _sponsor(**kwargs) -> dict:
         "stripe_customer_id": None,
         "stripe_subscription_id": None,
         "applied_promo_code": None,
+        "promo_consumed_at": None,
         "is_active_sponsor": True,
         "created_at": datetime.now(timezone.utc),
         "capabilities_embedding": None,

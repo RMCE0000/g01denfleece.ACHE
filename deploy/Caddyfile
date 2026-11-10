@@ -1,0 +1,20 @@
+# Public site. Caddy asks Let's Encrypt for the certificate once DNS points here.
+{
+	email {$ACME_EMAIL}
+}
+
+www.g01denfleece.com {
+	redir https://g01denfleece.com{uri} permanent
+}
+
+g01denfleece.com {
+	# This is the only Jane route exposed publicly. Stripe signatures are
+	# verified by the sidecar before an event can change sponsorship or KYC.
+	handle /webhooks/stripe {
+		reverse_proxy jane:8000
+	}
+
+	handle {
+		reverse_proxy rails:3000
+	}
+}

@@ -19,7 +19,28 @@ SPONSOR_TIERS = (
     "local_logistics_proxy",
 )
 
+_SEARCH_STOP_WORDS = {
+    "and", "for", "from", "get", "help", "local", "need", "some", "that",
+    "the", "their", "this", "with",
+}
+
 EARTH_RADIUS_MILES = 3958.7613
+
+
+def normalize_service_tag(raw: str) -> str | None:
+    tag = re.sub(r"[^a-z0-9_]+", "_", str(raw or "").strip().lower().replace("-", "_")).strip("_")
+    return tag if re.fullmatch(r"[a-z0-9_]{2,120}", tag) else None
+
+
+def _search_terms(raw: str) -> set[str]:
+    terms: set[str] = set()
+    for word in re.findall(r"[a-z0-9]+", str(raw or "").casefold().replace("_", " ")):
+        if word in _SEARCH_STOP_WORDS or len(word) < 2:
+            continue
+        # Prefix stems make tomato/tomatoes and print/printed/printing meet
+        # without asking Gemini to invent a product category.
+        terms.add(word[:5] if len(word) >= 5 else word)
+    return terms
 
 
 def company_norm(name: str) -> str:
@@ -96,9 +117,17 @@ def recommendation_score(
 
 
 def sponsor_matches_tag(sponsor: dict, service_tag: str) -> bool:
-    wanted = (service_tag or "").strip().casefold()
-    tags = [str(tag).strip().casefold() for tag in sponsor.get("service_tags") or []]
-    return wanted in tags
+    wanted = normalize_service_tag(service_tag)
+    tags = [normalize_service_tag(tag) for tag in sponsor.get("service_tags") or []]
+    if wanted and wanted in tags:
+        return True
+    profile_text = " ".join(
+        [
+            *(str(tag) for tag in sponsor.get("service_tags") or []),
+            str(sponsor.get("capabilities_summary") or ""),
+        ]
+    )
+    return bool(_search_terms(service_tag) & _search_terms(profile_text))
 
 
 def rank_sponsor_rows(
@@ -149,6 +178,9 @@ def rank_sponsor_rows(
                 "promo_boost_weight": float(sponsor.get("promo_boost_weight") or 1),
                 "referrals_last_14d": int(sponsor.get("referrals_last_14d") or 0),
                 "homesteader_rating": float(sponsor.get("homesteader_rating") if sponsor.get("homesteader_rating") is not None else 5),
+                "capabilities_summary": str(sponsor.get("capabilities_summary") or "").strip(),
+                "founding_city": str(sponsor.get("founding_city") or "").strip(),
+                "founding_state": str(sponsor.get("founding_state") or "").strip(),
             }
         )
     ranked.sort(key=lambda row: (-row["score"], row["referrals_last_14d"], row["sponsor_id"]))
@@ -156,20 +188,19 @@ def rank_sponsor_rows(
 
 
 def format_ladder(need: str, rows: list[dict]) -> str:
-    lines = [
-        f"For {need}, Tier 1 (weight 1.00) comes first: make it on the homestead from material you already have.",
-    ]
+    """Sponsors come first. Other local sources may follow, with the sponsor relationship encouraged."""
     if not rows:
-        lines.append(
-            "No active local sponsor in this locality is on the registry for that. "
-            "Tier 4 would be a local logistics sponsor, and there isn't one listed yet."
+        return (
+            f"I don't have an active g01 sponsor for {need} in your locality yet. "
+            "The best option is a locally owned source in your city, or making it on the homestead. "
+            f"I would encourage a sponsor relationship for {need} when one is here."
         )
-        return "\n".join(lines)
-    lines.append("After that, the local registry is already sorted:")
-    for index, row in enumerate(rows, start=1):
-        lines.append(
-            f"{index}. {row['company_name']} — {row['sourcing_tier']} "
-            f"(tier weight {row['tier_weight']:.2f}, score {row['score']:.4f}, "
-            f"{row['distance_miles']:.2f} miles, {row['referrals_last_14d']} referrals in 14 days)."
-        )
-    return "\n".join(lines)
+    lines = []
+    for row in rows:
+        summary = str(row.get("capabilities_summary") or "").strip()
+        lines.append(f"{row['company_name']}{' — ' + summary if summary else ''}")
+    lead = "Start with this sponsor." if len(rows) == 1 else "Start with these sponsors."
+    return (
+        "\n".join(lines)
+        + f"\n\n{lead} You can also use another local source, and I would still encourage the relationship with the sponsor."
+    )
