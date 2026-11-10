@@ -76,8 +76,10 @@ accident.
 
 - `engagement` counts visible messages in each private Jane thread. It reports
   registrations with and without a homesteader message.
-- `northstar` reads the five stored North Star dimensions and active goals. It
-  does not ask a language model to infer a score.
+- `northstar` reads the stored aims and whether the homestead is perfectly
+  insured. Insured is the guiding principle. The six aims beneath it are
+  automated, aesthetic, material, energetic, contained, and utilized. The
+  analysis does not ask a language model to infer a score.
 - `network` counts provisioned homesteader connections and identifies people
   with no connection.
 - `polls` compiles response rates, recurring terms, action candidates, and the
@@ -108,6 +110,19 @@ widget summary matches “3D printed widgets.” Ranking remains restricted to t
 requester's locality and then applies sourcing tier, distance, referral
 rotation, rating, and promotion weights.
 
+## Jane's insurance
+
+Jane's products are filed the way sponsors are filed, and they are not sponsors.
+A local insurance producer stays a sponsor. `product-add` takes a name, what
+the product covers, a summary Jane may say, and `draft` or `offered`. Only an
+offered product is named in her turn. `product-withdraw` returns it to draft.
+Nothing in this catalog binds a policy or charges the homesteader.
+
+`knowledge-add` files a title, comma-separated topics, and a body. Jane sees
+that body only when the message touches one of those topics. That is the
+repository her expertise grows from. She does not invent a term that was not
+filed, and she does not see the whole repository on every turn.
+
 ## g01 boundary
 
 g01 remains a normally usable workspace: it owns the browser UI,
@@ -130,6 +145,7 @@ records and workflows without replacing those features.
 | Email, WhatsApp, and social inboxes | Work normally only after each external provider is added and verified |
 | North Star and ledger | Grounded live Jane turns update the record; operators can inspect and correct whitelisted fields |
 | Sponsors | Operators manage standalone or homestead-linked profiles and lifecycle status; `rank` previews Jane's local recommendations |
+| Jane's insurance | Operators file products with `product-add` and expertise with `knowledge-add`. Only offered products, and only topic-matched knowledge, reach Jane. A local insurer can still be a sponsor |
 | Jane polls | One rotating question is sent daily in each private Jane thread. `poll mode` starts the community-action question; `poll mode: <question>` broadcasts a supplied question. Operators use `polls`, `poll`, `poll-create`, and `analyze polls` |
 | Automatic matchmaking | Discovery runs in Jane. Operators must review `matches` and confirm `match-approve` before users are contacted; both users and identity verification remain required |
 | 24-hour demand polls | The sidecar matures and reports them automatically; operators may also use `jobs polls` |

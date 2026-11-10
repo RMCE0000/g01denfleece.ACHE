@@ -44,7 +44,15 @@ def test_scores_are_answered_in_the_thread(client, store):
     response = ledger_reply(store, _message("What are my scores?", 1))
     assert response.status_code == 200
     reply = response.json()["reply"]
-    for label in ("Automated 25.00", "Aesthetic 50.00", "Material is false", "Energetic is 10.00", "Contained is false"):
+    for label in (
+        "Automated 25.00",
+        "Aesthetic 50.00",
+        "Material is false",
+        "Energetic is 10.00",
+        "Contained is false",
+        "Utilized is 0.00",
+        "Insured is false",
+    ):
         assert label in reply
 
 

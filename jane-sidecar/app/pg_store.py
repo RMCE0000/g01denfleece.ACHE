@@ -33,6 +33,7 @@ locality_id, street_address, zip_code, lat, lng,
 northstar_automated_pct, outside_aid_hours_per_week, northstar_aesthetic_pct,
 northstar_material_independent, material_surplus_profitable,
 northstar_energetic_pct, northstar_energetic_profitable, northstar_contained_zero_waste,
+northstar_utilized_pct, northstar_insured,
 known_facts_ledger, sponsor_draft, kyc_verified, stripe_identity_session_id, stripe_identity_session_url, updated_at,
 email, display_name, username, chatwoot_inbox_id
 """
@@ -265,6 +266,8 @@ class PostgresStore:
             "northstar_energetic_pct": "northstar_energetic_pct",
             "northstar_energetic_profitable": "northstar_energetic_profitable",
             "northstar_contained_zero_waste": "northstar_contained_zero_waste",
+            "northstar_utilized_pct": "northstar_utilized_pct",
+            "northstar_insured": "northstar_insured",
             "street_address": "street_address",
             "lat": "lat",
             "lng": "lng",
@@ -443,6 +446,116 @@ class PostgresStore:
             f"SELECT {_SPONSOR} FROM g01_sponsors WHERE id = CAST(:id AS uuid)",
             {"id": sponsor_id},
         )
+
+    async def list_jane_products(self, status: str | None = None) -> list[dict]:
+        condition = ""
+        params: dict = {}
+        if status in {"draft", "offered"}:
+            condition = "WHERE status = :status"
+            params["status"] = status
+        return await self._all(
+            f"""
+            SELECT id, name, covers, summary, status, created_at, updated_at
+            FROM g01_jane_products
+            {condition}
+            ORDER BY created_at
+            """,
+            params,
+        )
+
+    async def get_jane_product(self, product_id: str) -> dict | None:
+        return await self._one(
+            """
+            SELECT id, name, covers, summary, status, created_at, updated_at
+            FROM g01_jane_products WHERE id = CAST(:id AS uuid)
+            """,
+            {"id": product_id},
+        )
+
+    async def create_jane_product(self, fields: dict) -> dict:
+        from app.jane_catalog import require_text
+
+        name = require_text(fields.get("name"), "name", 160)
+        status = str(fields.get("status") or "draft")
+        if status not in {"draft", "offered"}:
+            raise G01Error("product status must be draft or offered", 422)
+        try:
+            rows = await self._write(
+                """
+                INSERT INTO g01_jane_products (name, covers, summary, status)
+                VALUES (:name, :covers, :summary, :status)
+                RETURNING id, name, covers, summary, status, created_at, updated_at
+                """,
+                {
+                    "name": name,
+                    "covers": require_text(fields.get("covers"), "covers", 400),
+                    "summary": require_text(fields.get("summary"), "summary", 2000),
+                    "status": status,
+                },
+            )
+        except IntegrityError as exc:
+            raise G01Error("an insurance product with that name is already filed", 409) from exc
+        return rows[0]
+
+    async def update_jane_product(self, product_id: str, fields: dict) -> dict:
+        from app.jane_catalog import require_text
+
+        current = await self.get_jane_product(product_id)
+        if not current:
+            raise G01Error("insurance product not found", 404)
+        name = require_text(fields["name"], "name", 160) if "name" in fields else current["name"]
+        covers = require_text(fields["covers"], "covers", 400) if "covers" in fields else current["covers"]
+        summary = require_text(fields["summary"], "summary", 2000) if "summary" in fields else current["summary"]
+        status = str(fields.get("status") or current["status"])
+        if status not in {"draft", "offered"}:
+            raise G01Error("product status must be draft or offered", 422)
+        try:
+            rows = await self._write(
+                """
+                UPDATE g01_jane_products
+                SET name = :name, covers = :covers, summary = :summary, status = :status, updated_at = NOW()
+                WHERE id = CAST(:id AS uuid)
+                RETURNING id, name, covers, summary, status, created_at, updated_at
+                """,
+                {"id": product_id, "name": name, "covers": covers, "summary": summary, "status": status},
+            )
+        except IntegrityError as exc:
+            raise G01Error("an insurance product with that name is already filed", 409) from exc
+        return rows[0]
+
+    async def list_jane_knowledge(self) -> list[dict]:
+        return await self._all(
+            "SELECT id, title, topics, body, created_at FROM g01_jane_knowledge ORDER BY created_at",
+            {},
+        )
+
+    async def create_jane_knowledge(self, fields: dict) -> dict:
+        from app.jane_catalog import clean_topics, require_text
+
+        topics = clean_topics(fields.get("topics"))
+        if not topics:
+            raise G01Error("at least one topic is required", 422)
+        rows = await self._write(
+            """
+            INSERT INTO g01_jane_knowledge (title, topics, body)
+            VALUES (:title, :topics, :body)
+            RETURNING id, title, topics, body, created_at
+            """,
+            {
+                "title": require_text(fields.get("title"), "title", 160),
+                "topics": topics,
+                "body": require_text(fields.get("body"), "body", 4000),
+            },
+        )
+        return rows[0]
+
+    async def delete_jane_knowledge(self, entry_id: str) -> None:
+        rows = await self._write(
+            "DELETE FROM g01_jane_knowledge WHERE id = CAST(:id AS uuid) RETURNING id",
+            {"id": entry_id},
+        )
+        if not rows:
+            raise G01Error("knowledge entry not found", 404)
 
     async def list_sponsors(self, status: str | None = None, limit: int = 100) -> list[dict]:
         condition = ""

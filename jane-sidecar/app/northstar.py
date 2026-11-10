@@ -1,4 +1,4 @@
-"""Five-dimension North Star. Types and ranges stay as specified."""
+"""North Star. Insured is the guiding principle. Six aims sit beneath it."""
 
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -8,7 +8,7 @@ from app.config import get_settings
 
 
 class NorthStar(BaseModel):
-    """Exact five scores. Energetic keeps its float and its profit boolean together."""
+    """Insured orients the six aims. Energetic keeps its float and its profit boolean together."""
 
     automated: float = Field(ge=0.0, le=100.0)
     aesthetic: float = Field(ge=0.0, le=100.0)
@@ -16,6 +16,8 @@ class NorthStar(BaseModel):
     energetic: float = Field(ge=0.0, le=500.0)
     energetic_profitable: bool
     contained: bool
+    utilized: float = Field(default=0.0, ge=0.0, le=100.0)
+    insured: bool = False
 
 
 class NorthStarSupporting(BaseModel):
@@ -50,6 +52,12 @@ def clamp_energetic(value: float) -> float:
     return _q2(value)
 
 
+def clamp_utilized(value: float) -> float:
+    if value < 0 or value > 100:
+        raise ValueError("utilized must be between 0 and 100")
+    return _q2(value)
+
+
 def view_from_property(prop: dict) -> dict:
     star = NorthStar(
         automated=float(prop["northstar_automated_pct"]),
@@ -58,6 +66,8 @@ def view_from_property(prop: dict) -> dict:
         energetic=float(prop["northstar_energetic_pct"]),
         energetic_profitable=bool(prop["northstar_energetic_profitable"]),
         contained=bool(prop["northstar_contained_zero_waste"]),
+        utilized=float(prop.get("northstar_utilized_pct") or 0),
+        insured=bool(prop.get("northstar_insured", False)),
     )
     supporting = NorthStarSupporting(
         outside_aid_hours_per_week=float(prop["outside_aid_hours_per_week"]),
