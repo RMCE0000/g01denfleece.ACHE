@@ -23,8 +23,16 @@ def test_the_topic_list_has_four_hundred_distinct_questions():
         "would your zip split the cost",
         "trade or co-own",
         "or do you need it?",
+        "could a neighbor",
+        "to spare",
+        "bulk order",
     ):
         assert banned not in joined
+    interest = sum(
+        any(word in topic.casefold() for word in ("want", "planning", "interested", "hoping", "learn"))
+        for topic in TOPICS
+    )
+    assert interest >= 360
 
 
 def test_a_small_zip_keeps_one_topic_for_the_day_and_changes_the_next_day():
@@ -51,7 +59,7 @@ def test_a_larger_zip_is_asked_about_a_word_two_homesteads_actually_used():
     question = choose_daily_question("70601", datetime(2026, 11, 10).date(), properties, lines)
     assert question == (
         "Two homesteads in 70601 have both mentioned lumber. "
-        "Are you long on it right now, or about to need some?"
+        "Are you interested in lumber too?"
     )
 
 

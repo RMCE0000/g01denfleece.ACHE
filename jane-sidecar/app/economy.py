@@ -95,7 +95,7 @@ def shared_terms(properties: list[dict], lines: list[dict]) -> list[str]:
 def cooperation_question(zip_code: str, term: str) -> str:
     return (
         f"Two homesteads in {zip_code} have both mentioned {term}. "
-        f"Are you long on it right now, or about to need some?"
+        f"Are you interested in {term} too?"
     )
 
 
@@ -103,8 +103,8 @@ def choose_daily_question(zip_code: str, day: date, properties: list[dict], line
     """The one question for this ZIP today.
 
     A small ZIP, or a ZIP whose recorded talk does not yet overlap, gets a
-    topic from the fixed list. A larger ZIP with a shared word is asked about
-    that word, because that is the opening for cooperating.
+    question about what the homesteader wants to do. A larger ZIP with a
+    shared word is asked whether they are interested in that word too.
     """
     shared = shared_terms(properties, lines)
     if len(properties) >= FEW_ZIP_HOMESTEADS and shared:

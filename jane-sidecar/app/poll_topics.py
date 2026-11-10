@@ -2,9 +2,9 @@
 
 The daily question comes from this list when fewer than three homesteaders
 live in the ZIP, or when their recorded talk does not yet share a concrete
-subject. Each question asks what one person can lend for a day, add to a
-bulk order, finish with a neighbor on a Saturday morning, or share a machine
-that only runs a few days a year. The choice is fixed for a ZIP and a local
+subject. Each question asks what that homesteader wants to do. Once two
+people in a ZIP have both talked about the same thing, Jane can ask whether
+this person wants that too. The choice is fixed for a ZIP and a local
 day, so the scheduler does not ask a new question every few minutes.
 """
 
