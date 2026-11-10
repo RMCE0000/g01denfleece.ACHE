@@ -18,6 +18,13 @@ def test_the_topic_list_has_four_hundred_distinct_questions():
     joined = " ".join(TOPICS).casefold()
     for word in ("robot", "aquaponics", "mushroom", "filament", "bokashi"):
         assert word in joined
+    for banned in (
+        "could a homestead nearby use",
+        "would your zip split the cost",
+        "trade or co-own",
+        "or do you need it?",
+    ):
+        assert banned not in joined
 
 
 def test_a_small_zip_keeps_one_topic_for_the_day_and_changes_the_next_day():
@@ -42,7 +49,10 @@ def test_a_larger_zip_is_asked_about_a_word_two_homesteads_actually_used():
     assert len(properties) >= FEW_ZIP_HOMESTEADS
     assert shared_terms(properties, lines) == ["lumber"]
     question = choose_daily_question("70601", datetime(2026, 11, 10).date(), properties, lines)
-    assert question == "More than one homestead in 70601 has mentioned lumber. Do you have lumber to share, or do you need some?"
+    assert question == (
+        "Two homesteads in 70601 have both mentioned lumber. "
+        "Are you long on it right now, or about to need some?"
+    )
 
 
 async def test_daily_poll_is_one_question_per_zip(store):

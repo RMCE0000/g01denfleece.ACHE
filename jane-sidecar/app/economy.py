@@ -94,8 +94,8 @@ def shared_terms(properties: list[dict], lines: list[dict]) -> list[str]:
 
 def cooperation_question(zip_code: str, term: str) -> str:
     return (
-        f"More than one homestead in {zip_code} has mentioned {term}. "
-        f"Do you have {term} to share, or do you need some?"
+        f"Two homesteads in {zip_code} have both mentioned {term}. "
+        f"Are you long on it right now, or about to need some?"
     )
 
 

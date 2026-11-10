@@ -385,7 +385,7 @@ async def offer_conversation_question(
 
     The daily question stays one per ZIP per day. This is the extra question
     for a live conversation, chosen from what other homesteaders in the ZIP
-    have already said, or from the topic list when they have not overlapped.
+    have already said, or from the question list when they have not overlapped.
     """
     if not prop or not prop.get("zip_code") or prop.get("primary_conversation_id") is None:
         return None

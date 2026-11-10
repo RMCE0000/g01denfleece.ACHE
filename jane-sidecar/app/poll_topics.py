@@ -1,15 +1,19 @@
-"""Four hundred homestead topics for a ZIP that does not yet have a shared record.
+"""Four hundred homestead questions for a ZIP that does not yet have a shared record.
 
-The daily question is chosen from this list when fewer than three homesteaders
+The daily question comes from this list when fewer than three homesteaders
 live in the ZIP, or when their recorded talk does not yet share a concrete
-subject. The choice is fixed for a ZIP and a local day, so the scheduler does
-not ask a new question every few minutes.
+subject. Each question asks what one person can lend for a day, add to a
+bulk order, finish with a neighbor on a Saturday morning, or share a machine
+that only runs a few days a year. The choice is fixed for a ZIP and a local
+day, so the scheduler does not ask a new question every few minutes.
 """
 
 from __future__ import annotations
 
 import hashlib
 from datetime import date
+
+from app.poll_questions import QUESTIONS as TOPICS
 
 TOPIC_PHRASES = (
     "extra eggs",
@@ -417,18 +421,6 @@ TOPIC_PHRASES = (
     "a compost batch log",
     "a digester safety vent",
     "a shared microbiology afternoon",
-)
-
-_FRAMES = (
-    "Could a homestead nearby use {topic}, or do you need it?",
-    "Would your ZIP split the cost of {topic}?",
-    "Could you help a nearby homestead with {topic}, or could they help you?",
-    "What would you trade or co-own to get {topic}?",
-)
-
-TOPICS = tuple(
-    _FRAMES[index % len(_FRAMES)].format(topic=topic)
-    for index, topic in enumerate(TOPIC_PHRASES)
 )
 
 
