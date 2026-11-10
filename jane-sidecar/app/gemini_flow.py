@@ -27,6 +27,12 @@ _PUBLIC_FACT = re.compile(
 )
 
 UNREACHABLE = "I could not reach Gemini."
+NOT_CONFIGURED = "I could not reach Gemini. The API key is not configured."
+NO_CREDITS = "I could not reach Gemini. The API account has no credits left."
+RATE_LIMITED = "I could not reach Gemini. The API is rate limited. Try again in a minute."
+TIMED_OUT = "I could not reach Gemini in time. Try again."
+KEY_REJECTED = "I could not reach Gemini. The API key was rejected."
+MODEL_UNAVAILABLE = "I could not reach Gemini. That model is not available."
 _COMPLEX_TERMS = re.compile(
     r"\b(analy[sz]e|blueprint|calculate|compare|design|diagnose|evaluate|"
     r"multi-step|optimi[sz]e|organize|plan|prioritize|strategy|trade-?off)\b",
@@ -92,6 +98,22 @@ def _model(
         retries=2,
         request_timeout=90,
     )
+
+
+def gemini_failure(exc: BaseException) -> str:
+    """Say which Gemini failure happened. The raw error stays in the log."""
+    lowered = " ".join(str(exc).casefold().split())
+    if any(needle in lowered for needle in ("prepay", "prepaid", "depleted", "no credits", "billing", " 402", "402 ")):
+        return NO_CREDITS
+    if any(needle in lowered for needle in ("resource_exhausted", "resource exhausted", "quota", "rate limit", "429")):
+        return RATE_LIMITED
+    if any(needle in lowered for needle in ("timed out", "timeout", "deadline exceeded")):
+        return TIMED_OUT
+    if any(needle in lowered for needle in ("api key not valid", "api_key_invalid", "invalid api key", "unauthenticated", "permission denied")):
+        return KEY_REJECTED
+    if any(needle in lowered for needle in ("no longer available", "not found", "404", "is not found")):
+        return MODEL_UNAVAILABLE
+    return UNREACHABLE
 
 
 def build_gemini_chain(settings: Settings):
@@ -191,15 +213,38 @@ async def complete_text(
         return strip_jane_thought(str(result or "")).strip() or UNREACHABLE
     if not settings.gemini_api_key:
         log.error("G01_GEMINI_API_KEY is not configured")
-        return UNREACHABLE
+        return NOT_CONFIGURED
     try:
         result = await build_gemini_chain(settings).ainvoke(
             {"messages": messages, "complexity": complexity}
         )
-    except Exception:
+    except Exception as exc:
         log.exception("Gemini did not answer Jane's %s turn", complexity)
-        return UNREACHABLE
-    return strip_jane_thought(str(result or "")).strip() or UNREACHABLE
+        if complexity == "complex":
+            try:
+                result = await (
+                    _model(settings, settings.gemini_chat_model, max_tokens=1000, thinking_level="low")
+                    | StrOutputParser()
+                ).ainvoke(messages)
+            except Exception:
+                log.exception("Gemini flash fallback did not answer")
+                return gemini_failure(exc)
+        else:
+            return gemini_failure(exc)
+    text = strip_jane_thought(str(result or "")).strip()
+    if text:
+        return text
+    if complexity == "complex":
+        try:
+            fallback = await (
+                _model(settings, settings.gemini_chat_model, max_tokens=1000, thinking_level="low")
+                | StrOutputParser()
+            ).ainvoke(messages)
+        except Exception as exc:
+            log.exception("Gemini flash fallback did not answer an empty reply")
+            return gemini_failure(exc)
+        text = strip_jane_thought(str(fallback or "")).strip()
+    return text or UNREACHABLE
 
 
 async def transcribe_audio(data: bytes, mime_type: str) -> str:

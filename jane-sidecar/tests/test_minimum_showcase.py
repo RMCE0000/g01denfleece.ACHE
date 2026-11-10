@@ -6,7 +6,20 @@ from fastapi.testclient import TestClient
 
 from app.config import get_settings
 from app.constitution import JANE_CONSTITUTION
-from app.gemini_flow import UNREACHABLE, chat_messages, complete_text, gemini_override, task_complexity
+from app.gemini_flow import (
+    NOT_CONFIGURED,
+    NO_CREDITS,
+    KEY_REJECTED,
+    MODEL_UNAVAILABLE,
+    RATE_LIMITED,
+    TIMED_OUT,
+    UNREACHABLE,
+    chat_messages,
+    complete_text,
+    gemini_failure,
+    gemini_override,
+    task_complexity,
+)
 from app.main import create_app
 from app.seed import DEMO_CONVERSATION_ID, DEMO_PROPERTY_ID, DEMO_USER_ID
 from app.showcase import render_history
@@ -305,7 +318,16 @@ def test_a_missing_gemini_key_is_said_out_loud(client):
     finally:
         gemini_override.reset(token)
     assert response.status_code == 200
-    assert response.json()["reply"] == UNREACHABLE
+    assert response.json()["reply"] == NOT_CONFIGURED
+
+
+def test_gemini_failure_names_the_reason():
+    assert gemini_failure(RuntimeError("402 RESOURCE_EXHAUSTED prepayment credits are depleted")) == NO_CREDITS
+    assert gemini_failure(RuntimeError("429 quota exceeded")) == RATE_LIMITED
+    assert gemini_failure(TimeoutError("request timed out")) == TIMED_OUT
+    assert gemini_failure(RuntimeError("API key not valid")) == KEY_REJECTED
+    assert gemini_failure(RuntimeError("models/gemini-2.5-flash is no longer available")) == MODEL_UNAVAILABLE
+    assert gemini_failure(RuntimeError("connection reset")) == UNREACHABLE
 
 
 def test_the_backend_lists_every_conversation(store, monkeypatch):
