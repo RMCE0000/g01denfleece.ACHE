@@ -34,6 +34,21 @@ from app.turn import run_turn
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("g01")
 
+# Chatwoot closes a webhook after a few seconds. Jane's reply is posted on
+# its own, so a slow model call is not cancelled with that request.
+WEBHOOK_HOLD_SECONDS = 4
+_background_turns: set[asyncio.Task] = set()
+
+
+async def finish_in_background(coro):
+    task = asyncio.create_task(coro)
+    _background_turns.add(task)
+    task.add_done_callback(_background_turns.discard)
+    try:
+        return await asyncio.wait_for(asyncio.shield(task), WEBHOOK_HOLD_SECONDS)
+    except TimeoutError:
+        return {"ok": True, "accepted": True}
+
 
 def _admin(request: Request) -> None:
     expected = get_settings().admin_token
@@ -233,7 +248,7 @@ def create_app(store=None) -> FastAPI:
             raise G01Error("webhook body was not JSON", 400) from exc
         if not isinstance(payload, dict):
             raise G01Error("webhook body was not an object", 400)
-        return await run_turn(app.state.store, payload)
+        return await finish_in_background(run_turn(app.state.store, payload))
 
     @app.post("/webhooks/stripe")
     async def stripe_webhook(request: Request):

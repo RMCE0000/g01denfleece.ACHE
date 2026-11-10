@@ -1,5 +1,6 @@
 """The live webhook is Jane's constitution, history, and routed Gemini flow."""
 
+import asyncio
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -319,6 +320,46 @@ def test_a_missing_gemini_key_is_said_out_loud(client):
         gemini_override.reset(token)
     assert response.status_code == 200
     assert response.json()["reply"] == NOT_CONFIGURED
+
+
+def test_a_hung_gemini_call_ends_instead_of_thinking_forever(monkeypatch):
+    class _Hung:
+        async def ainvoke(self, _payload):
+            await asyncio.sleep(5)
+            return "too late"
+
+    monkeypatch.setenv("G01_GEMINI_API_KEY", "test-key")
+    get_settings.cache_clear()
+    monkeypatch.setattr("app.gemini_flow._ATTEMPT_SECONDS", 0.05)
+    monkeypatch.setattr("app.gemini_flow.build_gemini_chain", lambda _settings: _Hung())
+    token = gemini_override.set(None)
+    try:
+        reply = asyncio.run(complete_text("constitution", "Hello.", complexity="standard"))
+    finally:
+        gemini_override.reset(token)
+        get_settings.cache_clear()
+    assert reply == TIMED_OUT
+
+
+def test_a_slow_turn_still_answers_after_the_webhook_returns(monkeypatch):
+    from app.main import finish_in_background
+
+    posted = {}
+
+    async def slow():
+        await asyncio.sleep(0.2)
+        posted["reply"] = "The well is fine."
+        return {"ok": True, "reply": posted["reply"]}
+
+    monkeypatch.setattr("app.main.WEBHOOK_HOLD_SECONDS", 0.05)
+
+    async def scenario():
+        result = await finish_in_background(slow())
+        assert result == {"ok": True, "accepted": True}
+        await asyncio.sleep(0.3)
+        assert posted["reply"] == "The well is fine."
+
+    asyncio.run(scenario())
 
 
 def test_gemini_failure_names_the_reason():

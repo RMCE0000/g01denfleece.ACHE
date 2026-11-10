@@ -121,8 +121,8 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=63" in initializer
-    assert "v=62" not in initializer
+    assert "v=64" in initializer
+    assert "v=63" not in initializer
     assert "function signupDetail" in script
     assert "def signup_error_body" in initializer
     assert "Password must be 72 characters or fewer." in script

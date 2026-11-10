@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import re
@@ -25,6 +26,9 @@ _PUBLIC_FACT = re.compile(
     r"\b(?:what|which)\s+state\b|\bwhere\s+is\b|\bwhat\s+country\b|\bcapital\s+of\b|\bpopulation\s+of\b",
     re.I,
 )
+
+# One attempt. A second model may follow, so a live turn still ends and posts.
+_ATTEMPT_SECONDS = 20
 
 UNREACHABLE = "I could not reach Gemini."
 NOT_CONFIGURED = "I could not reach Gemini. The API key is not configured."
@@ -95,13 +99,15 @@ def _model(
         max_tokens=max_tokens,
         thinking_level=thinking_level,
         include_thoughts=False,
-        retries=2,
-        request_timeout=90,
+        retries=0,
+        request_timeout=_ATTEMPT_SECONDS,
     )
 
 
 def gemini_failure(exc: BaseException) -> str:
     """Say which Gemini failure happened. The raw error stays in the log."""
+    if isinstance(exc, TimeoutError):
+        return TIMED_OUT
     lowered = " ".join(str(exc).casefold().split())
     if any(needle in lowered for needle in ("prepay", "prepaid", "depleted", "no credits", "billing", " 402", "402 ")):
         return NO_CREDITS
@@ -137,6 +143,13 @@ def build_gemini_chain(settings: Settings):
     )
 
 
+async def _bounded(awaitable):
+    try:
+        return await asyncio.wait_for(awaitable, _ATTEMPT_SECONDS)
+    except TimeoutError as exc:
+        raise TimeoutError("Gemini request timed out") from exc
+
+
 def public_fact_question(text: str) -> str | None:
     """The homesteader's own public question, with no homestead record attached."""
     cleaned = " ".join((text or "").split())
@@ -168,7 +181,7 @@ async def lookup_public(question: str) -> str | None:
         thinking_level="low",
     ).bind_tools([{"google_search": {}}])
     try:
-        result = await model.ainvoke(
+        result = await _bounded(model.ainvoke(
             [
                 SystemMessage(
                     content=(
@@ -178,7 +191,7 @@ async def lookup_public(question: str) -> str | None:
                 ),
                 HumanMessage(content=cleaned[:300]),
             ]
-        )
+        ))
     except Exception:
         log.exception("public lookup failed")
         return None
@@ -215,17 +228,19 @@ async def complete_text(
         log.error("G01_GEMINI_API_KEY is not configured")
         return NOT_CONFIGURED
     try:
-        result = await build_gemini_chain(settings).ainvoke(
-            {"messages": messages, "complexity": complexity}
+        result = await _bounded(
+            build_gemini_chain(settings).ainvoke({"messages": messages, "complexity": complexity})
         )
     except Exception as exc:
         log.exception("Gemini did not answer Jane's %s turn", complexity)
         if complexity == "complex":
             try:
-                result = await (
-                    _model(settings, settings.gemini_chat_model, max_tokens=1000, thinking_level="low")
-                    | StrOutputParser()
-                ).ainvoke(messages)
+                result = await _bounded(
+                    (
+                        _model(settings, settings.gemini_chat_model, max_tokens=1000, thinking_level="low")
+                        | StrOutputParser()
+                    ).ainvoke(messages)
+                )
             except Exception:
                 log.exception("Gemini flash fallback did not answer")
                 return gemini_failure(exc)
@@ -236,10 +251,12 @@ async def complete_text(
         return text
     if complexity == "complex":
         try:
-            fallback = await (
-                _model(settings, settings.gemini_chat_model, max_tokens=1000, thinking_level="low")
-                | StrOutputParser()
-            ).ainvoke(messages)
+            fallback = await _bounded(
+                (
+                    _model(settings, settings.gemini_chat_model, max_tokens=1000, thinking_level="low")
+                    | StrOutputParser()
+                ).ainvoke(messages)
+            )
         except Exception as exc:
             log.exception("Gemini flash fallback did not answer an empty reply")
             return gemini_failure(exc)
@@ -277,15 +294,17 @@ async def transcribe_audio(data: bytes, mime_type: str) -> str:
         ]
     )
     try:
-        result = await (
-            _model(
-                settings,
-                settings.gemini_chat_model,
-                max_tokens=4000,
-                thinking_level="minimal",
-            )
-            | StrOutputParser()
-        ).ainvoke([prompt])
+        result = await _bounded(
+            (
+                _model(
+                    settings,
+                    settings.gemini_chat_model,
+                    max_tokens=4000,
+                    thinking_level="minimal",
+                )
+                | StrOutputParser()
+            ).ainvoke([prompt])
+        )
     except Exception:
         log.exception("Gemini did not transcribe Jane's audio attachment")
         return ""

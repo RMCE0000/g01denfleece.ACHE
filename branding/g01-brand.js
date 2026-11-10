@@ -555,8 +555,9 @@
     thinkingWait = null;
     window.clearTimeout(thinkingTimer);
     window.clearTimeout(thinkingEchoTimer);
-    var row = document.querySelector(".g01-thinking-live");
-    if (row) row.remove();
+    document.querySelectorAll(".g01-thinking-row").forEach(function (row) {
+      row.remove();
+    });
   }
 
   function placeThinking() {
@@ -620,7 +621,7 @@
     };
     window.clearTimeout(thinkingTimer);
     window.clearTimeout(thinkingEchoTimer);
-    thinkingTimer = window.setTimeout(hideThinking, 90000);
+    thinkingTimer = window.setTimeout(hideThinking, 45000);
     thinkingEchoTimer = window.setTimeout(function () {
       if (!thinkingWait) return;
       if (document.querySelectorAll(".message-bubble-container").length <= thinkingWait.baseline) hideThinking();
