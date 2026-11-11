@@ -205,7 +205,8 @@ def test_showcase_constitution_is_short_and_local():
         "Rogers, Arkansas",
         "said your name",
         "only here in this chat",
-        "Be a kind peer",
+        "homestead analyst and coordinator",
+        "not a homesteader",
         "water catchment",
         "exact username",
         "Do not mention tier weights",
@@ -215,6 +216,11 @@ def test_showcase_constitution_is_short_and_local():
     assert "JSON object" not in JANE_CONSTITUTION
     assert "known_facts_ledger" not in JANE_CONSTITUTION
     assert "tier_weight" not in JANE_CONSTITUTION
+    assert "peer" not in JANE_CONSTITUTION.casefold()
+    assert "peer" not in JANE_SYSTEM_PROMPT.casefold()
+    delta = (Path(__file__).resolve().parents[1] / "jane" / "DELTA.md").read_text(encoding="utf-8")
+    assert "homestead analyst and coordinator" in delta
+    assert "peer" not in delta.casefold()
 
 
 def test_constitution_and_sql_keep_the_rules():

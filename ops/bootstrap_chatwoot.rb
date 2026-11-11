@@ -108,7 +108,7 @@ inbox = channel.inbox || Inbox.create!(account: account, channel: channel, name:
 inbox.update!(
   name: INBOX_NAME,
   greeting_enabled: true,
-  greeting_message: "I'm Jane. Send your ZIP code, such as 70601 or 72756, and I will attach this open thread to a locality.",
+  greeting_message: "I'm Jane, the homestead analyst and coordinator. Send your ZIP code, such as 70601 or 72756, and I will attach this open thread to a locality.",
   lock_to_single_conversation: false,
   enable_auto_assignment: true,
   enable_email_collect: false
@@ -168,7 +168,7 @@ help_categories = [
         description: "What to ask Jane and how to get useful answers.",
         position: 20,
         content: <<~HTML
-          <p>Jane is your conversational guide inside g01. Ask in ordinary language. A useful request can be short: “Help me plan a rainwater system,” “What should I do next in the garden?” or “Find a local sponsor who can make this part.”</p>
+          <p>Jane is the homestead analyst and coordinator in g01. She is not a homesteader. Ask in ordinary language. A useful request can be short: “Help me plan a rainwater system,” “What should I do next in the garden?” or “Find a local sponsor who can make this part.”</p>
           <h2>Give her the facts that matter</h2>
           <p>Share your location, goal, budget, available tools, timing, or other constraints when they affect the answer. Jane does not assume details you have not provided. If information is missing, she may ask a follow-up question.</p>
           <h2>Ask for the form you need</h2>
