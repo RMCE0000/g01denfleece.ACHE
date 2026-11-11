@@ -121,8 +121,15 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=64" in initializer
-    assert "v=63" not in initializer
+    assert "v=65" in initializer
+    assert "v=64" not in initializer
+    assert "10 Core Tenets" in script
+    assert "Central Score Card" in script
+    assert "The ten core tenets will be written on this page." in script
+    assert "The central score card will be written on this page." in script
+    assert 'communityElement("button", "g01-community-open")' in script
+    assert "function ensureReadingPages" in script
+    assert "function openReading" in script
     assert "function signupDetail" in script
     assert "def signup_error_body" in initializer
     assert "Password must be 72 characters or fewer." in script
