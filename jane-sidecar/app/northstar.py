@@ -1,4 +1,4 @@
-"""North Star. Insured is the guiding principle. Six aims sit beneath it."""
+"""North Star. Insured is the guiding principle. Seven aims sit beneath it."""
 
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -8,7 +8,7 @@ from app.config import get_settings
 
 
 class NorthStar(BaseModel):
-    """Insured orients the six aims. Energetic keeps its float and its profit boolean together."""
+    """Insured orients the seven aims. Energetic keeps its float and its profit boolean together."""
 
     automated: float = Field(ge=0.0, le=100.0)
     aesthetic: float = Field(ge=0.0, le=100.0)
@@ -17,6 +17,7 @@ class NorthStar(BaseModel):
     energetic_profitable: bool
     contained: bool
     utilized: float = Field(default=0.0, ge=0.0, le=100.0)
+    defensible: bool = False
     insured: bool = False
 
 
@@ -67,6 +68,7 @@ def view_from_property(prop: dict) -> dict:
         energetic_profitable=bool(prop["northstar_energetic_profitable"]),
         contained=bool(prop["northstar_contained_zero_waste"]),
         utilized=float(prop.get("northstar_utilized_pct") or 0),
+        defensible=bool(prop.get("northstar_defensible", False)),
         insured=bool(prop.get("northstar_insured", False)),
     )
     supporting = NorthStarSupporting(

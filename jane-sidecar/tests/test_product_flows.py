@@ -51,6 +51,7 @@ def test_scores_are_answered_in_the_thread(client, store):
         "Energetic is 10.00",
         "Contained is false",
         "Utilized is 0.00",
+        "Defensible is false",
         "Insured is false",
     ):
         assert label in reply
@@ -659,6 +660,15 @@ def test_chat_turn_ranks_without_retailers_and_ignores_jane(client, store):
     assert duplicate.json()["duplicate"] is True
 
 
+def test_defensible_is_recorded_only_from_what_they_say(client, store):
+    wish = ledger_reply(store, _message("I want the place to be able to defend against invasion.", 40))
+    assert wish.status_code == 200
+    assert store.properties[0]["northstar_defensible"] is False
+    said = ledger_reply(store, _message("The property can defend against invasion.", 41))
+    assert said.status_code == 200
+    assert store.properties[0]["northstar_defensible"] is True
+
+
 def test_scores_follow_what_the_user_said(client, store):
     stated = ledger_reply(
         store,
@@ -675,6 +685,7 @@ def test_scores_follow_what_the_user_said(client, store):
     assert prop["northstar_energetic_profitable"] is True
     assert prop["northstar_material_independent"] is True
     assert prop["northstar_contained_zero_waste"] is True
+    assert prop["northstar_defensible"] is False
 
     token = llm_override.set(
         lambda model, system, user: {"reply": "You are fully independent.", "material_independent": True, "contained_zero_waste": True}

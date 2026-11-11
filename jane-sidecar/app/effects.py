@@ -152,6 +152,7 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
         "energetic_profitable": "northstar_energetic_profitable",
         "contained_zero_waste": "northstar_contained_zero_waste",
         "utilized_pct": "northstar_utilized_pct",
+        "defensible": "northstar_defensible",
         "insured": "northstar_insured",
     }
     for source, column in mapping.items():

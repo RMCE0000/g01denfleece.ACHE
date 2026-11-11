@@ -86,6 +86,7 @@ def _property(
         "northstar_energetic_profitable": False,
         "northstar_contained_zero_waste": False,
         "northstar_utilized_pct": 0.0,
+        "northstar_defensible": False,
         "northstar_insured": False,
         "known_facts_ledger": ledger,
         "kyc_verified": False,

@@ -5,7 +5,7 @@ a LangChain flow that sends her constitution (`jane-sidecar/CONSTITUTION.md`)
 and role-preserved message history to Gemini. Ordinary chat uses Gemini Flash;
 complex planning, comparison, and analysis use Gemini Pro.
 
-The work she is written to care about is insurance, the guiding principle of the homestead. Six aims sit beneath it. The only shops she will name are in the homesteader's own locality, and the only insurance she will offer is a product the operator has filed.
+The work she is written to care about is insurance, the guiding principle of the homestead. Seven aims sit beneath it. The only shops she will name are in the homesteader's own locality, and the only insurance she will offer is a product the operator has filed.
 
 | Dimension | Stored as | Meaning |
 | --- | --- | --- |
@@ -16,6 +16,7 @@ The work she is written to care about is insurance, the guiding principle of the
 | Energetic | float (0–500) and `energetic_profitable` boolean | The property produces its own energy, and surplus is sold at a profit. |
 | Contained | boolean | No harmful waste leaves the property. |
 | Utilized | float 0.0–100.0 | How fully the property is recorded on the financial tools that serve its homesteaders. |
+| Defensible | boolean | The property can defend against invasion. True only when the homesteader says so. |
 
 Sourcing is a fixed prize order:
 

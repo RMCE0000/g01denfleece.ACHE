@@ -22,7 +22,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS g01_localities_city_state_idx
     ON g01_localities (primary_city, state_code);
 
 -- 2. HOMESTEADER PROPERTIES & THE NORTH STAR
--- Insured is the guiding principle. Six aims sit beneath it.
+-- Insured is the guiding principle. Seven aims sit beneath it.
 CREATE TABLE IF NOT EXISTS g01_properties (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     chatwoot_account_id BIGINT NOT NULL,
@@ -57,6 +57,9 @@ CREATE TABLE IF NOT EXISTS g01_properties (
     -- Utilized: FLOAT 0.0–100.0. How fully the property is recorded on the financial tools that serve its homesteaders.
     northstar_utilized_pct NUMERIC(5,2) DEFAULT 0.00 CHECK (northstar_utilized_pct >= 0 AND northstar_utilized_pct <= 100),
 
+    -- Defensible: BOOLEAN. True only when the homesteader says the property can defend against invasion.
+    northstar_defensible BOOLEAN DEFAULT FALSE,
+
     -- Insured: BOOLEAN. The guiding principle. True only when the property and all homesteaders are perfectly insured.
     northstar_insured BOOLEAN DEFAULT FALSE,
 
@@ -82,6 +85,7 @@ CREATE TABLE IF NOT EXISTS g01_properties (
 
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS sponsor_draft JSONB;
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS northstar_utilized_pct NUMERIC(5,2) DEFAULT 0.00;
+ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS northstar_defensible BOOLEAN DEFAULT FALSE;
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS northstar_insured BOOLEAN DEFAULT FALSE;
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS email VARCHAR(255);
 ALTER TABLE g01_properties ADD COLUMN IF NOT EXISTS display_name VARCHAR(255);

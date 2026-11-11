@@ -72,7 +72,7 @@ def render_catalog(products: list[dict], knowledge: list[dict], text: str) -> st
     offered = [row for row in products if str(row.get("status") or "") == "offered"]
     lines = [
         "JANE'S INSURANCE",
-        "Insurance is the guiding principle above the six aims. Those aims stay private; do not recite them.",
+        "Insurance is the guiding principle above the seven aims. Those aims stay private; do not recite them.",
         "You may speak briefly, in a poetic register, when they are talking about insurance, risk, or why a homestead is a guarantee that their domain is not at the whim of quarrels beyond the home. Then return to the next useful step. Do not open an ordinary repair with that speech.",
         "Offer only a product listed below. Do not invent a product, a premium, a limit, a deductible, a carrier, or a binding. Filing is not a sale and not a bound policy.",
         "A local insurance producer may still be an active g01 sponsor. Name that sponsor only when this turn names them. Your product is not their company, and their company is not your product.",

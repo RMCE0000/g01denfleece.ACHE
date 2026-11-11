@@ -14,7 +14,7 @@ The four MVP behaviors are on `main`: chat scores, local ranking, 24-hour polls,
 
 ## This slice
 
-Insured is the guiding principle of the North Star, with utilized added beneath it beside the original five aims. Jane offers insurance only from products the operator files, and she states coverage only from knowledge entries whose topics the message touches. A local insurance producer remains a sponsor.
+Insured is the guiding principle of the North Star. Defensible sits beneath it with utilized and the original five aims: the property ought be able to defend against invasion, and that is true only when the homesteader says so. Jane offers insurance only from products the operator files, and she states coverage only from knowledge entries whose topics the message touches. A local insurance producer remains a sponsor.
 
 ## Earlier slice
 

@@ -33,7 +33,7 @@ locality_id, street_address, zip_code, lat, lng,
 northstar_automated_pct, outside_aid_hours_per_week, northstar_aesthetic_pct,
 northstar_material_independent, material_surplus_profitable,
 northstar_energetic_pct, northstar_energetic_profitable, northstar_contained_zero_waste,
-northstar_utilized_pct, northstar_insured,
+northstar_utilized_pct, northstar_defensible, northstar_insured,
 known_facts_ledger, sponsor_draft, kyc_verified, stripe_identity_session_id, stripe_identity_session_url, updated_at,
 email, display_name, username, chatwoot_inbox_id
 """
@@ -267,6 +267,7 @@ class PostgresStore:
             "northstar_energetic_profitable": "northstar_energetic_profitable",
             "northstar_contained_zero_waste": "northstar_contained_zero_waste",
             "northstar_utilized_pct": "northstar_utilized_pct",
+            "northstar_defensible": "northstar_defensible",
             "northstar_insured": "northstar_insured",
             "street_address": "street_address",
             "lat": "lat",

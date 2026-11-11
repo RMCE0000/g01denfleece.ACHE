@@ -79,7 +79,7 @@ HELP = """Commands
 
 Quote names or topics containing spaces. Mutating commands ask for confirmation.
 Set fields: aesthetic, labor-hours, material, material-surplus, energetic,
-energetic-profitable, contained, utilized, insured, street-address, latitude, longitude.
+energetic-profitable, contained, utilized, defensible, insured, street-address, latitude, longitude.
 Sponsor tiers: local_manufacturer, local_service_or_stock, local_logistics_proxy.
 Sponsor edit fields: name, tier, tags, summary, latitude, longitude,
 founding-city, founding-state, franchise, homesteader.
@@ -429,6 +429,7 @@ class OperatorBackend:
                 "energetic_profitable": sum(row["energetic_profitable"] for row in rows),
                 "contained_zero_waste": sum(row["contained"] for row in rows),
                 "average_utilized": round(sum(row["utilized"] for row in rows) / len(rows), 2),
+                "defensible": sum(row["defensible"] for row in rows),
                 "perfectly_insured": sum(row["insured"] for row in rows),
                 "with_active_goals": sum(bool(row["active_goals"]) for row in rows),
             },
@@ -487,6 +488,7 @@ class OperatorBackend:
                 "energetic-profitable": ("northstar_energetic_profitable", "bool"),
                 "contained": ("northstar_contained_zero_waste", "bool"),
                 "utilized": ("northstar_utilized_pct", "float"),
+                "defensible": ("northstar_defensible", "bool"),
                 "insured": ("northstar_insured", "bool"),
                 "street-address": ("street_address", "text"),
                 "latitude": ("lat", "float"),

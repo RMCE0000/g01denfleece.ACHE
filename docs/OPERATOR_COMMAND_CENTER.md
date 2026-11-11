@@ -77,8 +77,9 @@ accident.
 - `engagement` counts visible messages in each private Jane thread. It reports
   registrations with and without a homesteader message.
 - `northstar` reads the stored aims and whether the homestead is perfectly
-  insured. Insured is the guiding principle. The six aims beneath it are
-  automated, aesthetic, material, energetic, contained, and utilized. The
+  insured. Insured is the guiding principle. The seven aims beneath it are
+  automated, aesthetic, material, energetic, contained, utilized, and
+  defensible. The
   analysis does not ask a language model to infer a score.
 - `network` counts provisioned homesteader connections and identifies people
   with no connection.

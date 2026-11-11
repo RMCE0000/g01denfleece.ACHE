@@ -22,6 +22,12 @@ _CONTAINED_TRUE = re.compile(
     r"zero (harmful )?waste|leaks nothing|no harmful waste|nothing leaves the property|fully contained",
     re.I,
 )
+_DEFENSIBLE_TRUE = re.compile(
+    r"\b(?:the )?(?:property|homestead|place) (?:can|is able to) defend against invasion\b"
+    r"|\bwe can defend (?:the )?(?:property|homestead|place) against invasion\b"
+    r"|\b(?:the )?(?:property|homestead|place) is defensible against invasion\b",
+    re.I,
+)
 _INSURED_TRUE = re.compile(
     r"\b(?:we are|we're|property and (?:all )?(?:the )?homesteaders are|homestead is|property is)\s+perfectly insured\b",
     re.I,
@@ -92,6 +98,11 @@ def affirmed_contained(user_text: str) -> bool:
 
 def affirmed_energy_profit(user_text: str) -> bool:
     return bool(_ENERGY_PROFIT.search(user_text or ""))
+
+
+def affirmed_defensible(user_text: str) -> bool:
+    """True only when they say the property can defend against invasion, not when they hope it can."""
+    return bool(_DEFENSIBLE_TRUE.search(user_text or ""))
 
 
 def affirmed_insured(user_text: str) -> bool:

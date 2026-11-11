@@ -95,6 +95,7 @@ class MemoryStore:
             "northstar_energetic_profitable": bool(fields.get("northstar_energetic_profitable", False)),
             "northstar_contained_zero_waste": bool(fields.get("northstar_contained_zero_waste", False)),
             "northstar_utilized_pct": float(fields.get("northstar_utilized_pct", 0)),
+            "northstar_defensible": bool(fields.get("northstar_defensible", False)),
             "northstar_insured": bool(fields.get("northstar_insured", False)),
             "known_facts_ledger": deepcopy(fields.get("known_facts_ledger") or DEFAULT_LEDGER),
             "sponsor_draft": deepcopy(fields.get("sponsor_draft")),
@@ -173,6 +174,8 @@ class MemoryStore:
             prop["northstar_contained_zero_waste"] = bool(fields["northstar_contained_zero_waste"])
         if "northstar_utilized_pct" in fields and fields["northstar_utilized_pct"] is not None:
             prop["northstar_utilized_pct"] = clamp_utilized(float(fields["northstar_utilized_pct"]))
+        if "northstar_defensible" in fields:
+            prop["northstar_defensible"] = bool(fields["northstar_defensible"])
         if "northstar_insured" in fields:
             prop["northstar_insured"] = bool(fields["northstar_insured"])
         if "street_address" in fields:

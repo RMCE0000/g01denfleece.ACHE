@@ -2,7 +2,7 @@
 
 import asyncio
 
-from app.epistemic import affirmed_insured, extract_utilized
+from app.epistemic import affirmed_defensible, affirmed_insured, extract_utilized
 from app.gemini_flow import gemini_override
 from app.jane_catalog import render_catalog, select_knowledge
 from app.config import get_settings
@@ -25,6 +25,10 @@ def test_a_wish_for_coverage_is_not_a_perfectly_insured_homestead():
     assert extract_utilized("It is not recorded on any financial tools.") == 0
     assert extract_utilized("Utilized 40 on the financial tools.") == 40
     assert extract_utilized("The pressure tank is short-cycling.") is None
+    assert affirmed_defensible("The property can defend against invasion.")
+    assert affirmed_defensible("We can defend the homestead against invasion.")
+    assert not affirmed_defensible("I want the place to be able to defend against invasion.")
+    assert not affirmed_defensible("We have a fence and a dog.")
 
 
 def test_knowledge_is_selected_by_topic_and_drafts_stay_out_of_the_note():

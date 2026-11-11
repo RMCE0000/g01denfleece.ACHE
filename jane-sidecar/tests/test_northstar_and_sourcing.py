@@ -34,6 +34,7 @@ def test_north_star_keeps_its_types_and_insured_is_the_principle():
         contained=False,
     )
     assert star.utilized == 0
+    assert star.defensible is False
     assert star.insured is False
     assert isinstance(star.material, bool)
     assert isinstance(star.contained, bool)
@@ -215,6 +216,8 @@ def test_showcase_constitution_is_short_and_local():
         "Energetic",
         "Contained",
         "Utilized",
+        "Defensible",
+        "defend against invasion",
         "Insured",
         "perfectly insured",
         "Make it on the homestead",
@@ -242,6 +245,7 @@ def test_constitution_and_sql_keep_the_rules():
         "ENERGETIC",
         "CONTAINED",
         "UTILIZED",
+        "DEFENSIBLE",
         "INSURED",
         "NEVER recommend ordering from Amazon, Home Depot, Lowe's, Walmart",
         "tier_weight = 1.00",
@@ -264,6 +268,7 @@ def test_constitution_and_sql_keep_the_rules():
         "northstar_energetic_profitable",
         "northstar_contained_zero_waste",
         "northstar_utilized_pct",
+        "northstar_defensible",
         "northstar_insured",
         "g01_jane_products",
         "g01_jane_knowledge",
