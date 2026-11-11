@@ -8,6 +8,7 @@ import re
 
 from app.epistemic import (
     affirmed_contained,
+    affirmed_defensible,
     affirmed_energy_profit,
     affirmed_insured,
     affirmed_material,
@@ -53,7 +54,7 @@ _RECOMMEND_LOCAL = re.compile(
     re.I,
 )
 _ASK_RECORD = re.compile(
-    r"\b(what are my scores|how am i doing|north star|where do i stand|my automated|my aesthetic|my material|my energetic|my contained|my utilized|am i insured)\b",
+    r"\b(what are my scores|how am i doing|north star|where do i stand|my automated|my aesthetic|my material|my energetic|my contained|my utilized|my defensible|are we defensible|am i insured)\b",
     re.I,
 )
 _KYC = re.compile(r"\b(verify my identity|identity verification|start kyc|stripe identity)\b", re.I)
@@ -94,6 +95,7 @@ def _blank() -> dict:
         "energetic_profitable": None,
         "contained_zero_waste": None,
         "utilized_pct": None,
+        "defensible": None,
         "insured": None,
         "service_tag": None,
         "start_poll": False,
@@ -184,6 +186,7 @@ def status_reply(prop: dict, locality: dict | None) -> str:
         f"Energetic is {star['energetic']:.2f} with surplus profit {str(bool(star['energetic_profitable'])).lower()}. "
         f"Contained is {str(bool(star['contained'])).lower()}. "
         f"Utilized is {star['utilized']:.2f}, how fully the property is recorded on the financial tools that serve you. "
+        f"Defensible is {str(bool(star['defensible'])).lower()}. "
         f"Insured is {str(bool(star['insured'])).lower()}, and that principle sits above the others."
         f"{gap}"
     )
@@ -203,6 +206,7 @@ def fallback_reply(decision: dict) -> str:
             "energetic_profitable",
             "contained_zero_waste",
             "utilized_pct",
+            "defensible",
             "insured",
             "street_address",
             "property_lat",
@@ -274,6 +278,8 @@ def heuristic_decision(state: dict) -> dict:
     utilized = extract_utilized(text)
     if utilized is not None:
         decision["utilized_pct"] = utilized
+    if affirmed_defensible(text):
+        decision["defensible"] = True
     if affirmed_insured(text):
         decision["insured"] = True
 
