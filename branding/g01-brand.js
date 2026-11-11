@@ -1015,6 +1015,7 @@
   }
 
   function openCommunity() {
+    closeReading();
     if (document.getElementById("g01-community-modal")) return;
     var accountId = currentAccountId();
     if (!accountId || !window.axios) return;
@@ -1776,6 +1777,100 @@
     });
   }
 
+  var READING_PAGES = [
+    {
+      id: "tenets",
+      label: "10 Core Tenets",
+      glyph: "10",
+      paragraphs: [
+        "Example text. The ten core tenets will be written on this page.",
+        "Each tenet will appear here as plain text, in order.",
+        "This example will be replaced."
+      ]
+    },
+    {
+      id: "scorecard",
+      label: "Central Score Card",
+      glyph: "CS",
+      paragraphs: [
+        "Example text. The central score card will be written on this page.",
+        "The scores and how to read them will appear here as plain text.",
+        "This example will be replaced."
+      ]
+    }
+  ];
+
+  var readingLastOpener = null;
+
+  function closeReading() {
+    var modal = document.getElementById("g01-reading-modal");
+    if (modal) modal.remove();
+    var opener = readingLastOpener;
+    readingLastOpener = null;
+    if (opener) opener.focus();
+  }
+
+  function openReading(page) {
+    closeReading();
+    closeCommunity();
+    readingLastOpener = document.getElementById("g01-reading-" + page.id);
+    var backdrop = communityElement("div", "g01-community-backdrop");
+    backdrop.id = "g01-reading-modal";
+    backdrop.setAttribute("role", "presentation");
+    var panel = communityElement("section", "g01-community-panel");
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-labelledby", "g01-reading-title");
+    var header = communityElement("header", "g01-community-header");
+    var title = communityElement("h2", "", page.label);
+    title.id = "g01-reading-title";
+    var close = communityElement("button", "g01-community-close", "Close");
+    close.type = "button";
+    close.addEventListener("click", closeReading);
+    header.appendChild(title);
+    header.appendChild(close);
+    panel.appendChild(header);
+    page.paragraphs.forEach(function (paragraph) {
+      panel.appendChild(communityElement("p", "g01-community-intro", paragraph));
+    });
+    backdrop.appendChild(panel);
+    backdrop.addEventListener("click", function (event) {
+      if (event.target === backdrop) closeReading();
+    });
+    document.body.appendChild(backdrop);
+    close.focus();
+  }
+
+  function ensureReadingPages() {
+    var accountId = currentAccountId();
+    READING_PAGES.forEach(function (page) {
+      var existing = document.getElementById("g01-reading-" + page.id);
+      if (!accountId) {
+        var stale = document.getElementById("g01-reading-item-" + page.id);
+        if (stale) stale.remove();
+        return;
+      }
+      if (existing) return;
+      var nav = document.querySelector("nav.woot-sidebar-menu, nav.woot-sidebar-main-w-g, nav");
+      if (!nav) return;
+      var list = nav.querySelector("ul");
+      if (!list) return;
+      var item = communityElement("li", "g01-community-item");
+      item.id = "g01-reading-item-" + page.id;
+      var button = communityElement("button", "g01-community-open");
+      button.id = "g01-reading-" + page.id;
+      button.type = "button";
+      button.title = page.label;
+      button.appendChild(communityElement("span", "g01-community-glyph", page.glyph));
+      button.appendChild(communityElement("span", "g01-community-label", page.label));
+      button.addEventListener("click", function () {
+        openReading(page);
+      });
+      item.appendChild(button);
+      list.appendChild(item);
+    });
+  }
+
   function ensureCommunityButton() {
     var accountId = currentAccountId();
     var existing = document.getElementById("g01-community-open");
@@ -1805,6 +1900,7 @@
 
   function watchCommunity() {
     ensureCommunityButton();
+    ensureReadingPages();
     ensureCommunitySearch();
     ensureCallsHidden();
     ensureAllConversations();
@@ -1819,6 +1915,7 @@
     ensureContactSectionsHidden();
     var communityPasses = [
       ensureCommunityButton,
+      ensureReadingPages,
       ensureCommunitySearch,
       ensureCallsHidden,
       ensureAllConversations,
@@ -1852,7 +1949,10 @@
     }).observe(document.body, { childList: true, subtree: true });
     window.addEventListener("popstate", ensureCommunityButton);
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape") closeCommunity();
+      if (event.key === "Escape") {
+        closeCommunity();
+        closeReading();
+      }
       var typing = event.target && (event.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName));
       if (!typing && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey && event.code === "KeyN") {
         event.preventDefault();
