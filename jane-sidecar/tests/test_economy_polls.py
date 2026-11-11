@@ -26,6 +26,13 @@ def test_the_topic_list_has_four_hundred_distinct_questions():
         "could a neighbor",
         "to spare",
         "bulk order",
+        "firewood",
+        "kindling",
+        "tallow",
+        "churn butter",
+        "barbed wire",
+        "barbed-wire",
+        "you can answer here",
     ):
         assert banned not in joined
     interest = sum(
@@ -33,6 +40,29 @@ def test_the_topic_list_has_four_hundred_distinct_questions():
         for topic in TOPICS
     )
     assert interest >= 360
+    reasoned = sum(
+        any(
+            marker in f" {topic.casefold()} "
+            for marker in (
+                " so ",
+                " because ",
+                " rather ",
+                " before ",
+                " when ",
+                " if ",
+                " until ",
+                " instead ",
+                " enough ",
+                " once ",
+                " while ",
+                " or ",
+                " not ",
+                " only ",
+            )
+        )
+        for topic in TOPICS
+    )
+    assert reasoned >= 280
 
 
 def test_a_small_zip_keeps_one_topic_for_the_day_and_changes_the_next_day():
