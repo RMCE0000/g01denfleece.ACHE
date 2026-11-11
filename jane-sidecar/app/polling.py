@@ -54,16 +54,12 @@ def wants_community(text: str) -> bool:
     return bool(cleaned and _COMMUNITY_ASK.search(cleaned))
 
 
-def _poll_prompt(question: str) -> str:
-    return f"{question}\nYou can answer here."
-
-
 def _asked_confirmation(question: str) -> str:
     return f"I asked the other homesteads: {question}"
 
 
 async def _deliver_added(store, poll: dict, recipients: list[dict]) -> None:
-    prompt = _poll_prompt(poll["question"])
+    prompt = poll["question"]
     requester = poll.get("requester_property_id")
     for recipient in recipients:
         if requester and recipient.get("property_id") == requester:

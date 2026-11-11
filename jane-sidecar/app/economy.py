@@ -103,7 +103,7 @@ def choose_daily_question(zip_code: str, day: date, properties: list[dict], line
     """The one question for this ZIP today.
 
     A small ZIP, or a ZIP whose recorded talk does not yet overlap, gets a
-    question about what the homesteader wants to do. A larger ZIP with a
+    question about what the homesteader wants to do with the place now. A larger ZIP with a
     shared word is asked whether they are interested in that word too.
     """
     shared = shared_terms(properties, lines)
