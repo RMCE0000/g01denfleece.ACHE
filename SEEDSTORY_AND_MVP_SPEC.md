@@ -4,7 +4,7 @@ Document ID: `seedstory`
 
 ## Premise
 
-g01 is a chat with Jane toward energetic and material independence. A homesteader signs up and lands in one g01 conversation that stays open. Jane is a peer in that thread (a user or an agent bot), not a separate chat product. Neighbors get a second g01 conversation only after both accept a pitch and both pass Stripe Identity.
+g01 is a chat with Jane toward energetic and material independence. A homesteader signs up and lands in one g01 conversation that stays open. Jane is the homestead analyst and coordinator in that thread (a user or an agent bot), not a homesteader and not a separate chat product. Neighbors get a second g01 conversation only after both accept a pitch and both pass Stripe Identity.
 
 Jane knows the property record and what the homesteader says. She does not assume acreage, climate, tools, or a budget.
 
