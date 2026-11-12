@@ -1328,6 +1328,28 @@
     );
   }
 
+  function ensureConversationGroupFlat() {
+    document.querySelectorAll("nav a[title]").forEach(function (header) {
+      var title = (header.getAttribute("title") || "").replace(/\s+/g, " ").trim().toLowerCase();
+      if (title !== "conversations") return;
+      var named = false;
+      header.querySelectorAll("span").forEach(function (span) {
+        if (span.children.length) return;
+        if (span.textContent.replace(/\s+/g, " ").trim().toLowerCase() === "conversations") named = true;
+      });
+      if (!named) return;
+      var group = header.closest("li");
+      if (!group) return;
+      var list = group.querySelector(":scope > ul");
+      if (!list) return;
+      if (list.textContent.replace(/\s+/g, " ").toLowerCase().indexOf("all conversations") === -1) return;
+      list.classList.add("g01-hidden-conversation-children");
+      header.querySelectorAll(".i-lucide-chevron-up, .i-lucide-chevron-down").forEach(function (chevron) {
+        chevron.classList.add("g01-hidden-conversation-children");
+      });
+    });
+  }
+
   function collapsedConversationTrigger(node) {
     if (!node || !node.closest || !node.closest("nav")) return null;
     var link = node.closest("a[title], button[title]");
@@ -1938,6 +1960,7 @@
     ensureCallsHidden();
     ensureAllConversations();
     ensureConversationToolsHidden();
+    ensureConversationGroupFlat();
     ensureCaptainHidden();
     ensureContactsHidden();
     ensureBusinessToolsHidden();
@@ -1953,6 +1976,7 @@
       ensureCallsHidden,
       ensureAllConversations,
       ensureConversationToolsHidden,
+      ensureConversationGroupFlat,
       ensureCaptainHidden,
       ensureContactsHidden,
       ensureBusinessToolsHidden,
