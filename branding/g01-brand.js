@@ -1780,7 +1780,7 @@
   var READING_PAGES = [
     {
       id: "tenets",
-      label: "10 Core Tenets",
+      label: "Core Tenets",
       glyph: "1",
       paragraphs: [
         "Example text. The ten core tenets will be written on this page.",
@@ -1790,7 +1790,7 @@
     },
     {
       id: "scorecard",
-      label: "Central Score Card",
+      label: "Score Card",
       glyph: "0",
       paragraphs: [
         "Example text. The central score card will be written on this page.",
