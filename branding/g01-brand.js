@@ -1783,9 +1783,20 @@
       label: "Core Tenets",
       glyph: "1",
       paragraphs: [
-        "Example text. The ten core tenets will be written on this page.",
-        "Each tenet will appear here as plain text, in order.",
-        "This example will be replaced."
+        "Every homestead ought be,"
+      ],
+      ordered: true,
+      lines: [
+        "Clean - The central difference between a company and homesteader, a homestead ought not be required to take up sales, marketing, or branding of any kind, if not desired by the homesteader.",
+        "Automated - Homesteader/s ought not need to work in order to maintain the property and its productive capability.",
+        "Aesthetic - The property ought be beautiful, according to the homesteader/s taste.",
+        "Material - The homesteader/s ought be able to live and profit off of the fruits produced by the property, alone, indefinitely.",
+        "Energetic - The property ought produce profit off of its own energy, indefinitely.",
+        "Contained - The property ought leak no harmful waste.",
+        "Utilized - The property ought be recorded along the cutting edge of financial tools, to the greatest good of its homesteader/s.",
+        "Defensible - The property ought be able to defend against invasion and disaster.",
+        "Insured - The guiding principle of homesteading itself, homesteaders and all assets must be insured.",
+        "Integrated - A homestead ought contribute to its city's sovereignty, where its home city may sustain itself, if necessary, indefinitely."
       ]
     },
     {
@@ -1846,7 +1857,7 @@
       panel.appendChild(communityElement("p", "g01-community-intro", paragraph));
     });
     if (page.lines && page.lines.length) {
-      var list = communityElement("ul", "g01-community-intro");
+      var list = communityElement(page.ordered ? "ol" : "ul", "g01-community-intro");
       page.lines.forEach(function (line) {
         list.appendChild(communityElement("li", "", line));
       });
