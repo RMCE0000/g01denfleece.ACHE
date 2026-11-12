@@ -1781,7 +1781,7 @@
     {
       id: "tenets",
       label: "10 Core Tenets",
-      glyph: "ct",
+      glyph: "1",
       paragraphs: [
         "Example text. The ten core tenets will be written on this page.",
         "Each tenet will appear here as plain text, in order.",
