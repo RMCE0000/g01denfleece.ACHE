@@ -6,7 +6,7 @@ require "net/http"
 require "uri"
 
 class G01Branding
-  SNIPPET = '<link rel="icon" type="image/png" href="/g01-favicon.png?v=70"><link rel="stylesheet" href="/g01-brand.css?v=70"><script src="/g01-brand.js?v=70"></script>'
+  SNIPPET = '<link rel="icon" type="image/png" href="/g01-favicon.png?v=71"><link rel="stylesheet" href="/g01-brand.css?v=71"><script src="/g01-brand.js?v=71"></script>'
   PHONE_CHROME = '<meta name="theme-color" content="#7a5e24"><meta name="msapplication-TileColor" content="#7a5e24">'
   SIGNUP_PATH = "/g01/signup"
 
