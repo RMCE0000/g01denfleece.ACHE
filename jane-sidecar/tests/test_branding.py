@@ -121,8 +121,8 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=72" in initializer
-    assert "v=71" not in initializer
+    assert "v=73" in initializer
+    assert "v=72" not in initializer
     assert "Core Tenets" in script
     assert "Score Card" in script
     assert "10 Core Tenets" not in script
@@ -171,6 +171,9 @@ def test_brand_assets_are_gold_and_white():
     assert ".g01-hidden-contact-section" in css
     assert ".woot-banner.secondary" in css
     assert "function installCollapsedConversationMenuGuard" in script
+    assert "function ensureConversationGroupFlat" in script
+    assert "g01-hidden-conversation-children" in script
+    assert ".g01-hidden-conversation-children" in css
     assert 'title !== "conversations"' in script
     assert 'label === "conversations"' in script
     assert 'indexOf("all conversations")' in script

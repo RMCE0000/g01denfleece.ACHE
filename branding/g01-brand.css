@@ -675,6 +675,10 @@ ol.g01-community-intro li + li {
   display: none !important;
 }
 
+.g01-hidden-conversation-children {
+  display: none !important;
+}
+
 .g01-hidden-conversation-tool,
 .g01-hidden-captain,
 .g01-hidden-conversation-flyout,
