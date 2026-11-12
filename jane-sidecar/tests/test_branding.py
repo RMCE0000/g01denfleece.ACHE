@@ -121,8 +121,27 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=64" in initializer
-    assert "v=63" not in initializer
+    assert "v=72" in initializer
+    assert "v=71" not in initializer
+    assert "Core Tenets" in script
+    assert "Score Card" in script
+    assert "10 Core Tenets" not in script
+    assert "Central Score Card" not in script
+    assert 'glyph: "1"' in script
+    assert 'glyph: "0"' in script
+    assert "Every homestead ought be," in script
+    assert "Clean - The central difference between a company and homesteader" in script
+    assert "Integrated - A homestead ought contribute to its city's sovereignty" in script
+    assert "The property ought produce and profit off of its own energy, indefinitely." in script
+    assert "homesteaders and all assets ought be insured." in script
+    assert "The ten core tenets will be written on this page." not in script
+    assert "local homestead + 0" in script
+    assert "company abroad + 7" in script
+    assert "0 is the target." in script
+    assert "The central score card will be written on this page." not in script
+    assert 'communityElement("button", "g01-community-open")' in script
+    assert "function ensureReadingPages" in script
+    assert "function openReading" in script
     assert "function signupDetail" in script
     assert "def signup_error_body" in initializer
     assert "Password must be 72 characters or fewer." in script

@@ -300,7 +300,7 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
     await client.add_account_user(user_id, role="agent")
     opened = await client.open_agent_conversation(
         inbox_name=f"Jane — {name}"[:80],
-        greeting="I'm Jane. This thread stays open.",
+        greeting="I'm Jane, the homestead analyst and coordinator. This thread stays open.",
         contact_name=name,
         contact_email=email,
         user_ids=[user_id, settings.jane_user_id],
@@ -308,7 +308,7 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
     if not isinstance(opened, dict) or any(opened.get(key) is None for key in ("inbox_id", "contact_id", "conversation_id")):
         raise G01Error("g01 did not open the homestead thread.", 502)
     intro = (
-        f"I'm Jane. This is your open homestead thread for {locality['name']} (ZIP {zip_code}). "
+        f"I'm Jane, the homestead analyst and coordinator. This is your open homestead thread for {locality['name']} (ZIP {zip_code}). "
         "Tell me what the place needs. The thread stays open."
     )
     await _say(store, client, opened["conversation_id"], intro)

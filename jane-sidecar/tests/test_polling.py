@@ -44,8 +44,12 @@ async def test_daily_poll_is_once_per_local_day_and_adds_only_new_users(store):
     assert first["recipients_added"] == 2
     assert second["created"] is False
     assert second["recipients_added"] == 0
-    assert len(store.community_polls) == 1
+    assert len(store.community_polls) == 2
+    assert {poll["poll_key"][:11] for poll in store.community_polls} == {"daily:70601", "daily:72756"}
     assert len(store.outbox) == 2
+    assert all(row["content"].endswith("?") for row in store.outbox)
+    assert all("you can answer here" not in row["content"].casefold() for row in store.outbox)
+    assert all("\n" not in row["content"] for row in store.outbox)
 
     newcomer = deepcopy(store.properties[0])
     newcomer.update(

@@ -247,4 +247,21 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
     parts = [part for part in [prose, *notes] if part]
     final = sanitize_reply("\n\n".join(parts), allow_walmart_name=allow_walmart)
     await deliver(store, message.get("conversation_id"), final)
+    user_text = str(message.get("content") or "")
+    if (
+        prop
+        and final
+        and "?" not in user_text
+        and not decision.get("sponsor_active")
+        and not decision.get("request_kyc")
+        and not decision.get("cancel_sponsor")
+        and not decision.get("service_tag")
+        and not decision.get("report_scores")
+        and not decision.get("start_poll")
+    ):
+        from app.polling import offer_conversation_question
+
+        extra = await offer_conversation_question(store, prop)
+        if extra:
+            await deliver(store, message.get("conversation_id"), extra)
     return final

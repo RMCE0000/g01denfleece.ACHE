@@ -245,7 +245,7 @@ CREATE TABLE IF NOT EXISTS g01_poll_invites (
 CREATE TABLE IF NOT EXISTS g01_community_polls (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     poll_key VARCHAR(255) NOT NULL UNIQUE,
-    poll_kind VARCHAR(24) NOT NULL CHECK (poll_kind IN ('daily', 'requested', 'operator')),
+    poll_kind VARCHAR(24) NOT NULL CHECK (poll_kind IN ('daily', 'requested', 'operator', 'conversation', 'community')),
     requester_property_id UUID REFERENCES g01_properties(id) ON DELETE SET NULL,
     question TEXT NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
@@ -625,4 +625,22 @@ WHERE id IN (
     'cccccccc-cccc-cccc-cccc-ccccccccccc2',
     'cccccccc-cccc-cccc-cccc-ccccccccccc3',
     'cccccccc-cccc-cccc-cccc-ccccccccccc4'
+);
+
+ALTER TABLE g01_community_polls DROP CONSTRAINT IF EXISTS g01_community_polls_poll_kind_check;
+ALTER TABLE g01_community_polls
+    ADD CONSTRAINT g01_community_polls_poll_kind_check
+    CHECK (poll_kind IN ('daily', 'requested', 'operator', 'conversation', 'community'));
+
+-- Answers Jane records so a ZIP can be read as profiles, not as a chat log.
+CREATE TABLE IF NOT EXISTS g01_economy_notes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    property_id UUID NOT NULL REFERENCES g01_properties(id) ON DELETE CASCADE,
+    zip_code VARCHAR(20) NOT NULL,
+    poll_id UUID NOT NULL REFERENCES g01_community_polls(id) ON DELETE CASCADE,
+    source VARCHAR(24) NOT NULL CHECK (source IN ('daily', 'conversation', 'community')),
+    question TEXT NOT NULL,
+    answer TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (property_id, poll_id)
 );

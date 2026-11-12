@@ -140,17 +140,19 @@ def test_prompt_includes_the_constitution_grounded_record_and_history(client, st
     assert "facts already present" in seen["system"]
     assert "private internal context" in seen["system"]
     assert "valid recommendations even if chat history never named them" in seen["system"]
-    assert "does not mean refusing to plan" in seen["system"]
+    assert "homestead analyst and coordinator, not a homesteader" in seen["system"]
     assert seen["models"] == ["gemini-3.5-flash", "gemini-3.5-flash"]
     assert seen["complexities"] == ["standard", "standard"]
     assert seen["prompts"][0] == "Ada: The cistern is empty."
     assert "tier_weight" not in seen["system"]
     assert "known_facts_ledger" not in seen["system"]
     assert second.json()["reply"] == "Make the cistern on the homestead."
+    question = store.economy_notes[0]["question"]
     assert seen["prompts"][1] == "\n".join(
         [
             "Ada: The cistern is empty.",
             "Jane: Make the cistern on the homestead.",
+            f"Jane: {question}",
             "Ada: Where do I get a liner?",
         ]
     )
