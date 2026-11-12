@@ -121,11 +121,11 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=66" in initializer
-    assert "v=65" not in initializer
+    assert "v=67" in initializer
+    assert "v=66" not in initializer
     assert "10 Core Tenets" in script
     assert "Central Score Card" in script
-    assert 'glyph: "ct"' in script
+    assert 'glyph: "1"' in script
     assert 'glyph: "0"' in script
     assert "The ten core tenets will be written on this page." in script
     assert "The central score card will be written on this page." in script
