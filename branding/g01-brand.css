@@ -628,12 +628,14 @@ body.dark .g01-audio-recorder-status {
   color: #5c5346;
 }
 
-ul.g01-community-intro {
+ul.g01-community-intro,
+ol.g01-community-intro {
   margin-top: 0;
   padding-left: 1.25rem;
 }
 
-ul.g01-community-intro li + li {
+ul.g01-community-intro li + li,
+ol.g01-community-intro li + li {
   margin-top: 0.35rem;
 }
 

@@ -121,15 +121,18 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=69" in initializer
-    assert "v=68" not in initializer
+    assert "v=70" in initializer
+    assert "v=69" not in initializer
     assert "Core Tenets" in script
     assert "Score Card" in script
     assert "10 Core Tenets" not in script
     assert "Central Score Card" not in script
     assert 'glyph: "1"' in script
     assert 'glyph: "0"' in script
-    assert "The ten core tenets will be written on this page." in script
+    assert "Every homestead ought be," in script
+    assert "Clean - The central difference between a company and homesteader" in script
+    assert "Integrated - A homestead ought contribute to its city's sovereignty" in script
+    assert "The ten core tenets will be written on this page." not in script
     assert "local homestead + 0" in script
     assert "company abroad + 7" in script
     assert "0 is the target." in script
