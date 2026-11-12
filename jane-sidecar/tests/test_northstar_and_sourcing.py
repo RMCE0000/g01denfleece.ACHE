@@ -218,6 +218,18 @@ def test_showcase_constitution_is_short_and_local():
     assert "tier_weight" not in JANE_CONSTITUTION
     assert "peer" not in JANE_CONSTITUTION.casefold()
     assert "peer" not in JANE_SYSTEM_PROMPT.casefold()
+    for phrase in (
+        "Every homestead ought be,",
+        "These two documents are central.",
+        "local homestead + 0",
+        "company abroad + 7",
+        "0 is the target.",
+        "produce and profit off of its own energy",
+        "ought be insured.",
+        "its city's sovereignty",
+    ):
+        assert phrase in JANE_CONSTITUTION
+        assert phrase in JANE_SYSTEM_PROMPT
     delta = (Path(__file__).resolve().parents[1] / "jane" / "DELTA.md").read_text(encoding="utf-8")
     assert "homestead analyst and coordinator" in delta
     assert "peer" not in delta.casefold()

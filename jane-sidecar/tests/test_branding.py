@@ -134,6 +134,16 @@ def test_brand_assets_are_gold_and_white():
     assert "Integrated - A homestead ought contribute to its city's sovereignty" in script
     assert "The property ought produce and profit off of its own energy, indefinitely." in script
     assert "homesteaders and all assets ought be insured." in script
+    documents = (ROOT / "jane-sidecar" / "jane" / "CORE_DOCUMENTS.md").read_text(encoding="utf-8")
+    for phrase in (
+        "Every homestead ought be,",
+        "The property ought produce and profit off of its own energy, indefinitely.",
+        "homesteaders and all assets ought be insured.",
+        "local homestead + 0",
+        "company abroad + 7",
+        "0 is the target.",
+    ):
+        assert phrase in documents
     assert "The ten core tenets will be written on this page." not in script
     assert "local homestead + 0" in script
     assert "company abroad + 7" in script
