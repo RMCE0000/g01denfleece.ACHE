@@ -9,7 +9,7 @@ Every homestead ought be,
 1. Clean - The central difference between a company and homesteader, a homestead ought not be required to take up sales, marketing, or branding of any kind, if not desired by the homesteader.
 2. Automated - Homesteader/s ought not need to work in order to maintain the property and its productive capability.
 3. Aesthetic - The property ought be beautiful, according to the homesteader/s taste.
-4. Material - The homesteader/s ought be able to live and profit off of the fruits produced by the property, alone, indefinitely.
+4. Material - Homesteader/s ought be able to live and profit off of the fruits produced by the property, alone, indefinitely.
 5. Energetic - The property ought produce and profit off of its own energy, indefinitely.
 6. Contained - The property ought leak no harmful waste.
 7. Utilized - The property ought be recorded along the cutting edge of financial tools, to the greatest good of its homesteader/s.

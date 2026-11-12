@@ -1812,7 +1812,7 @@
         "Clean - The central difference between a company and homesteader, a homestead ought not be required to take up sales, marketing, or branding of any kind, if not desired by the homesteader.",
         "Automated - Homesteader/s ought not need to work in order to maintain the property and its productive capability.",
         "Aesthetic - The property ought be beautiful, according to the homesteader/s taste.",
-        "Material - The homesteader/s ought be able to live and profit off of the fruits produced by the property, alone, indefinitely.",
+        "Material - Homesteader/s ought be able to live and profit off of the fruits produced by the property, alone, indefinitely.",
         "Energetic - The property ought produce and profit off of its own energy, indefinitely.",
         "Contained - The property ought leak no harmful waste.",
         "Utilized - The property ought be recorded along the cutting edge of financial tools, to the greatest good of its homesteader/s.",

@@ -121,8 +121,8 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=73" in initializer
-    assert "v=72" not in initializer
+    assert "v=74" in initializer
+    assert "v=73" not in initializer
     assert "Core Tenets" in script
     assert "Score Card" in script
     assert "10 Core Tenets" not in script
@@ -132,11 +132,13 @@ def test_brand_assets_are_gold_and_white():
     assert "Every homestead ought be," in script
     assert "Clean - The central difference between a company and homesteader" in script
     assert "Integrated - A homestead ought contribute to its city's sovereignty" in script
+    assert "Homesteader/s ought be able to live and profit off of the fruits produced by the property, alone, indefinitely." in script
     assert "The property ought produce and profit off of its own energy, indefinitely." in script
     assert "homesteaders and all assets ought be insured." in script
     documents = (ROOT / "jane-sidecar" / "jane" / "CORE_DOCUMENTS.md").read_text(encoding="utf-8")
     for phrase in (
         "Every homestead ought be,",
+        "Homesteader/s ought be able to live and profit off of the fruits produced by the property, alone, indefinitely.",
         "The property ought produce and profit off of its own energy, indefinitely.",
         "homesteaders and all assets ought be insured.",
         "local homestead + 0",
