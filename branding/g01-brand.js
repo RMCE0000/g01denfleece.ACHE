@@ -1793,9 +1793,21 @@
       label: "Score Card",
       glyph: "0",
       paragraphs: [
-        "Example text. The central score card will be written on this page.",
-        "The scores and how to read them will appear here as plain text.",
-        "This example will be replaced."
+        "Each product is taken as the total process required to produce the consumable item that triggers any given score. Components that are grown, are taken to be unitary. \"Local\" is defined as a city and its suburbs. Any given place, not within a city's limits, is a suburb of its closest city.",
+        "A component of the product is produced by a..."
+      ],
+      lines: [
+        "local homestead + 0",
+        "local company + 1",
+        "homestead within the state + 2",
+        "company within the state + 3",
+        "homestead within the country + 4",
+        "company within the country + 5",
+        "homestead abroad + 6",
+        "company abroad + 7"
+      ],
+      closing: [
+        "The sum of all components of a product is the product's score. 0 is the target."
       ]
     }
   ];
@@ -1831,6 +1843,16 @@
     header.appendChild(close);
     panel.appendChild(header);
     page.paragraphs.forEach(function (paragraph) {
+      panel.appendChild(communityElement("p", "g01-community-intro", paragraph));
+    });
+    if (page.lines && page.lines.length) {
+      var list = communityElement("ul", "g01-community-intro");
+      page.lines.forEach(function (line) {
+        list.appendChild(communityElement("li", "", line));
+      });
+      panel.appendChild(list);
+    }
+    (page.closing || []).forEach(function (paragraph) {
       panel.appendChild(communityElement("p", "g01-community-intro", paragraph));
     });
     backdrop.appendChild(panel);
