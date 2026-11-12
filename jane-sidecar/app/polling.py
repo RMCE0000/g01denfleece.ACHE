@@ -17,6 +17,40 @@ from app.economy import choose_conversation_question, choose_daily_question
 log = logging.getLogger(__name__)
 
 DEFAULT_POLL_MODE_QUESTION = "What action or project should this community organize next?"
+_YES_ANSWER = re.compile(r"^(yes|yeah|yep|yup|sure|absolutely|i do|yes please|yes i do)\b", re.I)
+_NO_ANSWER = re.compile(
+    r"^(no|nope|nah|not really|not now|no thanks|no thank you)\b",
+    re.I,
+)
+
+
+def poll_answer_note(answer: str) -> str:
+    """Tell Jane how to treat a recorded yes, a recorded no, or anything else.
+
+    A yes opens one next planning step, without a product specification.
+    A no is acknowledged and left there.
+    """
+    text = " ".join(str(answer or "").split())
+    if _NO_ANSWER.match(text):
+        return (
+            "You recorded this homesteader's answer: no. "
+            "Acknowledge it and stop. Do not offer a next step. "
+            "Do not invent anyone else's answer."
+        )
+    if _YES_ANSWER.match(text):
+        return (
+            "You recorded this homesteader's answer: yes. "
+            "Offer the one next planning step in your own words. "
+            "Do not recite a product specification they have not asked for. "
+            "Do not invent anyone else's answer."
+        )
+    return (
+        "You recorded this homesteader's answer to the question. "
+        "If they want to move forward, offer the one next planning step in your own words. "
+        "Do not recite a product specification they have not asked for. "
+        "If they do not, acknowledge it and stop. "
+        "Do not invent anyone else's answer."
+    )
 _POLL_MODE = re.compile(r"^\s*poll\s+mode(?:\s*:\s*(.*))?\s*$", re.I | re.S)
 _WORDS = re.compile(r"[a-z][a-z0-9'-]{2,}", re.I)
 _STOP_WORDS = {
@@ -358,10 +392,7 @@ async def handle_private_poll_message(store, message: dict) -> str | None:
         store,
         message,
         prop=prop,
-        note=(
-            "You recorded this homesteader's answer to the community question. "
-            "Acknowledge that in your own words. Do not invent anyone else's answer."
-        ),
+        note=poll_answer_note(answer_content),
         allow_community=False,
     )
     if remaining:

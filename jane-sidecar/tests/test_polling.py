@@ -10,6 +10,7 @@ from app.polling import (
     compile_community_poll,
     create_requested_poll,
     ensure_daily_poll,
+    poll_answer_note,
 )
 from app.seed import (
     DEMO_CONVERSATION_ID,
@@ -66,6 +67,18 @@ async def test_daily_poll_is_once_per_local_day_and_adds_only_new_users(store):
     assert third["recipients_added"] == 1
     assert len(store.outbox) == 3
     assert store.outbox[-1]["conversation_id"] == 503
+
+
+def test_a_yes_opens_one_planning_step_and_a_no_stops():
+    yes = poll_answer_note("Yes")
+    no = poll_answer_note("No thanks")
+    other = poll_answer_note("Maybe next spring")
+    assert "next planning step" in yes.casefold()
+    assert "product specification" in yes.casefold()
+    assert "acknowledge it and stop" in no.casefold()
+    assert "next planning step" not in no.casefold()
+    assert "move forward" in other.casefold()
+    assert "product specification" in other.casefold()
 
 
 def test_poll_mode_broadcasts_and_the_next_private_reply_is_an_answer(client, store):

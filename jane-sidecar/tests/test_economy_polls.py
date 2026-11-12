@@ -40,29 +40,10 @@ def test_the_topic_list_has_four_hundred_distinct_questions():
         for topic in TOPICS
     )
     assert interest >= 360
-    reasoned = sum(
-        any(
-            marker in f" {topic.casefold()} "
-            for marker in (
-                " so ",
-                " because ",
-                " rather ",
-                " before ",
-                " when ",
-                " if ",
-                " until ",
-                " instead ",
-                " enough ",
-                " once ",
-                " while ",
-                " or ",
-                " not ",
-                " only ",
-            )
-        )
-        for topic in TOPICS
-    )
-    assert reasoned >= 280
+    assert "Do you have space for a greenhouse?" in TOPICS
+    assert "polycarbonate" not in joined
+    assert not any(" because " in f" {topic.casefold()} " for topic in TOPICS)
+    assert not any(" so " in f" {topic.casefold()} " for topic in TOPICS)
 
 
 def test_a_small_zip_keeps_one_topic_for_the_day_and_changes_the_next_day():
