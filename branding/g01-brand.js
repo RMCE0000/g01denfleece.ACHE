@@ -1781,7 +1781,7 @@
     {
       id: "tenets",
       label: "10 Core Tenets",
-      glyph: "10",
+      glyph: "ct",
       paragraphs: [
         "Example text. The ten core tenets will be written on this page.",
         "Each tenet will appear here as plain text, in order.",
@@ -1791,7 +1791,7 @@
     {
       id: "scorecard",
       label: "Central Score Card",
-      glyph: "CS",
+      glyph: "0",
       paragraphs: [
         "Example text. The central score card will be written on this page.",
         "The scores and how to read them will appear here as plain text.",
