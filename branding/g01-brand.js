@@ -1795,7 +1795,7 @@
         "Contained - The property ought leak no harmful waste.",
         "Utilized - The property ought be recorded along the cutting edge of financial tools, to the greatest good of its homesteader/s.",
         "Defensible - The property ought be able to defend against invasion and disaster.",
-        "Insured - The guiding principle of homesteading itself, homesteaders and all assets must be insured.",
+        "Insured - The guiding principle of homesteading itself, homesteaders and all assets ought be insured.",
         "Integrated - A homestead ought contribute to its city's sovereignty, where its home city may sustain itself, if necessary, indefinitely."
       ]
     },
