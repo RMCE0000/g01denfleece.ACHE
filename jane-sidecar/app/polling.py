@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 from app.config import Settings, get_settings
 from app.delivery import deliver
 from app.economy import choose_conversation_question, choose_daily_question
+from app.sponsor_chat import closing_sponsor_request
 
 log = logging.getLogger(__name__)
 
@@ -319,9 +320,9 @@ async def handle_private_poll_message(store, message: dict) -> str | None:
         return None
     # A daily question should not swallow an explicit product workflow. Users
     # can also address Jane by name to leave the poll pending and ask anything.
-    if re.match(r"^jane[\s,:-]", content, re.I) or re.search(
+    if re.match(r"^jane[\s,:-]", content, re.I) or closing_sponsor_request(content) or re.search(
         r"\b(verify my identity|identity verification|start kyc|what are my scores|north star|"
-        r"become a sponsor|register as a sponsor|cancel (the |my )?sponsor|"
+        r"become a sponsor|register as a sponsor|"
         r"where can i (get|buy|find|source)|poll mode)\b",
         content,
         re.I,
@@ -444,7 +445,7 @@ async def remember_conversation_answer(store, prop: dict | None, content: str) -
     text = " ".join(str(content or "").split())
     if not text or "?" in text or wants_community(text) or _POLL_STATUS.search(text):
         return
-    if re.match(r"^jane[\s,:-]", text, re.I) or re.search(
+    if re.match(r"^jane[\s,:-]", text, re.I) or closing_sponsor_request(text) or re.search(
         r"\b(verify my identity|identity verification|start kyc|what are my scores|north star|"
         r"become a sponsor|register as a sponsor|sponsorship|payment|"
         r"where can i (get|buy|find|source)|poll mode)\b",

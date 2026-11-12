@@ -1,5 +1,6 @@
 """Apply a grounded decision to the property record and post Jane's reply."""
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 from app.config import get_settings
@@ -19,8 +20,17 @@ from app.epistemic import (
 from app.heuristic import heuristic_decision, status_reply
 from app.sanitize import sanitize_reply
 from app.sourcing import format_ladder, haversine_miles
-from app.sponsor_chat import file_sponsor_application, missing_fields, resend_sponsor_payment, sponsorship_status
+from app.sponsor_chat import (
+    file_sponsor_application,
+    json_safe_draft,
+    keep_company_name,
+    missing_fields,
+    resend_sponsor_payment,
+    sponsorship_status,
+)
 from app.stripe_service import create_identity_session
+
+log = logging.getLogger(__name__)
 
 
 def _rogers(locality: dict | None) -> bool:
@@ -196,21 +206,55 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
                 notes.append(f"Verify with Stripe Identity: {session['url']}")
 
     if decision.get("cancel_sponsor"):
-        prop = await store.save_sponsor_draft(prop["id"], None)
+        if prop is None:
+            decision["reply"] = "This thread is not attached to a homestead, so I could not close a sponsorship."
+        else:
+            had_draft = bool(prop.get("sponsor_draft"))
+            try:
+                closed = await store.deactivate_sponsors_for_property(prop["id"])
+                prop = await store.save_sponsor_draft(prop["id"], None)
+            except G01Error as exc:
+                decision["reply"] = exc.message
+            else:
+                if closed:
+                    names = ", ".join(
+                        str(row.get("company_name") or "the sponsorship") for row in closed
+                    )
+                    decision["reply"] = f"I closed {names}. The listing will not be recommended."
+                elif had_draft:
+                    decision["reply"] = "I cleared the sponsorship application."
+                else:
+                    decision["reply"] = "There isn't an open sponsorship to close."
     elif decision.get("sponsor_active"):
-        if decision.get("sponsor_from_thread"):
-            draft = dict(decision.get("sponsor_fields") or {"open": True})
+        if prop is None:
+            notes.append("This thread is not attached to a homestead, so I did not start a sponsorship.")
         else:
-            draft = dict(prop.get("sponsor_draft") or {})
-            draft.update(decision.get("sponsor_fields") or {})
-        if "promo_code" in draft and str(draft["promo_code"]).casefold() == "none":
-            draft.pop("promo_code", None)
-        sponsor_locality = locality or await store.get_locality(prop["locality_id"])
-        if missing_fields(draft):
-            prop = await store.save_sponsor_draft(prop["id"], draft)
-        else:
-            notes.append(await file_sponsor_application(store, prop, sponsor_locality, draft))
-            prop = await store.get_property(prop["id"])
+            stored = prop.get("sponsor_draft")
+            draft = dict(stored) if isinstance(stored, dict) else {}
+            incoming = decision.get("sponsor_fields")
+            if isinstance(incoming, dict):
+                for key, value in incoming.items():
+                    if value in (None, "", []):
+                        continue
+                    if key == "company_name" and draft.get("company_name") and not keep_company_name(value):
+                        continue
+                    draft[key] = value
+            if not draft:
+                draft = {"open": True}
+            if "promo_code" in draft and str(draft.get("promo_code") or "").casefold() == "none":
+                draft.pop("promo_code", None)
+            sponsor_locality = locality or await store.get_locality(prop["locality_id"])
+            try:
+                if missing_fields(draft):
+                    prop = await store.save_sponsor_draft(prop["id"], json_safe_draft(draft))
+                else:
+                    notes.append(await file_sponsor_application(store, prop, sponsor_locality, draft))
+                    fresh = await store.get_property(prop["id"])
+                    if isinstance(fresh, dict):
+                        prop = fresh
+            except Exception:
+                log.exception("sponsorship filing failed")
+                notes.append("I kept the sponsorship application. Send that last detail again.")
 
     if decision.get("resend_payment_email"):
         notes.append(await resend_sponsor_payment(store, prop, decision.get("payment_email")))
