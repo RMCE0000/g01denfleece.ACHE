@@ -144,6 +144,8 @@ def test_brand_assets_are_gold_and_white():
         "0 is the target.",
     ):
         assert phrase in documents
+    dockerfile = (ROOT / "jane-sidecar" / "Dockerfile").read_text(encoding="utf-8")
+    assert "COPY jane ./jane" in dockerfile
     assert "The ten core tenets will be written on this page." not in script
     assert "local homestead + 0" in script
     assert "company abroad + 7" in script
