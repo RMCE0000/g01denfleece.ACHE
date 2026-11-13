@@ -83,7 +83,7 @@ async def refresh_match_gate(store, match_id: str, speaker_property_id: str | No
     )
     notice = (
         f"You're both verified and you both accepted. I opened g01 conversation {conversation_id}. "
-        "Jane is a peer in it, and it stays open."
+        "I'm Jane, the homestead analyst and coordinator. This thread stays open."
     )
     await deliver(store, conversation_id, notice)
     for peer in (peer_a, peer_b):

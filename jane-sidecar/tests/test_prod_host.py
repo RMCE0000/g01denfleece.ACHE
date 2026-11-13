@@ -132,3 +132,53 @@ def test_production_env_check_rejects_local_secrets(tmp_path):
     accepted = subprocess.run(["sh", str(script), str(good)], capture_output=True, text=True)
     assert accepted.returncode == 0, accepted.stderr
     assert "production env is ready" in accepted.stdout
+
+
+def test_disk_cleanup_keeps_volumes_and_images_in_use():
+    script = (ROOT / "deploy" / "free-disk.sh").read_text(encoding="utf-8")
+    installer = (ROOT / "deploy" / "install-disk-cleanup.sh").read_text(encoding="utf-8")
+    folded = script.casefold()
+    for banned in (
+        "volume prune",
+        "volume rm",
+        "system prune",
+        "container prune",
+        "container rm",
+        "image prune -a",
+        "image prune --all",
+        "compose down",
+        "rm -rf",
+    ):
+        assert banned not in folded
+    assert "docker image prune -f" in script
+    assert "docker builder prune -af" in script
+    assert "until=24h" in script
+    assert "free-disk.sh" in installer
+    assert subprocess.run(["sh", "-n", str(ROOT / "deploy" / "free-disk.sh")]).returncode == 0
+    assert subprocess.run(["sh", "-n", str(ROOT / "deploy" / "install-disk-cleanup.sh")]).returncode == 0
+
+    rendered = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            "docker-compose.yml",
+            "-f",
+            "docker-compose.prod.yml",
+            "config",
+            "--format",
+            "json",
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "ACME_EMAIL": "ops@g01denfleece.com"},
+    )
+    services = json.loads(rendered.stdout)["services"]
+    for name in ("rails", "jane", "caddy", "sidekiq"):
+        options = services[name]["logging"]["options"]
+        assert options["max-size"] == "10m"
+        assert options["max-file"] == "3"
+    for name in ("postgres", "redis"):
+        assert "logging" not in services[name]

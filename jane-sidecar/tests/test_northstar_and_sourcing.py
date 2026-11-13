@@ -205,7 +205,8 @@ def test_showcase_constitution_is_short_and_local():
         "Rogers, Arkansas",
         "said your name",
         "only here in this chat",
-        "Be a kind peer",
+        "homestead analyst and coordinator",
+        "not a homesteader",
         "water catchment",
         "exact username",
         "Do not mention tier weights",
@@ -215,6 +216,25 @@ def test_showcase_constitution_is_short_and_local():
     assert "JSON object" not in JANE_CONSTITUTION
     assert "known_facts_ledger" not in JANE_CONSTITUTION
     assert "tier_weight" not in JANE_CONSTITUTION
+    assert "peer" not in JANE_CONSTITUTION.casefold()
+    assert "peer" not in JANE_SYSTEM_PROMPT.casefold()
+    for phrase in (
+        "Every homestead ought be,",
+        "These two documents are central.",
+        "local homestead + 0",
+        "company abroad + 7",
+        "0 is the target.",
+        "a homestead ought not be required to take up sales, marketing, or branding of any kind.",
+        "live and profit off of the fruits produced by the property, alone, indefinitely.",
+        "produce and profit off of its own energy",
+        "ought be insured.",
+        "its city's sovereignty",
+    ):
+        assert phrase in JANE_CONSTITUTION
+        assert phrase in JANE_SYSTEM_PROMPT
+    delta = (Path(__file__).resolve().parents[1] / "jane" / "DELTA.md").read_text(encoding="utf-8")
+    assert "homestead analyst and coordinator" in delta
+    assert "peer" not in delta.casefold()
 
 
 def test_constitution_and_sql_keep_the_rules():

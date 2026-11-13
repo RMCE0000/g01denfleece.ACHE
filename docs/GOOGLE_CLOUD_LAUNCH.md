@@ -271,6 +271,14 @@ To roll application code back, check out the recorded commit and run the same
 Compose and postflight commands. Do not rotate `SECRET_KEY_BASE`,
 `POSTGRES_PASSWORD`, or provider secrets during a code rollback.
 
+Disk cleanup runs every 15 minutes after it is installed. It deletes Docker
+build cache and untagged leftover images, and shortens container logs larger
+than 20MB. It does not delete volumes or images still used by a container.
+
+```bash
+sudo sh deploy/install-disk-cleanup.sh
+```
+
 ## Launch gate
 
 Do not invite real users until all are true:

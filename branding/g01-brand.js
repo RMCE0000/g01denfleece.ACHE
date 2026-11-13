@@ -1015,6 +1015,7 @@
   }
 
   function openCommunity() {
+    closeReading();
     if (document.getElementById("g01-community-modal")) return;
     var accountId = currentAccountId();
     if (!accountId || !window.axios) return;
@@ -1325,6 +1326,28 @@
       ["Mentions", "Participating", "Unattended", "Folders", "Teams", "Channels", "Labels"],
       "g01-hidden-conversation-tool"
     );
+  }
+
+  function ensureConversationGroupFlat() {
+    document.querySelectorAll("nav a[title]").forEach(function (header) {
+      var title = (header.getAttribute("title") || "").replace(/\s+/g, " ").trim().toLowerCase();
+      if (title !== "conversations") return;
+      var named = false;
+      header.querySelectorAll("span").forEach(function (span) {
+        if (span.children.length) return;
+        if (span.textContent.replace(/\s+/g, " ").trim().toLowerCase() === "conversations") named = true;
+      });
+      if (!named) return;
+      var group = header.closest("li");
+      if (!group) return;
+      var list = group.querySelector(":scope > ul");
+      if (!list) return;
+      if (list.textContent.replace(/\s+/g, " ").toLowerCase().indexOf("all conversations") === -1) return;
+      list.classList.add("g01-hidden-conversation-children");
+      header.querySelectorAll(".i-lucide-chevron-up, .i-lucide-chevron-down").forEach(function (chevron) {
+        chevron.classList.add("g01-hidden-conversation-children");
+      });
+    });
   }
 
   function collapsedConversationTrigger(node) {
@@ -1776,6 +1799,133 @@
     });
   }
 
+  var READING_PAGES = [
+    {
+      id: "tenets",
+      label: "Core Tenets",
+      glyph: "1",
+      paragraphs: [
+        "Every homestead ought be,"
+      ],
+      ordered: true,
+      lines: [
+        "Clean - The central difference between a company and homesteader, a homestead ought not be required to take up sales, marketing, or branding of any kind.",
+        "Automated - Homesteader/s ought not need to work in order to maintain the property and its productive capability.",
+        "Aesthetic - The property ought be beautiful, according to the homesteader/s taste.",
+        "Material - Homesteader/s ought be able to live and profit off of the fruits produced by the property, alone, indefinitely.",
+        "Energetic - The property ought produce and profit off of its own energy, indefinitely.",
+        "Contained - The property ought leak no harmful waste.",
+        "Utilized - The property ought be recorded along the cutting edge of financial tools, to the greatest good of its homesteader/s.",
+        "Defensible - The property ought be able to defend against invasion and disaster.",
+        "Insured - The guiding principle of homesteading itself, homesteaders and all assets ought be insured.",
+        "Integrated - A homestead ought contribute to its city's sovereignty, where its home city may sustain itself, if necessary, indefinitely."
+      ]
+    },
+    {
+      id: "scorecard",
+      label: "Score Card",
+      glyph: "0",
+      paragraphs: [
+        "Each product is taken as the total process required to produce the consumable item that triggers any given score. Components that are grown, are taken to be unitary. \"Local\" is defined as a city and its suburbs. Any given place, not within a city's limits, is a suburb of its closest city.",
+        "A component of the product is produced by a..."
+      ],
+      lines: [
+        "local homestead + 0",
+        "local company + 1",
+        "homestead within the state + 2",
+        "company within the state + 3",
+        "homestead within the country + 4",
+        "company within the country + 5",
+        "homestead abroad + 6",
+        "company abroad + 7"
+      ],
+      closing: [
+        "The sum of all components of a product is the product's score. 0 is the target."
+      ]
+    }
+  ];
+
+  var readingLastOpener = null;
+
+  function closeReading() {
+    var modal = document.getElementById("g01-reading-modal");
+    if (modal) modal.remove();
+    var opener = readingLastOpener;
+    readingLastOpener = null;
+    if (opener) opener.focus();
+  }
+
+  function openReading(page) {
+    closeReading();
+    closeCommunity();
+    readingLastOpener = document.getElementById("g01-reading-" + page.id);
+    var backdrop = communityElement("div", "g01-community-backdrop");
+    backdrop.id = "g01-reading-modal";
+    backdrop.setAttribute("role", "presentation");
+    var panel = communityElement("section", "g01-community-panel");
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-labelledby", "g01-reading-title");
+    var header = communityElement("header", "g01-community-header");
+    var title = communityElement("h2", "", page.label);
+    title.id = "g01-reading-title";
+    var close = communityElement("button", "g01-community-close", "Close");
+    close.type = "button";
+    close.addEventListener("click", closeReading);
+    header.appendChild(title);
+    header.appendChild(close);
+    panel.appendChild(header);
+    page.paragraphs.forEach(function (paragraph) {
+      panel.appendChild(communityElement("p", "g01-community-intro", paragraph));
+    });
+    if (page.lines && page.lines.length) {
+      var list = communityElement(page.ordered ? "ol" : "ul", "g01-community-intro");
+      page.lines.forEach(function (line) {
+        list.appendChild(communityElement("li", "", line));
+      });
+      panel.appendChild(list);
+    }
+    (page.closing || []).forEach(function (paragraph) {
+      panel.appendChild(communityElement("p", "g01-community-intro", paragraph));
+    });
+    backdrop.appendChild(panel);
+    backdrop.addEventListener("click", function (event) {
+      if (event.target === backdrop) closeReading();
+    });
+    document.body.appendChild(backdrop);
+    close.focus();
+  }
+
+  function ensureReadingPages() {
+    var accountId = currentAccountId();
+    READING_PAGES.forEach(function (page) {
+      var existing = document.getElementById("g01-reading-" + page.id);
+      if (!accountId) {
+        var stale = document.getElementById("g01-reading-item-" + page.id);
+        if (stale) stale.remove();
+        return;
+      }
+      if (existing) return;
+      var nav = document.querySelector("nav.woot-sidebar-menu, nav.woot-sidebar-main-w-g, nav");
+      if (!nav) return;
+      var list = nav.querySelector("ul");
+      if (!list) return;
+      var item = communityElement("li", "g01-community-item");
+      item.id = "g01-reading-item-" + page.id;
+      var button = communityElement("button", "g01-community-open");
+      button.id = "g01-reading-" + page.id;
+      button.type = "button";
+      button.title = page.label;
+      button.appendChild(communityElement("span", "g01-community-glyph", page.glyph));
+      button.appendChild(communityElement("span", "g01-community-label", page.label));
+      button.addEventListener("click", function () {
+        openReading(page);
+      });
+      item.appendChild(button);
+      list.appendChild(item);
+    });
+  }
+
   function ensureCommunityButton() {
     var accountId = currentAccountId();
     var existing = document.getElementById("g01-community-open");
@@ -1805,10 +1955,12 @@
 
   function watchCommunity() {
     ensureCommunityButton();
+    ensureReadingPages();
     ensureCommunitySearch();
     ensureCallsHidden();
     ensureAllConversations();
     ensureConversationToolsHidden();
+    ensureConversationGroupFlat();
     ensureCaptainHidden();
     ensureContactsHidden();
     ensureBusinessToolsHidden();
@@ -1819,10 +1971,12 @@
     ensureContactSectionsHidden();
     var communityPasses = [
       ensureCommunityButton,
+      ensureReadingPages,
       ensureCommunitySearch,
       ensureCallsHidden,
       ensureAllConversations,
       ensureConversationToolsHidden,
+      ensureConversationGroupFlat,
       ensureCaptainHidden,
       ensureContactsHidden,
       ensureBusinessToolsHidden,
@@ -1852,7 +2006,10 @@
     }).observe(document.body, { childList: true, subtree: true });
     window.addEventListener("popstate", ensureCommunityButton);
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape") closeCommunity();
+      if (event.key === "Escape") {
+        closeCommunity();
+        closeReading();
+      }
       var typing = event.target && (event.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName));
       if (!typing && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey && event.code === "KeyN") {
         event.preventDefault();

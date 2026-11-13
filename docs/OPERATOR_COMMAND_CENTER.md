@@ -82,6 +82,10 @@ accident.
   with no connection.
 - `polls` compiles response rates, recurring terms, action candidates, and the
   attributed source answers. It never asks a model to invent a consensus.
+- `economy` reads the profiles built from daily questions, conversation
+  questions, and their recorded answers. A shared term is a concrete word that
+  appears in answers from two homesteaders in the same ZIP. It is the opening
+  for a group to economize. The analysis does not invent a need.
 
 Automatic match discovery compares recorded goals and poll answers only inside
 the same locality. New proposals are operator-pending and contact no one.
@@ -130,7 +134,7 @@ records and workflows without replacing those features.
 | Email, WhatsApp, and social inboxes | Work normally only after each external provider is added and verified |
 | North Star and ledger | Grounded live Jane turns update the record; operators can inspect and correct whitelisted fields |
 | Sponsors | Operators manage standalone or homestead-linked profiles and lifecycle status; `rank` previews Jane's local recommendations |
-| Jane polls | One rotating question is sent daily in each private Jane thread. `poll mode` starts the community-action question; `poll mode: <question>` broadcasts a supplied question. Operators use `polls`, `poll`, `poll-create`, and `analyze polls` |
+| Jane polls | One question goes to each ZIP once a day. Fewer than three homesteaders, or no shared recorded word, uses the 400-question list, which asks what the homesteader wants to do with the place now. Three or more with a shared word are asked whether they are interested in that word too. A live conversation can add one more question. Answers become ZIP profiles in `analyze economy`. `poll mode` still asks the other homesteads |
 | Automatic matchmaking | Discovery runs in Jane. Operators must review `matches` and confirm `match-approve` before users are contacted; both users and identity verification remain required |
 | 24-hour demand polls | The sidecar matures and reports them automatically; operators may also use `jobs polls` |
 | Stripe and identity | Operate only when production keys and webhooks are configured |

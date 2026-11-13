@@ -121,8 +121,44 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=64" in initializer
-    assert "v=63" not in initializer
+    assert "v=75" in initializer
+    assert "v=74" not in initializer
+    assert "Core Tenets" in script
+    assert "Score Card" in script
+    assert "10 Core Tenets" not in script
+    assert "Central Score Card" not in script
+    assert 'glyph: "1"' in script
+    assert 'glyph: "0"' in script
+    assert "Every homestead ought be," in script
+    assert "Clean - The central difference between a company and homesteader, a homestead ought not be required to take up sales, marketing, or branding of any kind." in script
+    assert "if not desired by the homesteader" not in script
+    assert "Integrated - A homestead ought contribute to its city's sovereignty" in script
+    assert "Homesteader/s ought be able to live and profit off of the fruits produced by the property, alone, indefinitely." in script
+    assert "The property ought produce and profit off of its own energy, indefinitely." in script
+    assert "homesteaders and all assets ought be insured." in script
+    documents = (ROOT / "jane-sidecar" / "jane" / "CORE_DOCUMENTS.md").read_text(encoding="utf-8")
+    for phrase in (
+        "Every homestead ought be,",
+        "a homestead ought not be required to take up sales, marketing, or branding of any kind.",
+        "Homesteader/s ought be able to live and profit off of the fruits produced by the property, alone, indefinitely.",
+        "The property ought produce and profit off of its own energy, indefinitely.",
+        "homesteaders and all assets ought be insured.",
+        "local homestead + 0",
+        "company abroad + 7",
+        "0 is the target.",
+    ):
+        assert phrase in documents
+    assert "if not desired by the homesteader" not in documents
+    dockerfile = (ROOT / "jane-sidecar" / "Dockerfile").read_text(encoding="utf-8")
+    assert "COPY jane ./jane" in dockerfile
+    assert "The ten core tenets will be written on this page." not in script
+    assert "local homestead + 0" in script
+    assert "company abroad + 7" in script
+    assert "0 is the target." in script
+    assert "The central score card will be written on this page." not in script
+    assert 'communityElement("button", "g01-community-open")' in script
+    assert "function ensureReadingPages" in script
+    assert "function openReading" in script
     assert "function signupDetail" in script
     assert "def signup_error_body" in initializer
     assert "Password must be 72 characters or fewer." in script
@@ -152,6 +188,9 @@ def test_brand_assets_are_gold_and_white():
     assert ".g01-hidden-contact-section" in css
     assert ".woot-banner.secondary" in css
     assert "function installCollapsedConversationMenuGuard" in script
+    assert "function ensureConversationGroupFlat" in script
+    assert "g01-hidden-conversation-children" in script
+    assert ".g01-hidden-conversation-children" in css
     assert 'title !== "conversations"' in script
     assert 'label === "conversations"' in script
     assert 'indexOf("all conversations")' in script

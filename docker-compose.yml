@@ -79,6 +79,14 @@ x-jane-env: &jane-env
   SMTP_ENABLE_STARTTLS_AUTO: ${SMTP_ENABLE_STARTTLS_AUTO:-false}
   MAILER_SENDER_EMAIL: ${MAILER_SENDER_EMAIL:-Jane <jane@g01denfleece.com>}
 
+# Cap container logs. Postgres and Redis are left unchanged so a later
+# `up -d` does not recreate them and drop Redis data or the database volume.
+x-log-limit: &log-limit
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     image: pgvector/pgvector@sha256:0dd3149a06e4579a0d70d8fef9945636cd514005e7237deb27f9b67886f8dc4f
@@ -104,11 +112,13 @@ services:
       retries: 20
 
   mailpit:
+    logging: *log-limit
     image: axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
     ports:
       - "8025:8025"
 
   rails:
+    logging: *log-limit
     image: chatwoot/chatwoot@sha256:0ea1fdeecf99470d76c51ca6d60f54d0e0b044c149ea069290741b35113a720d
     depends_on:
       postgres:
@@ -146,6 +156,7 @@ services:
       start_period: 180s
 
   sidekiq:
+    logging: *log-limit
     image: chatwoot/chatwoot@sha256:0ea1fdeecf99470d76c51ca6d60f54d0e0b044c149ea069290741b35113a720d
     depends_on:
       rails:
@@ -158,6 +169,7 @@ services:
       - chatwoot_storage:/app/storage
 
   bootstrap:
+    logging: *log-limit
     image: chatwoot/chatwoot@sha256:0ea1fdeecf99470d76c51ca6d60f54d0e0b044c149ea069290741b35113a720d
     depends_on:
       rails:
@@ -177,6 +189,7 @@ services:
     restart: "no"
 
   jane:
+    logging: *log-limit
     build: ./jane-sidecar
     depends_on:
       postgres:
@@ -201,6 +214,7 @@ services:
 
   # Off for the minimum showcase. `docker compose --profile background up` starts them.
   jane-worker:
+    logging: *log-limit
     profiles: ["background"]
     build: ./jane-sidecar
     command: ["celery", "-A", "app.worker:celery_app", "worker", "--loglevel=info"]
@@ -218,6 +232,7 @@ services:
       - ./.chatwoot-bootstrap:/bootstrap:ro
 
   jane-beat:
+    logging: *log-limit
     profiles: ["background"]
     build: ./jane-sidecar
     command: ["celery", "-A", "app.worker:celery_app", "beat", "--loglevel=info", "--schedule", "/tmp/celerybeat-schedule"]
