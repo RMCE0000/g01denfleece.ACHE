@@ -10,7 +10,17 @@ from app.errors import G01Error
 log = logging.getLogger(__name__)
 
 
+def _stripe_object(event: dict) -> dict:
+    data = event.get("data")
+    if not isinstance(data, dict):
+        return {}
+    obj = data.get("object")
+    return obj if isinstance(obj, dict) else {}
+
+
 async def apply_stripe_event(store, event: dict) -> dict:
+    if not isinstance(event, dict):
+        return {"ok": True, "ignored": "malformed"}
     event_id = str(event.get("id") or "").strip()
     dedupe_id = f"stripe:{event_id}" if event_id else ""
     if dedupe_id and not await store.mark_event(dedupe_id):
@@ -25,7 +35,7 @@ async def apply_stripe_event(store, event: dict) -> dict:
 
 async def _apply_stripe_event(store, event: dict) -> dict:
     kind = event.get("type")
-    data = (event.get("data") or {}).get("object") or {}
+    data = _stripe_object(event)
     if kind == "checkout.session.completed":
         payment_status = data.get("payment_status")
         if payment_status not in ("paid", "no_payment_required"):
@@ -55,13 +65,15 @@ async def _apply_stripe_event(store, event: dict) -> dict:
 
     if kind in ("customer.subscription.updated", "customer.subscription.deleted"):
         subscription_id = data.get("id")
-        if not subscription_id:
+        if not isinstance(subscription_id, str) or not subscription_id.strip():
             return {"ok": True, "ignored": "missing_subscription"}
-        active = kind != "customer.subscription.deleted" and data.get("status") in ("active", "trialing")
+        status = str(data.get("status") or "").casefold()
+        closed = kind == "customer.subscription.deleted" or status in {"canceled", "cancelled"}
+        active = (not closed) and status in {"active", "trialing"}
         sponsor = await store.set_sponsor_subscription_active(subscription_id, active)
         if sponsor is None:
             return {"ok": True, "ignored": "unknown_subscription"}
-        await _tell_homestead(store, sponsor, active)
+        await _tell_homestead(store, sponsor, active, closed=closed)
         return {"ok": True, "sponsor_id": sponsor["id"], "active": active}
 
     if kind in ("invoice.payment_failed", "invoice.paid", "invoice.payment_succeeded"):
@@ -108,20 +120,25 @@ async def _apply_stripe_event(store, event: dict) -> dict:
     return {"ok": True, "ignored": kind or "unknown"}
 
 
-async def _tell_homestead(store, sponsor: dict, active: bool) -> None:
+async def _tell_homestead(store, sponsor: dict, active: bool, *, closed: bool = False) -> None:
     """Tell the private thread what Stripe recorded. A failed post does not undo the record."""
     property_id = sponsor.get("property_id")
     if not property_id:
         return
     try:
         prop = await store.get_property(property_id)
-        if not prop:
+        if not prop or not isinstance(prop, dict):
             return
         name = sponsor.get("company_name") or "This sponsorship"
         if active:
             note = (
                 f"{name} is now an active g01 sponsor. "
                 "Stripe marked the payment paid, so the listing can be recommended."
+            )
+        elif closed:
+            note = (
+                f"I closed {name}. Stripe ended the subscription, "
+                "so the listing will not be recommended."
             )
         else:
             note = (

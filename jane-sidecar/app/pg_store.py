@@ -15,6 +15,15 @@ from app.northstar import DEFAULT_LEDGER
 
 log = logging.getLogger(__name__)
 
+
+def _uuid_text(value) -> str | None:
+    if value is None:
+        return None
+    try:
+        return str(UUID(str(value)))
+    except (TypeError, ValueError, AttributeError):
+        return None
+
 # A signup 500 on production was an unhandled database error on the first
 # property read. These are the failures a second schema apply can repair:
 # a column the code selects is not on the table yet, or a pooled connection
@@ -1412,6 +1421,37 @@ class PostgresStore:
             {"subscription_id": subscription_id, "active": bool(active)},
         )
         return rows[0] if rows else None
+
+    async def set_sponsor_active_flag(self, sponsor_id: str, active: bool) -> dict | None:
+        """Turn a listing on or off without rewriting the rest of the row."""
+        sponsor_uuid = _uuid_text(sponsor_id)
+        if sponsor_uuid is None:
+            return None
+        rows = await self._write(
+            f"""
+            UPDATE g01_sponsors
+            SET is_active_sponsor = :active
+            WHERE id = CAST(:id AS uuid)
+            RETURNING {_SPONSOR}
+            """,
+            {"id": sponsor_uuid, "active": bool(active)},
+        )
+        return rows[0] if rows else None
+
+    async def deactivate_sponsors_for_property(self, property_id: str) -> list[dict]:
+        """Close every active listing on a homestead. A second call closes nothing."""
+        property_uuid = _uuid_text(property_id)
+        if property_uuid is None:
+            return []
+        return await self._write(
+            f"""
+            UPDATE g01_sponsors
+            SET is_active_sponsor = FALSE
+            WHERE property_id = CAST(:id AS uuid) AND is_active_sponsor
+            RETURNING {_SPONSOR}
+            """,
+            {"id": property_uuid},
+        )
 
     async def open_polls_for_requester(self, property_id: str) -> list[dict]:
         return await self._all(

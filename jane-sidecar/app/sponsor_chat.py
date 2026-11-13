@@ -1,6 +1,7 @@
 """Sponsorship answers are collected in the g01 thread."""
 
 import asyncio
+import logging
 import re
 
 from contextvars import ContextVar
@@ -12,6 +13,8 @@ from app.mail import send_sponsor_payment_link
 from app.config import get_settings
 from app.sourcing import SPONSOR_TIERS, normalize_service_tag, sponsor_rejection_reason
 from app.stripe_service import create_sponsor_checkout, retrieve_checkout_url, stripe_ready
+
+log = logging.getLogger(__name__)
 
 message_read_override: ContextVar = ContextVar("g01_message_read_override", default=None)
 
@@ -281,6 +284,17 @@ def sponsorship_status_request(text: str) -> bool:
     return bool(_SPONSOR_STATUS.search(text or ""))
 
 
+_CLOSE_SPONSOR = re.compile(
+    r"\b(?:cancel|close|end|stop|drop) (?:the |my |our |a )?(?:g01 )?(?:sponsor(?:ship)?|listing)\b",
+    re.I,
+)
+
+
+def closing_sponsor_request(text: str) -> bool:
+    """The homesteader wants the application or the listing closed."""
+    return bool(_CLOSE_SPONSOR.search(text or ""))
+
+
 def payment_email_request(text: str) -> dict | None:
     """A homesteader asking for the payment message, with an address when they named one."""
     email = _EMAIL_FIND.search(text)
@@ -385,6 +399,8 @@ def _company_name_from_text(text: str, locality: dict | None) -> str | None:
         if listing_kind(candidate):
             continue
         if city and candidate.casefold() == city:
+            continue
+        if re.search(r"\b(please|file|filing|sponsorship|sponsor|thanks|thank)\b", candidate, re.I):
             continue
         if re.match(r"^[A-Z0-9]", candidate):
             return candidate
@@ -629,8 +645,8 @@ def franchise_from_thread(lines: list[dict]) -> bool | None:
 async def application_from_thread(lines: list[dict], locality: dict | None = None) -> tuple[dict, str | None, str | None]:
     """Read the whole thread once, for filing. Jane's reply does not come from this form."""
     fields: dict = {}
-    for line in lines:
-        if line.get("role") == "jane":
+    for line in lines or []:
+        if not isinstance(line, dict) or line.get("role") == "jane":
             continue
         text = str(line.get("content") or "")
         if not text.strip():
@@ -733,7 +749,7 @@ def sponsorship_thinking_note(
         recorded.append(f"State: {draft['founding_state']}.")
     if draft.get("capabilities_summary"):
         recorded.append(f"What they do: {draft['capabilities_summary']}.")
-    elif draft.get("service_tags"):
+    elif isinstance(draft.get("service_tags"), (list, tuple)):
         words = ", ".join(str(tag).replace("_", " ") for tag in draft["service_tags"])
         recorded.append(f"What they offer: {words}.")
     if draft.get("is_franchise_or_chain") is True:
@@ -774,6 +790,78 @@ def sponsorship_thinking_note(
     )
 
 
+def json_safe_draft(draft: dict) -> dict:
+    """Drop values that cannot be stored as JSON. The application itself stays."""
+    safe: dict = {}
+    for key, value in draft.items():
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            if isinstance(value, float) and value != value:
+                continue
+            safe[str(key)] = value
+        elif isinstance(value, (list, tuple)):
+            items = [item for item in value if isinstance(item, (str, int, float, bool))]
+            if items:
+                safe[str(key)] = items
+    return safe
+
+
+def keep_company_name(value) -> bool:
+    """A follow-up sentence is not a new company name."""
+    text = _plain(value, 120)
+    if not text or len(text.split()) > 6:
+        return False
+    if re.search(r"\b(please|file|filing|sponsorship|sponsor|thanks|thank)\b", text, re.I):
+        return False
+    return True
+
+
+def _plain(value, limit: int) -> str:
+    if isinstance(value, (dict, list, tuple, set)):
+        return ""
+    return " ".join(str(value or "").split())[:limit].strip()
+
+
+def _filing_tags(value) -> list[str]:
+    if isinstance(value, str):
+        parts = re.split(r"[,/]", value)
+    elif isinstance(value, (list, tuple, set)):
+        parts = list(value)
+    else:
+        return []
+    tags: list[str] = []
+    for item in parts:
+        tag = normalize_service_tag(str(item))
+        if tag and tag not in tags:
+            tags.append(tag)
+    return tags
+
+
+def _filing_coord(value, fallback) -> float | None:
+    for candidate in (value, fallback):
+        if candidate is None or isinstance(candidate, bool):
+            continue
+        try:
+            number = float(candidate)
+        except (TypeError, ValueError):
+            continue
+        if number == number and abs(number) <= 180:
+            return number
+    return None
+
+
+def _filing_franchise(value) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return bool(value)
+    lowered = _plain(value, 20).casefold()
+    if lowered in {"yes", "true", "y", "1"}:
+        return True
+    if lowered in {"no", "false", "n", "0"}:
+        return False
+    return None
+
+
 def next_prompt(draft: dict) -> str:
     missing = missing_fields(draft)
     if not missing:
@@ -784,27 +872,91 @@ def next_prompt(draft: dict) -> str:
     return _PROMPTS[key]
 
 
+def _ready_to_file(draft: dict, prop: dict, locality: dict | None) -> tuple[dict | None, str | None]:
+    """Turn a messy application into sponsor fields, or say what is still missing."""
+    if not isinstance(prop, dict) or not prop.get("id") or not prop.get("locality_id"):
+        return None, "This thread is not attached to a homestead, so I did not file the listing."
+    if not isinstance(locality, dict):
+        return None, "I could not tell which locality this company belongs to, so I did not file the listing."
+    company = _plain(draft.get("company_name"), 120)
+    city = _plain(draft.get("founding_city"), 80)
+    state = _state_code(_plain(draft.get("founding_state"), 40)) or sole_state_code(_plain(draft.get("founding_state"), 40))
+    summary = _plain(draft.get("capabilities_summary"), 500)
+    tier = draft.get("sourcing_tier")
+    if tier not in SPONSOR_TIERS:
+        tier = company_type(_plain(tier, 80)) or company_type(summary)
+    tags = _filing_tags(draft.get("service_tags"))
+    franchise = _filing_franchise(draft.get("is_franchise_or_chain"))
+    latitude = _filing_coord(draft.get("lat"), prop.get("lat"))
+    longitude = _filing_coord(draft.get("lng"), prop.get("lng"))
+    email = _plain(draft.get("billing_email"), 255).casefold()
+    if email and not _EMAIL_FIND.fullmatch(email):
+        email = ""
+    gaps = []
+    if not company:
+        gaps.append("the company name")
+    if not city:
+        gaps.append("the founding city")
+    if not state:
+        gaps.append("the founding state")
+    if tier not in SPONSOR_TIERS:
+        gaps.append("what the company does")
+    if not tags:
+        gaps.append("what it makes or sells")
+    if not summary:
+        gaps.append("a sentence about the business")
+    if franchise is None:
+        gaps.append("whether it is a franchise or a chain")
+    if not email:
+        gaps.append("the payment email")
+    if latitude is None or longitude is None:
+        gaps.append("a map location")
+    if gaps:
+        return None, "I still need " + ", ".join(gaps) + " before I can file the sponsorship."
+    return {
+        "company_name": company,
+        "founding_city": city,
+        "founding_state": state,
+        "sourcing_tier": tier,
+        "service_tags": tags,
+        "capabilities_summary": summary,
+        "is_franchise_or_chain": franchise,
+        "billing_email": email,
+        "lat": latitude,
+        "lng": longitude,
+        "promo_code": _plain(draft.get("promo_code"), 64),
+    }, None
+
+
 async def file_sponsor_application(store, prop: dict, locality: dict, draft: dict) -> str:
     """Create an inactive sponsor and, when Stripe is configured, put the payment link in the thread."""
-    latitude = draft.get("lat", prop["lat"])
-    longitude = draft.get("lng", prop["lng"])
+    if not isinstance(draft, dict):
+        return "I still need the company details before I can file the sponsorship."
+    ready, waiting = _ready_to_file(draft, prop, locality)
+    if ready is None:
+        return waiting or "I still need the company details before I can file the sponsorship."
     reason = sponsor_rejection_reason(
-        company_name=draft["company_name"],
-        is_franchise_or_chain=bool(draft["is_franchise_or_chain"]),
+        company_name=ready["company_name"],
+        is_franchise_or_chain=ready["is_franchise_or_chain"],
         locality_city=locality["primary_city"],
         locality_state=locality["state_code"],
-        founding_city=draft["founding_city"],
-        founding_state=draft["founding_state"],
-        capabilities_summary=draft["capabilities_summary"],
+        founding_city=ready["founding_city"],
+        founding_state=ready["founding_state"],
+        capabilities_summary=ready["capabilities_summary"],
     )
     if reason:
         await store.save_sponsor_draft(prop["id"], None)
         return reason.rstrip(".") + ". I did not file the listing."
 
-    existing = await store.inactive_sponsor_named(prop["id"], draft["company_name"])
+    existing = await store.inactive_sponsor_named(prop["id"], ready["company_name"])
     promo = None
-    if draft.get("promo_code"):
-        promo = await store.get_promo(draft["promo_code"])
+    promo_code = ready["promo_code"]
+    if promo_code and promo_code.casefold() != "none":
+        try:
+            promo = await store.get_promo(promo_code)
+        except Exception:
+            log.exception("promo lookup failed while filing a sponsor")
+            return "That promo code is not usable. Say a different code, or say promo: none."
         if not promo or not promo["active"] or promo["current_uses"] >= promo["max_uses"]:
             return "That promo code is not usable. Say a different code, or say promo: none."
         if promo.get("restricted_locality_id") and promo["restricted_locality_id"] != prop["locality_id"]:
@@ -813,25 +965,34 @@ async def file_sponsor_application(store, prop: dict, locality: dict, draft: dic
     if existing:
         sponsor = existing
     else:
-        sponsor = await store.create_sponsor(
-            {
-                "property_id": prop["id"],
-                "locality_id": prop["locality_id"],
-                "company_name": draft["company_name"],
-                "founding_city": draft["founding_city"],
-                "founding_state": draft["founding_state"],
-                "is_franchise_or_chain": bool(draft["is_franchise_or_chain"]),
-                "sourcing_tier": draft["sourcing_tier"],
-                "service_tags": list(draft["service_tags"]),
-                "capabilities_summary": draft["capabilities_summary"],
-                "lat": float(latitude),
-                "lng": float(longitude),
-                "applied_promo_code": promo["code"] if promo else None,
-                "is_active_sponsor": False,
-            }
-        )
-    await store.save_sponsor_draft(prop["id"], None)
-    billing_email = str(draft.get("billing_email") or "").strip().casefold()
+        try:
+            sponsor = await store.create_sponsor(
+                {
+                    "property_id": prop["id"],
+                    "locality_id": prop["locality_id"],
+                    "company_name": ready["company_name"],
+                    "founding_city": ready["founding_city"],
+                    "founding_state": ready["founding_state"],
+                    "is_franchise_or_chain": ready["is_franchise_or_chain"],
+                    "sourcing_tier": ready["sourcing_tier"],
+                    "service_tags": ready["service_tags"],
+                    "capabilities_summary": ready["capabilities_summary"],
+                    "lat": ready["lat"],
+                    "lng": ready["lng"],
+                    "applied_promo_code": promo["code"] if promo else None,
+                    "is_active_sponsor": False,
+                }
+            )
+        except G01Error as exc:
+            return exc.message.rstrip(".") + ". I did not file the listing."
+        except Exception:
+            log.exception("could not file a sponsor")
+            return "I could not file the listing just now. The application is still here. Send the last detail again."
+    try:
+        await store.save_sponsor_draft(prop["id"], None)
+    except Exception:
+        log.exception("filed sponsor %s but could not clear the draft", sponsor.get("id"))
+    billing_email = ready["billing_email"]
     try:
         checkout = await create_sponsor_checkout(
             sponsor["id"],
@@ -847,24 +1008,36 @@ async def file_sponsor_application(store, prop: dict, locality: dict, draft: dic
                 f"{lead} Stripe is not configured, so I did not open a payment page and the listing stays off the registry."
             )
         return f"{lead} {exc.message}"
-    if checkout.get("customer_id") or checkout.get("subscription_id"):
-        await store.remember_sponsor_billing(
+    except Exception:
+        log.exception("payment page failed after filing sponsor %s", sponsor.get("id"))
+        lead = _listing_lead(sponsor["company_name"], existing)
+        return f"{lead} I filed the listing, but the payment page did not open. Ask me to send the payment link again."
+    if not isinstance(checkout, dict) or not checkout.get("url") or not checkout.get("id"):
+        lead = _listing_lead(sponsor["company_name"], existing)
+        return f"{lead} I filed the listing, but Stripe did not return a payment link."
+    try:
+        if checkout.get("customer_id") or checkout.get("subscription_id"):
+            await store.remember_sponsor_billing(
+                sponsor["id"],
+                checkout.get("customer_id"),
+                checkout.get("subscription_id"),
+            )
+        await store.attach_checkout(
+            checkout["id"],
             sponsor["id"],
-            checkout.get("customer_id"),
-            checkout.get("subscription_id"),
+            url=checkout["url"],
+            billing_email=billing_email or None,
         )
-    await store.attach_checkout(
-        checkout["id"],
-        sponsor["id"],
-        url=checkout["url"],
-        billing_email=billing_email or None,
-    )
-    mailed = await _mailed_payment_sentence(
-        billing_email,
-        sponsor["company_name"],
-        checkout["url"],
-        stripe_emailed=bool(checkout.get("stripe_emailed")),
-    )
+        mailed = await _mailed_payment_sentence(
+            billing_email,
+            sponsor["company_name"],
+            checkout["url"],
+            stripe_emailed=bool(checkout.get("stripe_emailed")),
+        )
+    except Exception:
+        log.exception("could not record the payment link for sponsor %s", sponsor.get("id"))
+        lead = _listing_lead(sponsor["company_name"], existing)
+        return f"{lead} I filed the listing, but the payment page did not open. Ask me to send the payment link again."
     return f"{_listing_lead(sponsor['company_name'], existing)} {mailed}"
 
 

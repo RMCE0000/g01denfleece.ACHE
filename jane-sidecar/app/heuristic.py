@@ -24,6 +24,7 @@ from app.sponsor_chat import (
     message_has_email,
     missing_fields,
     parse_labeled_sponsor_fields,
+    closing_sponsor_request,
     payment_email_request,
     sponsorship_status_request,
 )
@@ -44,7 +45,6 @@ _SPONSOR_PURCHASE_QUESTION = re.compile(
     r"\b(?:sponsorship|sponsor) (?:price|pricing|cost|plans?)\b",
     re.I,
 )
-_CANCEL_SPONSOR = re.compile(r"\bcancel (the |my )?sponsor", re.I)
 _NEED = re.compile(r"\b(need|buy|source|find|looking for|where can i)\b", re.I)
 _RECOMMEND_LOCAL = re.compile(
     r"\b(?:recommend|find|list|show)\b.{0,80}\b(?:local compan(?:y|ies)|local businesses?|sponsors?)\b",
@@ -301,9 +301,8 @@ def heuristic_decision(state: dict) -> dict:
         decision["reset_kyc"] = bool(_KYC_RESET.search(text))
         decision["reply"] = "Identity verification happens from a Stripe link I post in this thread. A shared neighbor thread still waits until both of you are verified."
 
-    if _CANCEL_SPONSOR.search(text):
+    if closing_sponsor_request(text):
         decision["cancel_sponsor"] = True
-        decision["sponsor_active"] = True
         decision["reply"] = "I cleared the sponsorship application."
     else:
         raw_draft = (prop or {}).get("sponsor_draft")
