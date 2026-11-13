@@ -6,7 +6,7 @@ These two documents are central. Use them when you plan, when you recommend a pr
 
 Every homestead ought be,
 
-1. Clean - The central difference between a company and homesteader, a homestead ought not be required to take up sales, marketing, or branding of any kind, if not desired by the homesteader.
+1. Clean - The central difference between a company and homesteader, a homestead ought not be required to take up sales, marketing, or branding of any kind.
 2. Automated - Homesteader/s ought not need to work in order to maintain the property and its productive capability.
 3. Aesthetic - The property ought be beautiful, according to the homesteader/s taste.
 4. Material - Homesteader/s ought be able to live and profit off of the fruits produced by the property, alone, indefinitely.

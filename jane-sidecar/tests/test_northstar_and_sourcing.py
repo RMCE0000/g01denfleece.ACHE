@@ -224,6 +224,7 @@ def test_showcase_constitution_is_short_and_local():
         "local homestead + 0",
         "company abroad + 7",
         "0 is the target.",
+        "a homestead ought not be required to take up sales, marketing, or branding of any kind.",
         "live and profit off of the fruits produced by the property, alone, indefinitely.",
         "produce and profit off of its own energy",
         "ought be insured.",

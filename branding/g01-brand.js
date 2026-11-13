@@ -1809,7 +1809,7 @@
       ],
       ordered: true,
       lines: [
-        "Clean - The central difference between a company and homesteader, a homestead ought not be required to take up sales, marketing, or branding of any kind, if not desired by the homesteader.",
+        "Clean - The central difference between a company and homesteader, a homestead ought not be required to take up sales, marketing, or branding of any kind.",
         "Automated - Homesteader/s ought not need to work in order to maintain the property and its productive capability.",
         "Aesthetic - The property ought be beautiful, according to the homesteader/s taste.",
         "Material - Homesteader/s ought be able to live and profit off of the fruits produced by the property, alone, indefinitely.",
