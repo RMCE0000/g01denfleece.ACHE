@@ -121,8 +121,8 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=76" in initializer
-    assert "v=75" not in initializer
+    assert "v=77" in initializer
+    assert "v=76" not in initializer
     assert "Core Tenets" in script
     assert "Score Card" in script
     assert "10 Core Tenets" not in script
@@ -130,6 +130,7 @@ def test_brand_assets_are_gold_and_white():
     assert 'glyph: "1"' in script
     assert 'glyph: "0"' in script
     assert 'glyph: "g"' in script
+    assert 'label: "Sponsors"' in script
     assert "1 sponsor, per industry, per city." in script
     assert "Every homestead ought be," in script
     assert "Clean - The central difference between a company and homesteader, a homestead ought not be required to take up sales, marketing, or branding of any kind." in script

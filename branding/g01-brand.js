@@ -1845,9 +1845,11 @@
     },
     {
       id: "sponsor",
-      label: "1 sponsor, per industry, per city.",
+      label: "Sponsors",
       glyph: "g",
-      paragraphs: []
+      paragraphs: [
+        "1 sponsor, per industry, per city."
+      ]
     }
   ];
 
