@@ -1953,9 +1953,9 @@
     var button = communityElement("button", "g01-community-open");
     button.id = "g01-community-open";
     button.type = "button";
-    button.title = "Community";
+    button.title = "Continue";
     button.appendChild(communityElement("span", "g01-community-glyph", "g01"));
-    button.appendChild(communityElement("span", "g01-community-label", "Community"));
+    button.appendChild(communityElement("span", "g01-community-label", "Continue"));
     button.addEventListener("click", openCommunity);
     item.appendChild(button);
     list.appendChild(item);
