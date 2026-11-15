@@ -1842,6 +1842,12 @@
       closing: [
         "The sum of all components of a product is the product's score. 0 is the target."
       ]
+    },
+    {
+      id: "sponsor",
+      label: "1 sponsor, per industry, per city.",
+      glyph: "g",
+      paragraphs: []
     }
   ];
 
