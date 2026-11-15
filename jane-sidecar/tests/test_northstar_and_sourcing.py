@@ -220,7 +220,7 @@ def test_showcase_constitution_is_short_and_local():
     assert "peer" not in JANE_SYSTEM_PROMPT.casefold()
     for phrase in (
         "Every homestead ought be,",
-        "These two documents are central.",
+        "These documents are central.",
         "local homestead + 0",
         "company abroad + 7",
         "0 is the target.",
@@ -228,7 +228,8 @@ def test_showcase_constitution_is_short_and_local():
         "live and profit off of the fruits produced by the property, alone, indefinitely.",
         "produce and profit off of its own energy",
         "ought be insured.",
-        "its city's sovereignty",
+        "1 sponsor, per industry, per city.",
+        "One sponsor holds each industry in each city.",
     ):
         assert phrase in JANE_CONSTITUTION
         assert phrase in JANE_SYSTEM_PROMPT

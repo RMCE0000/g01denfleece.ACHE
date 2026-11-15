@@ -149,6 +149,8 @@ def test_brand_assets_are_gold_and_white():
         "local homestead + 0",
         "company abroad + 7",
         "0 is the target.",
+        "1 sponsor, per industry, per city.",
+        "One sponsor holds each industry in each city.",
     ):
         assert phrase in documents
     assert "if not desired by the homesteader" not in documents
