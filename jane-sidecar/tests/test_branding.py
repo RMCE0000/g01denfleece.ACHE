@@ -29,7 +29,8 @@ def test_brand_assets_are_gold_and_white():
     assert "Create an account" in script
     assert "thread with Jane" not in script
     assert "/g01/signup" in script
-    assert "g01 Community" in script
+    assert "g01 Continue" in script
+    assert "g01 Community" not in script
     assert 'communityElement("li", "g01-community-item")' in script
     assert 'communityElement("span", "g01-community-glyph", "g01")' in script
     assert 'communityElement("span", "g01-community-label", "Continue")' in script
@@ -123,8 +124,8 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=79" in initializer
-    assert "v=78" not in initializer
+    assert "v=80" in initializer
+    assert "v=79" not in initializer
     assert "Core Tenets" in script
     assert "Score Card" in script
     assert "10 Core Tenets" not in script

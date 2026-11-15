@@ -1029,7 +1029,7 @@
     panel.setAttribute("aria-modal", "true");
     panel.setAttribute("aria-labelledby", "g01-community-title");
     var header = communityElement("header", "g01-community-header");
-    var title = communityElement("h2", "", "g01 Community");
+    var title = communityElement("h2", "", "g01 Continue");
     title.id = "g01-community-title";
     var close = communityElement("button", "g01-community-close", "Close");
     close.type = "button";
