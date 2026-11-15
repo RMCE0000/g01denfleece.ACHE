@@ -1848,7 +1848,7 @@
       label: "Sponsors",
       glyph: "g",
       paragraphs: [
-        "1 sponsor, per industry, per city."
+        "1 locally founded sponsor, per industry, per city."
       ]
     }
   ];

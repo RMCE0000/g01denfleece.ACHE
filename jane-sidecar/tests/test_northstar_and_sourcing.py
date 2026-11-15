@@ -228,8 +228,8 @@ def test_showcase_constitution_is_short_and_local():
         "live and profit off of the fruits produced by the property, alone, indefinitely.",
         "produce and profit off of its own energy",
         "ought be insured.",
-        "1 sponsor, per industry, per city.",
-        "One sponsor holds each industry in each city.",
+        "1 locally founded sponsor, per industry, per city.",
+        "Locally founded means the sponsor was founded in that city.",
     ):
         assert phrase in JANE_CONSTITUTION
         assert phrase in JANE_SYSTEM_PROMPT

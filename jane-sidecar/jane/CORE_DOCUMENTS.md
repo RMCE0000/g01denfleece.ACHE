@@ -36,9 +36,9 @@ The sum of all components of a product is the product's score. 0 is the target.
 
 ## Sponsors
 
-1 sponsor, per industry, per city.
+1 locally founded sponsor, per industry, per city.
 
-A city and its suburbs are one city. Any place outside a city's limits is a suburb of its closest city. An industry is the work a sponsor does: the product or service a homesteader asks for.
+A city and its suburbs are one city. Any place outside a city's limits is a suburb of its closest city. An industry is the work a sponsor does: the product or service a homesteader asks for. Locally founded means the sponsor was founded in that city.
 
 One sponsor holds each industry in each city. A second sponsor does not share that seat. The same industry in another city is a different seat. A different industry in the same city is a different seat.
 
