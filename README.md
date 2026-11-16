@@ -1,6 +1,6 @@
 # g01denfleece ACHE
 
-Jane is a peer inside an ordinary g01 thread. Each live turn runs through
+Jane is the homestead analyst and coordinator inside an ordinary g01 thread. She is not a homesteader. Each live turn runs through
 a LangChain flow that sends her constitution (`jane-sidecar/CONSTITUTION.md`)
 and role-preserved message history to Gemini. Ordinary chat uses Gemini Flash;
 complex planning, comparison, and analysis use Gemini Pro.

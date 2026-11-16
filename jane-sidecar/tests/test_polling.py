@@ -2,7 +2,7 @@ from copy import deepcopy
 import asyncio
 from datetime import datetime, timedelta, timezone
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.graphs.matchmaking_graph import _overlap, discover_neighbor_synergies
 from app.polling import (
     DEFAULT_POLL_MODE_QUESTION,
@@ -10,6 +10,8 @@ from app.polling import (
     compile_community_poll,
     create_requested_poll,
     ensure_daily_poll,
+    poll_answer_note,
+    run_poll_cycle,
 )
 from app.seed import (
     DEMO_CONVERSATION_ID,
@@ -44,8 +46,12 @@ async def test_daily_poll_is_once_per_local_day_and_adds_only_new_users(store):
     assert first["recipients_added"] == 2
     assert second["created"] is False
     assert second["recipients_added"] == 0
-    assert len(store.community_polls) == 1
+    assert len(store.community_polls) == 2
+    assert {poll["poll_key"][:11] for poll in store.community_polls} == {"daily:70601", "daily:72756"}
     assert len(store.outbox) == 2
+    assert all(row["content"].endswith("?") for row in store.outbox)
+    assert all("you can answer here" not in row["content"].casefold() for row in store.outbox)
+    assert all("\n" not in row["content"] for row in store.outbox)
 
     newcomer = deepcopy(store.properties[0])
     newcomer.update(
@@ -62,6 +68,32 @@ async def test_daily_poll_is_once_per_local_day_and_adds_only_new_users(store):
     assert third["recipients_added"] == 1
     assert len(store.outbox) == 3
     assert store.outbox[-1]["conversation_id"] == 503
+
+
+async def test_daily_polling_is_paused_and_the_question_path_still_runs(store):
+    assert Settings.model_fields["daily_poll_enabled"].default is False
+    paused = get_settings().model_copy(update={"daily_poll_enabled": False})
+    result = await run_poll_cycle(store, paused)
+    assert result["daily"] is None
+    assert store.community_polls == []
+    assert store.outbox == []
+
+    resumed = paused.model_copy(update={"daily_poll_enabled": True})
+    sent = await run_poll_cycle(store, resumed)
+    assert sent["daily"]["created"] is True
+    assert store.outbox
+
+
+def test_a_yes_opens_one_planning_step_and_a_no_stops():
+    yes = poll_answer_note("Yes")
+    no = poll_answer_note("No thanks")
+    other = poll_answer_note("Maybe next spring")
+    assert "next planning step" in yes.casefold()
+    assert "product specification" in yes.casefold()
+    assert "acknowledge it and stop" in no.casefold()
+    assert "next planning step" not in no.casefold()
+    assert "move forward" in other.casefold()
+    assert "product specification" in other.casefold()
 
 
 def test_poll_mode_broadcasts_and_the_next_private_reply_is_an_answer(client, store):

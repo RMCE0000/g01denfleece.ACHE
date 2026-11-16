@@ -530,12 +530,13 @@ body.dark .widget-wrap {
 
 .g01-community-glyph {
   display: inline-grid;
-  flex: 0 0 1rem;
-  width: 1rem;
+  flex: 0 0 auto;
+  min-width: 1rem;
   place-items: center;
   font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: -0.04em;
+  white-space: nowrap;
 }
 
 .g01-community-label {
@@ -627,6 +628,17 @@ body.dark .g01-audio-recorder-status {
   color: #5c5346;
 }
 
+ul.g01-community-intro,
+ol.g01-community-intro {
+  margin-top: 0;
+  padding-left: 1.25rem;
+}
+
+ul.g01-community-intro li + li,
+ol.g01-community-intro li + li {
+  margin-top: 0.35rem;
+}
+
 .g01-community-identity {
   margin: -0.5rem 0 1rem;
   color: #7a5e24;
@@ -660,6 +672,10 @@ body.dark .g01-audio-recorder-status {
 }
 
 .g01-hidden-calls {
+  display: none !important;
+}
+
+.g01-hidden-conversation-children {
   display: none !important;
 }
 

@@ -12,19 +12,45 @@ from zoneinfo import ZoneInfo
 
 from app.config import Settings, get_settings
 from app.delivery import deliver
+from app.economy import choose_conversation_question, choose_daily_question
 
 log = logging.getLogger(__name__)
 
-DAILY_QUESTIONS = (
-    "What is the biggest obstacle on your homestead this week?",
-    "What tool, material, or skill could you share with another homesteader?",
-    "What project would benefit most from neighbor help?",
-    "What local supply is hardest to find right now?",
-    "What water, energy, food, or waste issue needs action first?",
-    "What skill would you most like to learn or teach?",
-    "What concrete action could this community complete next week?",
-)
 DEFAULT_POLL_MODE_QUESTION = "What action or project should this community organize next?"
+_YES_ANSWER = re.compile(r"^(yes|yeah|yep|yup|sure|absolutely|i do|yes please|yes i do)\b", re.I)
+_NO_ANSWER = re.compile(
+    r"^(no|nope|nah|not really|not now|no thanks|no thank you)\b",
+    re.I,
+)
+
+
+def poll_answer_note(answer: str) -> str:
+    """Tell Jane how to treat a recorded yes, a recorded no, or anything else.
+
+    A yes opens one next planning step, without a product specification.
+    A no is acknowledged and left there.
+    """
+    text = " ".join(str(answer or "").split())
+    if _NO_ANSWER.match(text):
+        return (
+            "You recorded this homesteader's answer: no. "
+            "Acknowledge it and stop. Do not offer a next step. "
+            "Do not invent anyone else's answer."
+        )
+    if _YES_ANSWER.match(text):
+        return (
+            "You recorded this homesteader's answer: yes. "
+            "Offer the one next planning step in your own words. "
+            "Do not recite a product specification they have not asked for. "
+            "Do not invent anyone else's answer."
+        )
+    return (
+        "You recorded this homesteader's answer to the question. "
+        "If they want to move forward, offer the one next planning step in your own words. "
+        "Do not recite a product specification they have not asked for. "
+        "If they do not, acknowledge it and stop. "
+        "Do not invent anyone else's answer."
+    )
 _POLL_MODE = re.compile(r"^\s*poll\s+mode(?:\s*:\s*(.*))?\s*$", re.I | re.S)
 _WORDS = re.compile(r"[a-z][a-z0-9'-]{2,}", re.I)
 _STOP_WORDS = {
@@ -62,16 +88,12 @@ def wants_community(text: str) -> bool:
     return bool(cleaned and _COMMUNITY_ASK.search(cleaned))
 
 
-def _poll_prompt(question: str) -> str:
-    return f"{question}\nYou can answer here."
-
-
 def _asked_confirmation(question: str) -> str:
     return f"I asked the other homesteads: {question}"
 
 
 async def _deliver_added(store, poll: dict, recipients: list[dict]) -> None:
-    prompt = _poll_prompt(poll["question"])
+    prompt = poll["question"]
     requester = poll.get("requester_property_id")
     for recipient in recipients:
         if requester and recipient.get("property_id") == requester:
@@ -81,12 +103,13 @@ async def _deliver_added(store, poll: dict, recipients: list[dict]) -> None:
             await deliver(store, int(conversation_id), prompt)
 
 
-async def _add_current_homesteaders(store, poll: dict) -> list[dict]:
-    properties = [
-        prop
-        for prop in await store.list_properties()
-        if prop.get("primary_conversation_id") is not None
-    ]
+async def _add_current_homesteaders(store, poll: dict, properties: list[dict] | None = None) -> list[dict]:
+    if properties is None:
+        properties = [
+            prop
+            for prop in await store.list_properties()
+            if prop.get("primary_conversation_id") is not None
+        ]
     added = await store.add_community_poll_recipients(poll["id"], properties)
     if poll.get("status") == "open":
         await _deliver_added(store, poll, added)
@@ -108,17 +131,53 @@ async def ensure_daily_poll(
         datetime.min.time(),
         tzinfo=local.tzinfo,
     ).astimezone(timezone.utc)
-    poll, created = await store.create_community_poll(
-        {
-            "poll_key": f"daily:{day.isoformat()}",
-            "poll_kind": "daily",
-            "question": DAILY_QUESTIONS[day.toordinal() % len(DAILY_QUESTIONS)],
-            "opens_at": current,
-            "closes_at": next_midnight,
-        }
-    )
-    added = await _add_current_homesteaders(store, poll)
-    return {"poll": poll, "created": created, "recipients_added": len(added)}
+    properties = [
+        prop
+        for prop in await store.list_properties()
+        if prop.get("primary_conversation_id") is not None and prop.get("zip_code")
+    ]
+    by_zip: dict[str, list[dict]] = {}
+    for prop in properties:
+        by_zip.setdefault(str(prop["zip_code"]), []).append(prop)
+    polls = []
+    created_any = False
+    added_total = 0
+    for zip_code, group in sorted(by_zip.items()):
+        lines = await store.homesteader_transcripts(
+            [int(prop["primary_conversation_id"]) for prop in group]
+        )
+        question = choose_daily_question(zip_code, day, group, lines)
+        poll, created = await store.create_community_poll(
+            {
+                "poll_key": f"daily:{zip_code}:{day.isoformat()}",
+                "poll_kind": "daily",
+                "question": question,
+                "opens_at": current,
+                "closes_at": next_midnight,
+            }
+        )
+        added = await _add_current_homesteaders(store, poll, group)
+        for recipient in added:
+            prop = next(row for row in group if row["id"] == recipient["property_id"])
+            await store.save_economy_note(
+                {
+                    "property_id": prop["id"],
+                    "zip_code": zip_code,
+                    "poll_id": poll["id"],
+                    "source": "daily",
+                    "question": poll["question"],
+                    "answer": None,
+                }
+            )
+        polls.append(poll)
+        created_any = created_any or created
+        added_total += len(added)
+    return {
+        "poll": polls[0] if polls else None,
+        "polls": polls,
+        "created": created_any,
+        "recipients_added": added_total,
+    }
 
 
 async def create_requested_poll(
@@ -315,6 +374,17 @@ async def handle_private_poll_message(store, message: dict) -> str | None:
     answer = await store.answer_community_poll(poll["id"], prop["id"], answer_content)
     if answer is None:
         return None
+    source = poll["poll_kind"] if poll["poll_kind"] in {"daily", "conversation"} else "community"
+    await store.save_economy_note(
+        {
+            "property_id": prop["id"],
+            "zip_code": prop.get("zip_code") or "",
+            "poll_id": poll["id"],
+            "source": source,
+            "question": poll["question"],
+            "answer": answer_content,
+        }
+    )
     from app.harness import speak
 
     remaining = await store.pending_community_polls(prop["id"])
@@ -322,16 +392,103 @@ async def handle_private_poll_message(store, message: dict) -> str | None:
         store,
         message,
         prop=prop,
-        note=(
-            "You recorded this homesteader's answer to the community question. "
-            "Acknowledge that in your own words. Do not invent anyone else's answer."
-        ),
+        note=poll_answer_note(answer_content),
         allow_community=False,
     )
     if remaining:
         reply = f"{reply}\n\nThe next question is: {remaining[0]['question']}"
     await deliver(store, conversation_id, reply)
     return reply
+
+
+async def offer_conversation_question(
+    store,
+    prop: dict | None,
+    settings: Settings | None = None,
+    *,
+    now: datetime | None = None,
+) -> str | None:
+    """Ask one more profile question when Jane is already in the thread.
+
+    The daily question stays one per ZIP per day. This is the extra question
+    for a live conversation, chosen from what other homesteaders in the ZIP
+    have already said, or from the question list when they have not overlapped.
+    """
+    if not prop or not prop.get("zip_code") or prop.get("primary_conversation_id") is None:
+        return None
+    if prop.get("sponsor_draft"):
+        return None
+    if await store.pending_community_polls(prop["id"]):
+        return None
+    settings = settings or get_settings()
+    current = _now(now)
+    day = _local_day(current, settings)
+    key = f"conversation:{prop['id']}:{day.isoformat()}"
+    if await store.get_community_poll_by_key(key):
+        return None
+    zip_code = str(prop["zip_code"])
+    group = [
+        row
+        for row in await store.list_properties()
+        if str(row.get("zip_code") or "") == zip_code and row.get("primary_conversation_id") is not None
+    ]
+    lines = await store.homesteader_transcripts(
+        [int(row["primary_conversation_id"]) for row in group]
+    )
+    notes = await store.economy_notes_for_property(prop["id"])
+    asked = {row["question"] for row in notes}
+    daily = await store.get_community_poll_by_key(f"daily:{zip_code}:{day.isoformat()}")
+    if daily:
+        asked.add(daily["question"])
+    question = choose_conversation_question(prop, day, group, lines, asked)
+    poll, _created = await store.create_community_poll(
+        {
+            "poll_key": key,
+            "poll_kind": "conversation",
+            "requester_property_id": prop["id"],
+            "question": question,
+            "opens_at": current,
+            "closes_at": current + timedelta(hours=settings.community_poll_hours),
+        }
+    )
+    await store.save_economy_note(
+        {
+            "property_id": prop["id"],
+            "zip_code": zip_code,
+            "poll_id": poll["id"],
+            "source": "conversation",
+            "question": question,
+            "answer": None,
+        }
+    )
+    return question
+
+
+async def remember_conversation_answer(store, prop: dict | None, content: str) -> None:
+    """Keep a profile answer without taking the thread away from Jane.
+
+    A question mark, or a request she already knows how to route, stays a
+    normal turn. A plain reply to the question she just asked is recorded.
+    """
+    if not prop:
+        return
+    text = " ".join(str(content or "").split())
+    if not text or "?" in text or wants_community(text) or _POLL_STATUS.search(text):
+        return
+    if re.match(r"^jane[\s,:-]", text, re.I) or re.search(
+        r"\b(verify my identity|identity verification|start kyc|what are my scores|north star|"
+        r"become a sponsor|register as a sponsor|sponsorship|payment|"
+        r"where can i (get|buy|find|source)|poll mode)\b",
+        text,
+        re.I,
+    ):
+        return
+    notes = await store.economy_notes_for_property(prop["id"])
+    waiting = [row for row in notes if row.get("source") == "conversation" and not row.get("answer")]
+    if not waiting:
+        return
+    note = waiting[-1]
+    await store.save_economy_note({**note, "answer": text})
 
 
 async def run_poll_cycle(store, settings: Settings | None = None) -> dict:
