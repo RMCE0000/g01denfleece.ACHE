@@ -2,7 +2,7 @@ from copy import deepcopy
 import asyncio
 from datetime import datetime, timedelta, timezone
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.graphs.matchmaking_graph import _overlap, discover_neighbor_synergies
 from app.polling import (
     DEFAULT_POLL_MODE_QUESTION,
@@ -11,6 +11,7 @@ from app.polling import (
     create_requested_poll,
     ensure_daily_poll,
     poll_answer_note,
+    run_poll_cycle,
 )
 from app.seed import (
     DEMO_CONVERSATION_ID,
@@ -67,6 +68,20 @@ async def test_daily_poll_is_once_per_local_day_and_adds_only_new_users(store):
     assert third["recipients_added"] == 1
     assert len(store.outbox) == 3
     assert store.outbox[-1]["conversation_id"] == 503
+
+
+async def test_daily_polling_is_paused_and_the_question_path_still_runs(store):
+    assert Settings.model_fields["daily_poll_enabled"].default is False
+    paused = get_settings().model_copy(update={"daily_poll_enabled": False})
+    result = await run_poll_cycle(store, paused)
+    assert result["daily"] is None
+    assert store.community_polls == []
+    assert store.outbox == []
+
+    resumed = paused.model_copy(update={"daily_poll_enabled": True})
+    sent = await run_poll_cycle(store, resumed)
+    assert sent["daily"]["created"] is True
+    assert store.outbox
 
 
 def test_a_yes_opens_one_planning_step_and_a_no_stops():

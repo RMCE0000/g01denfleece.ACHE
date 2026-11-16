@@ -49,7 +49,7 @@ class Settings(BaseSettings):
 
     seed_homesteaders: bool = False
     poll_mature_hours: int = 24
-    daily_poll_enabled: bool = True
+    daily_poll_enabled: bool = False
     poll_timezone: str = "America/Chicago"
     community_poll_hours: int = 24
     poll_scheduler_interval_seconds: int = 300

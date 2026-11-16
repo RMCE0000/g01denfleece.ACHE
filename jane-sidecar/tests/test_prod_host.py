@@ -25,6 +25,7 @@ def test_production_compose_publishes_only_the_website():
     assert "reverse_proxy jane:8000" in caddy
     base = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert "SMTP_USERNAME:" not in base
+    assert 'G01_DAILY_POLL_ENABLED: "0"' in base
     assert "SMTP_USERNAME: ${SMTP_USERNAME:-}" in compose
     assert 'FORCE_SSL: "true"' in compose
     assert "image: chatwoot/chatwoot@sha256:" in base
