@@ -953,6 +953,24 @@ class MemoryStore:
                 return deepcopy(sponsor)
         return None
 
+    async def set_sponsor_active_flag(self, sponsor_id: str, active: bool) -> dict | None:
+        """Turn a listing on or off without rewriting the rest of the row."""
+        for sponsor in self.sponsors:
+            if str(sponsor.get("id")) == str(sponsor_id):
+                sponsor["is_active_sponsor"] = bool(active)
+                return deepcopy(sponsor)
+        return None
+
+    async def deactivate_sponsors_for_property(self, property_id: str) -> list[dict]:
+        """Close every active listing on a homestead. A second call closes nothing."""
+        closed = []
+        for sponsor in self.sponsors:
+            if str(sponsor.get("property_id")) != str(property_id) or not sponsor.get("is_active_sponsor"):
+                continue
+            sponsor["is_active_sponsor"] = False
+            closed.append(deepcopy(sponsor))
+        return closed
+
     async def properties_with_goals(self) -> list[dict]:
         answers: dict[str, list[str]] = {}
         for answer in self.community_poll_answers:

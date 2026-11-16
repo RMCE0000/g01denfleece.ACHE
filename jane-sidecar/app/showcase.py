@@ -187,7 +187,8 @@ async def answer_with_effects(store, message: dict) -> str:
             "matches": await store.matches_for_property(prop["id"]) if prop else [],
         }
     )
-    draft = dict((prop or {}).get("sponsor_draft") or {})
+    raw_draft = (prop or {}).get("sponsor_draft")
+    draft = dict(raw_draft) if isinstance(raw_draft, dict) else {}
     incoming = dict(decision.get("sponsor_fields") or {})
     labeled_complete = bool(incoming) and not missing_fields({**draft, **incoming})
     lookup_found = None

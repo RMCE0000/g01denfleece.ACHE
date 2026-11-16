@@ -688,10 +688,9 @@ class OperatorBackend:
     ) -> dict:
         if not allow_write:
             raise WriteConfirmationRequired
-        updated = await self.store.update_sponsor(
-            sponsor_id,
-            {"is_active_sponsor": active},
-        )
+        updated = await self.store.set_sponsor_active_flag(sponsor_id, active)
+        if not updated:
+            raise G01Error("sponsor not found", 404)
         return await self._sponsor_view(updated)
 
     async def rank(self, token: str, service_tag: str) -> dict:
