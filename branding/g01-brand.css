@@ -260,6 +260,12 @@ body.dark .border-n-strong {
   border-color: #6b5738 !important;
 }
 
+img.g01-empty-mark {
+  background: transparent !important;
+  box-shadow: none !important;
+  object-fit: contain;
+}
+
 img[src*="g01-logo"],
 img[src*="g01-mark"] {
   max-height: 56px;
@@ -735,6 +741,43 @@ ol.g01-community-intro li + li {
   width: fit-content;
   justify-content: flex-start !important;
   padding-inline: 0.75rem !important;
+}
+
+/* Hide filter and sort on the conversation list, collapsed and expanded.
+   The layout switch stays. */
+.conversations-list-wrap .relative:has(.i-lucide-list-filter),
+.conversations-list-wrap .relative.flex:has(.i-lucide-arrow-up-down) {
+  display: none !important;
+}
+
+/* The conversation row keeps its selection square and the initials square.
+   The short name and the number beside the checkbox are hidden, along with
+   priority, status, channel, and assignee marks. */
+.conversations-list .conversation.grid [class*="i-woot-"],
+.conversations-list .conversation.grid [class*="i-lucide-"],
+.conversations-list .conversation.grid [class*="i-ph-"],
+.conversations-list .conversation.grid .w-px.h-3,
+.conversations-list .conversation.grid .w-20.flex-shrink-0,
+.conversations-list .conversation.grid .max-w-20,
+.conversations-list .conversation.grid .w-4:has([class*="i-woot-"]),
+.conversations-list .conversation.grid .w-4:has(.group\/avatar),
+.conversations-list .conversation.grid .size-4:has([class*="i-woot-"]),
+.conversations-list .conversation.grid .size-4:has([class*="i-lucide-"]) {
+  display: none !important;
+}
+
+/* The small circle beside the time is the inbox channel mark, a cloud for this inbox. */
+.inbox-card .rounded-full.bg-n-alpha-2.size-4 {
+  display: none !important;
+}
+
+/* Transcript dialog: the email box is the only choice. */
+form.g01-transcript-form div:has(> input[type="radio"]) {
+  display: none !important;
+}
+
+form.g01-transcript-form .w-\[50\%\] {
+  width: 100% !important;
 }
 
 .reply-box button:has(.i-ph-sparkle-fill),

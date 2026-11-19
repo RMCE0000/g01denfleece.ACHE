@@ -96,7 +96,7 @@ def test_brand_assets_are_gold_and_white():
     assert "function systemIsDark" in script
     assert '"(prefers-color-scheme: dark)"' in script
     assert 'selected === "dark"' in script
-    assert 'selected === "auto" || !selected' in script
+    assert 'localStorage.setItem("color_scheme", systemIsDark() ? "dark" : "light")' in script
     assert "function light(" not in script
     assert 'localStorage.setItem(key, "light")' not in script
     assert "--slate-12: 42 36 24;" in css
@@ -124,8 +124,32 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=80" in initializer
-    assert "v=79" not in initializer
+    assert "v=87" in initializer
+    assert "v=86" not in initializer
+    assert "function ensureSystemAppearanceHidden" in script
+    assert 'item.id === "auto"' in script
+    assert 'item.title === "System"' in script
+    assert "function lockExplicitAppearance" in script
+    assert "function paintEmptyMark" in script
+    assert 'src.indexOf("no-chat")' in script
+    assert 'alt.indexOf("No Chat")' in script
+    assert 'img.src = EMPTY_MARK' in script
+    assert "img.g01-empty-mark" in css
+    assert "background: transparent !important;" in css
+    assert "function ensureTranscriptEmailOnly" in script
+    assert 'document.getElementById("other_email_address")' in script
+    assert "choice.click()" in script
+    assert "form.g01-transcript-form div:has(> input[type=\"radio\"])" in css
+    assert "form.g01-transcript-form .w-\\[50\\%\\]" in css
+    assert ".conversations-list-wrap .relative:has(.i-lucide-list-filter)" in css
+    assert ".conversations-list-wrap .relative.flex:has(.i-lucide-arrow-up-down)" in css
+    assert ".conversations-list-wrap.basis-full .relative:has(.i-lucide-list-filter)" not in css
+    assert ".inbox-card .rounded-full.bg-n-alpha-2.size-4" in css
+    assert ".conversations-list .conversation.grid [class*=\"i-woot-\"]" in css
+    assert ".conversations-list .conversation.grid .max-w-20" in css
+    assert ".conversations-list .conversation.grid .w-20.flex-shrink-0" in css
+    assert ".conversations-list .conversation.grid .group\\/avatar" not in css
+    assert ".w-4:has(.group\\/avatar)" in css
     assert "Core Tenets" in script
     assert "Score Card" in script
     assert "10 Core Tenets" not in script
