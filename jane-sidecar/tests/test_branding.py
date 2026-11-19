@@ -96,7 +96,7 @@ def test_brand_assets_are_gold_and_white():
     assert "function systemIsDark" in script
     assert '"(prefers-color-scheme: dark)"' in script
     assert 'selected === "dark"' in script
-    assert 'selected === "auto" || !selected' in script
+    assert 'localStorage.setItem("color_scheme", systemIsDark() ? "dark" : "light")' in script
     assert "function light(" not in script
     assert 'localStorage.setItem(key, "light")' not in script
     assert "--slate-12: 42 36 24;" in css
@@ -124,8 +124,18 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=85" in initializer
-    assert "v=84" not in initializer
+    assert "v=86" in initializer
+    assert "v=85" not in initializer
+    assert "function ensureSystemAppearanceHidden" in script
+    assert 'item.id === "auto"' in script
+    assert 'item.title === "System"' in script
+    assert "function lockExplicitAppearance" in script
+    assert "function paintEmptyMark" in script
+    assert 'src.indexOf("no-chat")' in script
+    assert 'alt.indexOf("No Chat")' in script
+    assert 'img.src = EMPTY_MARK' in script
+    assert "img.g01-empty-mark" in css
+    assert "background: transparent !important;" in css
     assert "function ensureTranscriptEmailOnly" in script
     assert 'document.getElementById("other_email_address")' in script
     assert "choice.click()" in script

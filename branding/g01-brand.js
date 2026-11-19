@@ -1,6 +1,7 @@
 (function () {
   var LOGO = "/g01-logo.png";
   var MARK = "/g01-favicon.png?v=59";
+  var EMPTY_MARK = "/g01-mark.png?v=86";
   var TAB_TITLE = "g01denfleece";
 
   function savedColorScheme() {
@@ -15,9 +16,84 @@
     return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
   }
 
-  function applyColorScheme() {
+  function lockExplicitAppearance() {
     var selected = savedColorScheme();
-    var dark = selected === "dark" || ((selected === "auto" || !selected) && systemIsDark());
+    if (selected === "light" || selected === "dark") return;
+    try {
+      localStorage.setItem("color_scheme", systemIsDark() ? "dark" : "light");
+    } catch (error) {}
+  }
+
+  function withoutSystemAppearance(value) {
+    if (!value || !value.filter) return value;
+    return value.filter(function (item) {
+      if (!item) return false;
+      if (item.id === "auto" || item.id === "appearance-auto") return false;
+      if (item.parent === "appearance_settings" && item.title === "System") return false;
+      return true;
+    }).map(function (item) {
+      if (!item.children || !item.children.filter) return item;
+      if (item.children.indexOf("auto") === -1 && item.children.indexOf("appearance-auto") === -1) return item;
+      var copy = {};
+      for (var key in item) copy[key] = item[key];
+      copy.children = item.children.filter(function (id) {
+        return id !== "auto" && id !== "appearance-auto";
+      });
+      return copy;
+    });
+  }
+
+  function isSystemAppearanceNode(node) {
+    var action = node && node.action;
+    if (action && (action.id === "auto" || action.id === "appearance-auto" || action.title === "System")) return true;
+    if (!node || !node.shadowRoot) return false;
+    var title = node.shadowRoot.querySelector(".ninja-title");
+    return !!(title && title.textContent.replace(/\s+/g, " ").trim() === "System");
+  }
+
+  function hideSystemAppearanceNodes(root) {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll("*").forEach(function (node) {
+      if (isSystemAppearanceNode(node)) node.style.setProperty("display", "none", "important");
+      if (node.shadowRoot) hideSystemAppearanceNodes(node.shadowRoot);
+    });
+  }
+
+  function ensureSystemAppearanceHidden() {
+    lockExplicitAppearance();
+    var keys = document.querySelector("ninja-keys");
+    if (!keys) return;
+    if (keys.dataset.g01AppearanceFilter !== "1") {
+      var proto = Object.getPrototypeOf(keys);
+      var desc = proto && Object.getOwnPropertyDescriptor(proto, "data");
+      if (desc && desc.set && desc.get && desc.configurable) {
+        Object.defineProperty(keys, "data", {
+          configurable: true,
+          enumerable: desc.enumerable,
+          get: function () {
+            return desc.get.call(this);
+          },
+          set: function (value) {
+            desc.set.call(this, withoutSystemAppearance(value));
+          }
+        });
+        keys.dataset.g01AppearanceFilter = "1";
+        if (keys.data) keys.data = keys.data;
+      }
+    }
+    if (!keys.shadowRoot) return;
+    hideSystemAppearanceNodes(keys.shadowRoot);
+    if (keys.dataset.g01AppearanceWatch === "1") return;
+    keys.dataset.g01AppearanceWatch = "1";
+    new MutationObserver(function () {
+      hideSystemAppearanceNodes(keys.shadowRoot);
+    }).observe(keys.shadowRoot, { childList: true, subtree: true });
+  }
+
+  function applyColorScheme() {
+    lockExplicitAppearance();
+    var selected = savedColorScheme();
+    var dark = selected === "dark";
     if (onLoginPage()) dark = false;
     var root = document.documentElement;
     var scheme = dark ? "dark" : "light";
@@ -62,10 +138,25 @@
     return /brand-assets\/logo|logo_dark|logo_thumbnail|\/logo\.svg(?:$|\?)|\/g01-(?:mark|favicon)/i.test(src || "");
   }
 
+  function paintEmptyMark(img) {
+    if (!img || img.dataset.g01Empty === "1") return;
+    var src = img.getAttribute("src") || "";
+    var alt = img.getAttribute("alt") || "";
+    if (src.indexOf("no-chat") === -1 && alt.indexOf("No Chat") !== 0) return;
+    img.dataset.g01Empty = "1";
+    img.src = EMPTY_MARK;
+    img.alt = "g01";
+    img.classList.add("g01-empty-mark");
+  }
+
   function brandImages(scope) {
     var root = scope && scope.querySelectorAll ? scope : document;
-    var images = root.querySelectorAll ? root.querySelectorAll("img") : [];
+    var images = [];
+    if (root.matches && root.matches("img")) images.push(root);
+    if (root.querySelectorAll) root.querySelectorAll("img").forEach(function (img) { images.push(img); });
     images.forEach(function (img) {
+      paintEmptyMark(img);
+      if (img.dataset.g01Empty === "1") return;
       var src = img.getAttribute("src") || "";
       if (!isBrandLogo(src) || src.indexOf("g01-logo") !== -1) return;
       img.src = /thumbnail|g01-(?:mark|favicon)/i.test(src) ? MARK : LOGO;
@@ -679,6 +770,7 @@
     shapeThinking(document);
     installThinking();
     brandImages(document);
+    ensureSystemAppearanceHidden();
     classifyMessages(document);
     enhanceAudioPlayers(document);
     installFastAudioRecorder();
@@ -688,6 +780,7 @@
         record.addedNodes.forEach(function (node) {
           if (node.nodeType === 1) {
             brandImages(node);
+            ensureSystemAppearanceHidden();
             shapeThinking(node);
             scheduleMessageClassification();
             enhanceAudioPlayers(node);
@@ -1991,6 +2084,7 @@
     installMessageMenuGuard();
     ensureContactSectionsHidden();
     ensureTranscriptEmailOnly();
+    ensureSystemAppearanceHidden();
     var communityPasses = [
       ensureCommunityButton,
       ensureReadingPages,
@@ -2009,6 +2103,7 @@
       ensureCollapsedConversationMenuHidden,
       ensureContactSectionsHidden,
       ensureTranscriptEmailOnly,
+      ensureSystemAppearanceHidden,
     ];
     var communityPassQueued = false;
     function scheduleCommunityPasses() {

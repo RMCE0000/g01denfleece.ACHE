@@ -260,6 +260,12 @@ body.dark .border-n-strong {
   border-color: #6b5738 !important;
 }
 
+img.g01-empty-mark {
+  background: transparent !important;
+  box-shadow: none !important;
+  object-fit: contain;
+}
+
 img[src*="g01-logo"],
 img[src*="g01-mark"] {
   max-height: 56px;
