@@ -124,8 +124,8 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=86" in initializer
-    assert "v=85" not in initializer
+    assert "v=87" in initializer
+    assert "v=86" not in initializer
     assert "function ensureSystemAppearanceHidden" in script
     assert 'item.id === "auto"' in script
     assert 'item.title === "System"' in script
@@ -141,8 +141,9 @@ def test_brand_assets_are_gold_and_white():
     assert "choice.click()" in script
     assert "form.g01-transcript-form div:has(> input[type=\"radio\"])" in css
     assert "form.g01-transcript-form .w-\\[50\\%\\]" in css
-    assert ".conversations-list-wrap.basis-full .relative:has(.i-lucide-list-filter)" in css
-    assert ".conversations-list-wrap.basis-full .relative.flex:has(.i-lucide-arrow-up-down)" in css
+    assert ".conversations-list-wrap .relative:has(.i-lucide-list-filter)" in css
+    assert ".conversations-list-wrap .relative.flex:has(.i-lucide-arrow-up-down)" in css
+    assert ".conversations-list-wrap.basis-full .relative:has(.i-lucide-list-filter)" not in css
     assert ".inbox-card .rounded-full.bg-n-alpha-2.size-4" in css
     assert ".conversations-list .conversation.grid [class*=\"i-woot-\"]" in css
     assert ".conversations-list .conversation.grid .max-w-20" in css

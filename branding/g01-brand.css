@@ -743,9 +743,10 @@ ol.g01-community-intro li + li {
   padding-inline: 0.75rem !important;
 }
 
-/* Expanded list: hide filter and sort. The layout switch stays. */
-.conversations-list-wrap.basis-full .relative:has(.i-lucide-list-filter),
-.conversations-list-wrap.basis-full .relative.flex:has(.i-lucide-arrow-up-down) {
+/* Hide filter and sort on the conversation list, collapsed and expanded.
+   The layout switch stays. */
+.conversations-list-wrap .relative:has(.i-lucide-list-filter),
+.conversations-list-wrap .relative.flex:has(.i-lucide-arrow-up-down) {
   display: none !important;
 }
 
