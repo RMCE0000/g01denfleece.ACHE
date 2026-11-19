@@ -737,14 +737,15 @@ ol.g01-community-intro li + li {
   padding-inline: 0.75rem !important;
 }
 
-/* The conversation row keeps its selection square. Priority, status, channel,
-   hash, and avatar marks on that bar are hidden, along with the lines between
-   them. The name, conversation number, and message stay. */
+/* The conversation row keeps its selection square and the initials square.
+   The short name and the number beside the checkbox are hidden, along with
+   priority, status, channel, and assignee marks. */
 .conversations-list .conversation.grid [class*="i-woot-"],
 .conversations-list .conversation.grid [class*="i-lucide-"],
 .conversations-list .conversation.grid [class*="i-ph-"],
-.conversations-list .conversation.grid .group\/avatar,
 .conversations-list .conversation.grid .w-px.h-3,
+.conversations-list .conversation.grid .w-20.flex-shrink-0,
+.conversations-list .conversation.grid .max-w-20,
 .conversations-list .conversation.grid .w-4:has([class*="i-woot-"]),
 .conversations-list .conversation.grid .w-4:has(.group\/avatar),
 .conversations-list .conversation.grid .size-4:has([class*="i-woot-"]),
