@@ -764,6 +764,15 @@ ol.g01-community-intro li + li {
   display: none !important;
 }
 
+/* Transcript dialog: the email box is the only choice. */
+form.g01-transcript-form div:has(> input[type="radio"]) {
+  display: none !important;
+}
+
+form.g01-transcript-form .w-\[50\%\] {
+  width: 100% !important;
+}
+
 .reply-box button:has(.i-ph-sparkle-fill),
 button:has(.i-woot-captain),
 .reply-box .copilot-editor-menu {

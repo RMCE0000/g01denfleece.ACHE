@@ -124,8 +124,13 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=84" in initializer
-    assert "v=83" not in initializer
+    assert "v=85" in initializer
+    assert "v=84" not in initializer
+    assert "function ensureTranscriptEmailOnly" in script
+    assert 'document.getElementById("other_email_address")' in script
+    assert "choice.click()" in script
+    assert "form.g01-transcript-form div:has(> input[type=\"radio\"])" in css
+    assert "form.g01-transcript-form .w-\\[50\\%\\]" in css
     assert ".conversations-list-wrap.basis-full .relative:has(.i-lucide-list-filter)" in css
     assert ".conversations-list-wrap.basis-full .relative.flex:has(.i-lucide-arrow-up-down)" in css
     assert ".inbox-card .rounded-full.bg-n-alpha-2.size-4" in css

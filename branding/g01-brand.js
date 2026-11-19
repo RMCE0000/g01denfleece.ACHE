@@ -1961,6 +1961,19 @@
     list.appendChild(item);
   }
 
+  function ensureTranscriptEmailOnly() {
+    var choice = document.getElementById("other_email_address");
+    if (!choice || choice.type !== "radio") return;
+    var form = choice.closest("form");
+    if (!form) return;
+    form.classList.add("g01-transcript-form");
+    if (!choice.checked) choice.click();
+    var field = form.querySelector('input[type="text"]');
+    if (!field || form.dataset.g01TranscriptFocus === "1") return;
+    form.dataset.g01TranscriptFocus = "1";
+    field.focus();
+  }
+
   function watchCommunity() {
     ensureCommunityButton();
     ensureReadingPages();
@@ -1977,6 +1990,7 @@
     ensureHelpCenterGuide();
     installMessageMenuGuard();
     ensureContactSectionsHidden();
+    ensureTranscriptEmailOnly();
     var communityPasses = [
       ensureCommunityButton,
       ensureReadingPages,
@@ -1994,6 +2008,7 @@
       ensureMessageMenuTrimmed,
       ensureCollapsedConversationMenuHidden,
       ensureContactSectionsHidden,
+      ensureTranscriptEmailOnly,
     ];
     var communityPassQueued = false;
     function scheduleCommunityPasses() {
