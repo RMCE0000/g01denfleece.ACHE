@@ -124,8 +124,10 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=83" in initializer
-    assert "v=82" not in initializer
+    assert "v=84" in initializer
+    assert "v=83" not in initializer
+    assert ".conversations-list-wrap.basis-full .relative:has(.i-lucide-list-filter)" in css
+    assert ".conversations-list-wrap.basis-full .relative.flex:has(.i-lucide-arrow-up-down)" in css
     assert ".inbox-card .rounded-full.bg-n-alpha-2.size-4" in css
     assert ".conversations-list .conversation.grid [class*=\"i-woot-\"]" in css
     assert ".conversations-list .conversation.grid .max-w-20" in css

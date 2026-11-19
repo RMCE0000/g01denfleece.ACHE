@@ -737,6 +737,12 @@ ol.g01-community-intro li + li {
   padding-inline: 0.75rem !important;
 }
 
+/* Expanded list: hide filter and sort. The layout switch stays. */
+.conversations-list-wrap.basis-full .relative:has(.i-lucide-list-filter),
+.conversations-list-wrap.basis-full .relative.flex:has(.i-lucide-arrow-up-down) {
+  display: none !important;
+}
+
 /* The conversation row keeps its selection square and the initials square.
    The short name and the number beside the checkbox are hidden, along with
    priority, status, channel, and assignee marks. */
