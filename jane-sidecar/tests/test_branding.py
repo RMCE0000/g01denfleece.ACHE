@@ -124,8 +124,10 @@ def test_brand_assets_are_gold_and_white():
     assert "g01-hidden-notification-preferences" in script
     assert ".g01-hidden-notification-form" in css
     assert ".g01-silent-row" in css
-    assert "v=80" in initializer
-    assert "v=79" not in initializer
+    assert "v=81" in initializer
+    assert "v=80" not in initializer
+    assert ".conversations-list .conversation.grid [class*=\"i-woot-\"]" in css
+    assert ".conversations-list .conversation.grid .group\\/avatar" in css
     assert "Core Tenets" in script
     assert "Score Card" in script
     assert "10 Core Tenets" not in script
