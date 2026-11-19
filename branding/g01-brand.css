@@ -753,6 +753,11 @@ ol.g01-community-intro li + li {
   display: none !important;
 }
 
+/* The small circle beside the time is the inbox channel mark, a cloud for this inbox. */
+.inbox-card .rounded-full.bg-n-alpha-2.size-4 {
+  display: none !important;
+}
+
 .reply-box button:has(.i-ph-sparkle-fill),
 button:has(.i-woot-captain),
 .reply-box .copilot-editor-menu {
