@@ -122,6 +122,9 @@ async def scan_and_queue(state: dict) -> dict:
 
     by_locality: dict[str, list[dict]] = {}
     for prop in properties:
+        # Accounts outside an active service area are not neighbors of each other.
+        if not prop.get("locality_id"):
+            continue
         by_locality.setdefault(prop["locality_id"], []).append(prop)
 
     for locality_id, group in by_locality.items():

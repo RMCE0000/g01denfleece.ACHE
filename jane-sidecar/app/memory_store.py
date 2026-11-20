@@ -51,7 +51,9 @@ class MemoryStore:
     async def list_localities(self) -> list[dict]:
         return deepcopy(self.localities)
 
-    async def get_locality(self, locality_id: str) -> dict | None:
+    async def get_locality(self, locality_id: str | None) -> dict | None:
+        if not locality_id:
+            return None
         for locality in self.localities:
             if locality["id"] == locality_id:
                 return deepcopy(locality)
@@ -78,11 +80,11 @@ class MemoryStore:
             "email": fields.get("email"),
             "display_name": fields.get("display_name"),
             "username": fields["username"],
-            "locality_id": fields["locality_id"],
+            "locality_id": fields.get("locality_id"),
             "street_address": fields.get("street_address"),
             "zip_code": fields["zip_code"],
-            "lat": float(fields["lat"]),
-            "lng": float(fields["lng"]),
+            "lat": None if fields.get("lat") is None else float(fields["lat"]),
+            "lng": None if fields.get("lng") is None else float(fields["lng"]),
             "outside_aid_hours_per_week": hours,
             "northstar_automated_pct": automated_pct_from_hours(hours),
             "northstar_aesthetic_pct": float(fields.get("northstar_aesthetic_pct", 50)),

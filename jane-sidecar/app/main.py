@@ -271,7 +271,7 @@ def _validation_detail(exc: RequestValidationError) -> str:
         "name": "name is required",
         "email": "email is not usable",
         "username": "username must start with a letter and use 3–32 lowercase letters, numbers, dots, dashes, or underscores",
-        "zip_code": "ZIP code is not one of the seeded localities",
+        "zip_code": "Enter a 5-digit ZIP code.",
     }
     for error in exc.errors():
         loc = [part for part in error.get("loc", ()) if part != "body"]

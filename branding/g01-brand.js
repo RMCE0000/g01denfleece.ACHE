@@ -809,7 +809,7 @@
     title.style.marginTop = "0";
     title.style.fontSize = "1.5rem";
     var lead = document.createElement("p");
-    lead.textContent = "Use a ZIP that is already on the record, such as 70601.";
+    lead.textContent = "Any ZIP code can create an account.";
     lead.style.margin = "0.5rem 0 1rem";
 
     var form = document.createElement("form");

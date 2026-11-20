@@ -29,11 +29,11 @@ CREATE TABLE IF NOT EXISTS g01_properties (
     chatwoot_contact_id BIGINT UNIQUE NOT NULL,
     primary_conversation_id BIGINT UNIQUE,
     username VARCHAR(32),
-    locality_id UUID REFERENCES g01_localities(id) NOT NULL,
+    locality_id UUID REFERENCES g01_localities(id),
     street_address TEXT,
     zip_code VARCHAR(20) NOT NULL,
-    lat DOUBLE PRECISION NOT NULL,
-    lng DOUBLE PRECISION NOT NULL,
+    lat DOUBLE PRECISION,
+    lng DOUBLE PRECISION,
 
     -- 1. Automated: FLOAT 0.0–100.0, objective, derived from labor hours.
     northstar_automated_pct NUMERIC(5,2) DEFAULT 0.00 CHECK (northstar_automated_pct >= 0 AND northstar_automated_pct <= 100),
@@ -101,6 +101,13 @@ SET username = CASE
 END
 FROM counted
 WHERE property.id = counted.id;
+
+-- Signup accepts every ZIP. Locality rows and their ZIP lists stay the
+-- active service areas, so a property outside those lists has no locality
+-- and no map pin until it belongs to one.
+ALTER TABLE g01_properties ALTER COLUMN locality_id DROP NOT NULL;
+ALTER TABLE g01_properties ALTER COLUMN lat DROP NOT NULL;
+ALTER TABLE g01_properties ALTER COLUMN lng DROP NOT NULL;
 
 ALTER TABLE g01_properties ALTER COLUMN username SET NOT NULL;
 ALTER TABLE g01_properties DROP CONSTRAINT IF EXISTS g01_properties_username_format;

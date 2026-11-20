@@ -61,7 +61,7 @@ HELP = """Commands
   rank <user> <service-tag>         Preview local sponsor ranking
   jobs <polls|matches|referrals|connections|all>
                                     Run one disabled background workflow now
-  localities                        Signup regions and ZIP allowlists
+  localities                        Active service areas and their ZIP codes
   capabilities                      What g01 features actually do
   help                              Show this list
   quit                              Exit
