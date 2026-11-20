@@ -52,7 +52,7 @@ def _email(value: str) -> str:
 def _zip(value: str) -> str:
     digits = re.sub(r"\D", "", value or "")
     if len(digits) < 5:
-        raise G01Error("ZIP code is not one of the seeded localities", 422)
+        raise G01Error("Enter a 5-digit ZIP code.", 422)
     return digits[:5]
 
 
@@ -265,14 +265,17 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
     username = _username(fields.get("username"), email)
     password = _password(fields.get("password") or "")
     zip_code = _zip(fields.get("zip_code") or "")
+    # Any ZIP can sign up. A locality match only places the account in an
+    # active service area; it is not an eligibility check.
     locality = await store.locality_for_zip(zip_code)
-    if locality is None:
-        raise G01Error(f"ZIP {zip_code} is outside every locality on the record", 422)
-    try:
-        lat = float(locality["center_lat"])
-        lng = float(locality["center_lng"])
-    except (KeyError, TypeError, ValueError):
-        raise G01Error("That locality is missing a map point, so the account was not created.", 422) from None
+    lat = None
+    lng = None
+    if locality is not None:
+        try:
+            lat = float(locality["center_lat"])
+            lng = float(locality["center_lng"])
+        except (KeyError, TypeError, ValueError):
+            raise G01Error("That locality is missing a map point, so the account was not created.", 422) from None
 
     existing = await store.get_property_by_email(email)
     if existing:
@@ -307,10 +310,16 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
     )
     if not isinstance(opened, dict) or any(opened.get(key) is None for key in ("inbox_id", "contact_id", "conversation_id")):
         raise G01Error("g01 did not open the homestead thread.", 502)
-    intro = (
-        f"I'm Jane. This is your open homestead thread for {locality['name']} (ZIP {zip_code}). "
-        "Tell me what the place needs. The thread stays open."
-    )
+    if locality is None:
+        intro = (
+            f"I'm Jane. This is your open homestead thread (ZIP {zip_code}). "
+            "Tell me what the place needs. The thread stays open."
+        )
+    else:
+        intro = (
+            f"I'm Jane. This is your open homestead thread for {locality['name']} (ZIP {zip_code}). "
+            "Tell me what the place needs. The thread stays open."
+        )
     await _say(store, client, opened["conversation_id"], intro)
     prop = await store.create_property(
         {
@@ -319,7 +328,7 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
             "chatwoot_contact_id": opened["contact_id"],
             "primary_conversation_id": opened["conversation_id"],
             "chatwoot_inbox_id": opened["inbox_id"],
-            "locality_id": locality["id"],
+            "locality_id": locality["id"] if locality else None,
             "zip_code": zip_code,
             "lat": lat,
             "lng": lng,
@@ -328,7 +337,7 @@ async def provision_homesteader(store, fields: dict, *, reject_existing_user: bo
             "username": username,
         }
     )
-    await _sync_homesteader_metadata(client, prop, locality)
+    await _sync_homesteader_metadata(client, prop, locality or {})
     result = _public_homesteader(prop, existing=False)
     result["sso_url"] = await client.sso_link(user_id)
     return result

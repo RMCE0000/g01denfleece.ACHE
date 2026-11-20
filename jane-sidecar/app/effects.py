@@ -198,19 +198,22 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
     if decision.get("cancel_sponsor"):
         prop = await store.save_sponsor_draft(prop["id"], None)
     elif decision.get("sponsor_active"):
-        if decision.get("sponsor_from_thread"):
-            draft = dict(decision.get("sponsor_fields") or {"open": True})
+        if not prop.get("locality_id"):
+            decision["reply"] = "Sponsorship stays inside an active service area. This ZIP is not in one yet."
         else:
-            draft = dict(prop.get("sponsor_draft") or {})
-            draft.update(decision.get("sponsor_fields") or {})
-        if "promo_code" in draft and str(draft["promo_code"]).casefold() == "none":
-            draft.pop("promo_code", None)
-        sponsor_locality = locality or await store.get_locality(prop["locality_id"])
-        if missing_fields(draft):
-            prop = await store.save_sponsor_draft(prop["id"], draft)
-        else:
-            notes.append(await file_sponsor_application(store, prop, sponsor_locality, draft))
-            prop = await store.get_property(prop["id"])
+            if decision.get("sponsor_from_thread"):
+                draft = dict(decision.get("sponsor_fields") or {"open": True})
+            else:
+                draft = dict(prop.get("sponsor_draft") or {})
+                draft.update(decision.get("sponsor_fields") or {})
+            if "promo_code" in draft and str(draft["promo_code"]).casefold() == "none":
+                draft.pop("promo_code", None)
+            sponsor_locality = locality or await store.get_locality(prop["locality_id"])
+            if missing_fields(draft):
+                prop = await store.save_sponsor_draft(prop["id"], draft)
+            else:
+                notes.append(await file_sponsor_application(store, prop, sponsor_locality, draft))
+                prop = await store.get_property(prop["id"])
 
     if decision.get("resend_payment_email"):
         notes.append(await resend_sponsor_payment(store, prop, decision.get("payment_email")))
@@ -219,9 +222,12 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
         notes.append(await sponsorship_status(store, prop))
 
     if decision.get("start_poll"):
-        question = decision.get("poll_question") or "Would you buy any of this weekly, and at what price per unit?"
-        topic = decision.get("poll_topic") or "local_demand"
-        notes.append(await open_demand_poll(store, prop, topic, question))
+        if not prop.get("locality_id"):
+            decision["reply"] = "Neighbor questions stay inside an active service area. This ZIP is not in one yet."
+        else:
+            question = decision.get("poll_question") or "Would you buy any of this weekly, and at what price per unit?"
+            topic = decision.get("poll_topic") or "local_demand"
+            notes.append(await open_demand_poll(store, prop, topic, question))
 
     if decision.get("vote_poll_id"):
         await store.add_vote(
@@ -237,10 +243,13 @@ async def commit_decision(store, message: dict, decision: dict, prop: dict | Non
         notes.append(await refresh_match_gate(store, decision["match_id"], speaker_property_id=prop["id"]))
 
     if decision.get("service_tag"):
-        rows = await store.rank_sponsors(prop["id"], decision["service_tag"], limit=5)
-        source = str(message.get("event_id") or message.get("message_id") or prop["id"])
-        await store.record_referrals(prop["id"], [row["sponsor_id"] for row in rows], decision["service_tag"], source)
-        notes.append(format_ladder(decision["service_tag"].replace("_", " "), rows))
+        if not prop.get("locality_id"):
+            notes.append("Sponsor recommendations stay inside an active service area. This ZIP is not in one yet.")
+        else:
+            rows = await store.rank_sponsors(prop["id"], decision["service_tag"], limit=5)
+            source = str(message.get("event_id") or message.get("message_id") or prop["id"])
+            await store.record_referrals(prop["id"], [row["sponsor_id"] for row in rows], decision["service_tag"], source)
+            notes.append(format_ladder(decision["service_tag"].replace("_", " "), rows))
 
     allow_walmart = _rogers(locality)
     prose = sanitize_reply(decision.get("reply") or "", allow_walmart_name=allow_walmart)

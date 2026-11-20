@@ -196,7 +196,7 @@ Identity sessions are created on the server.
 Before inviting users:
 
 1. Open `https://g01denfleece.com` and confirm the branded login page.
-2. Use **Create an account** with a permitted ZIP such as `70601`.
+2. Use **Create an account** with any ZIP code.
 3. Confirm the user receives a private Jane thread and Gemini answers.
 4. Use **Forgot password** and confirm delivery through the production SMTP
    provider.

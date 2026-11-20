@@ -125,7 +125,9 @@ class PostgresStore:
             """
         )
 
-    async def get_locality(self, locality_id: str) -> dict | None:
+    async def get_locality(self, locality_id: str | None) -> dict | None:
+        if not locality_id:
+            return None
         return await self._one(
             """
             SELECT id, name, primary_city, state_code, allowed_zip_codes, center_lat, center_lng, max_radius_miles
@@ -171,11 +173,11 @@ class PostgresStore:
                     "email": fields.get("email"),
                     "display_name": fields.get("display_name"),
                     "username": fields["username"],
-                    "locality_id": fields["locality_id"],
+                    "locality_id": fields.get("locality_id"),
                     "street": fields.get("street_address"),
                     "zip": fields["zip_code"],
-                    "lat": float(fields["lat"]),
-                    "lng": float(fields["lng"]),
+                    "lat": None if fields.get("lat") is None else float(fields["lat"]),
+                    "lng": None if fields.get("lng") is None else float(fields["lng"]),
                     "ledger": ledger,
                 },
             )

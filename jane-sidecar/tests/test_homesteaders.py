@@ -154,7 +154,12 @@ def test_admin_opens_sign_in_and_a_private_conversation(store, monkeypatch):
             headers={"x-g01-admin-token": "secret-admin"},
             json=_person("Cara North", "cara.north@example.com", "10001"),
         )
-        assert outside.status_code == 422
+        assert outside.status_code == 200
+        cara = next(row for row in store.properties if row.get("email") == "cara.north@example.com")
+        assert cara["zip_code"] == "10001"
+        assert cara["locality_id"] is None
+        assert cara["lat"] is None
+        assert cara["lng"] is None
 
         peer = client.post(
             "/api/admin/conversations",
@@ -290,6 +295,10 @@ def test_login_page_signup_opens_a_sign_in(store, monkeypatch):
         assert created.status_code == 200
         body = created.json()
         assert body["email"] == "cara.north@example.com"
+        cara_property = next(row for row in store.properties if row.get("email") == "cara.north@example.com")
+        lake = next(row for row in store.localities if row["primary_city"] == "Lake Charles")
+        assert cara_property["locality_id"] == lake["id"]
+        assert cara_property["zip_code"] == "70607"
         assert body["username"] == "cara.north"
         assert body["sso_url"].startswith("http://localhost:3000/auth/sso?user=")
         assert "api_access_token" not in body
@@ -323,7 +332,26 @@ def test_login_page_signup_opens_a_sign_in(store, monkeypatch):
         assert not any(call[0] == "inbox" and "Drew Existing" in call[1] for call in FakeChatwoot.calls)
 
         outside = client.post("/api/signup", json=_person("Cara North", "cara.other@example.com", "10001"))
-        assert outside.status_code == 422
+        assert outside.status_code == 200
+        away = next(row for row in store.properties if row.get("email") == "cara.other@example.com")
+        assert away["zip_code"] == "10001"
+        assert away["locality_id"] is None
+        assert away["lat"] is None
+        assert away["lng"] is None
+        assert any(
+            call[0] == "message" and "ZIP 10001" in call[2] and "Lake Charles" not in call[2]
+            for call in FakeChatwoot.calls
+        )
+
+        rogers = client.post("/api/signup", json=_person("Nell Rogers", "nell.rogers@example.com", "72756"))
+        assert rogers.status_code == 200
+        rogers_property = next(row for row in store.properties if row.get("email") == "nell.rogers@example.com")
+        rogers_locality = next(row for row in store.localities if row["primary_city"] == "Rogers")
+        assert rogers_property["locality_id"] == rogers_locality["id"]
+
+        short = client.post("/api/signup", json=_person("Short Zip", "short.zip@example.com", "1234"))
+        assert short.status_code == 422
+        assert short.json()["detail"] == "Enter a 5-digit ZIP code."
 
         blank = client.post(
             "/api/signup",
